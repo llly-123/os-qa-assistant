@@ -56,9 +56,11 @@
             <div v-else class="user-content">{{ msg.content }}</div>
           </div>
           
-          <div v-if="msg.citation" class="citation-card">
-            <el-icon><Document /></el-icon>
-            <span>参考资料：{{ msg.citation }}</span>
+          <div v-if="msg.citation" :class="['citation-card', msg.sourceType === 'web' ? 'citation-web' : 'citation-book']">
+            <el-icon v-if="msg.sourceType === 'web'"><Link /></el-icon>
+            <el-icon v-else><Document /></el-icon>
+            <span v-if="msg.sourceType === 'web'">🌐 网络来源，仅供参考：{{ msg.citation }}</span>
+            <span v-else>📚 参考资料：{{ msg.citation }}</span>
           </div>
         </div>
       </div>
@@ -91,7 +93,18 @@
         :disabled="isTyping"
       />
       <div class="input-actions">
-        <span class="tip">Ctrl + Enter 发送</span>
+        <div class="left-actions">
+          <el-switch
+            v-model="webSearchEnabled"
+            active-text="联网搜索"
+            inactive-text=""
+            style="--el-switch-on-color: #409eff"
+          />
+          <el-tooltip content="开启后，当教材知识库未覆盖时将联网搜索补充回答" placement="top">
+            <el-icon class="help-icon"><QuestionFilled /></el-icon>
+          </el-tooltip>
+          <span class="tip">Ctrl + Enter 发送</span>
+        </div>
         <el-button 
           type="primary" 
           :loading="isTyping"
@@ -122,6 +135,7 @@ const messagesContainer = ref(null)
 const inputMessage = ref('')
 const isTyping = ref(false)
 const streamingContent = ref('')
+const webSearchEnabled = ref(false)
 
 const messages = computed(() => chatStore.messages)
 const currentSessionId = computed(() => chatStore.currentSessionId)
@@ -206,12 +220,13 @@ async function sendMessage() {
     role: 'assistant',
     content: '',
     createTime: new Date().toISOString(),
-    citation: null
+    citation: null,
+    sourceType: null
   }
   chatStore.addMessage(assistantMessage)
   
   try {
-    const response = await sendMessageStream(currentSessionId.value, content)
+    const response = await sendMessageStream(currentSessionId.value, content, webSearchEnabled.value)
     
     if (!response.ok) {
       throw new Error('请求失败')
@@ -239,6 +254,7 @@ async function sendMessage() {
             } else if (data.type === 'citation') {
               const lastMsg = chatStore.messages[chatStore.messages.length - 1]
               lastMsg.citation = data.citation
+              lastMsg.sourceType = data.sourceType || 'book'
             } else if (data.type === 'error') {
               ElMessage.error(data.message || '回答出错')
             }
@@ -434,13 +450,23 @@ async function sendMessage() {
 .citation-card {
   margin-top: 12px;
   padding: 8px 12px;
-  background: #fdf6ec;
   border-radius: 4px;
   font-size: 13px;
-  color: #e6a23c;
   display: flex;
   align-items: center;
   gap: 8px;
+  
+  &.citation-book {
+    background: #fdf6ec;
+    color: #e6a23c;
+    border-left: 3px solid #e6a23c;
+  }
+  
+  &.citation-web {
+    background: #ecf5ff;
+    color: #409eff;
+    border-left: 3px solid #409eff;
+  }
 }
 
 .typing-indicator {
@@ -469,9 +495,26 @@ async function sendMessage() {
     align-items: center;
     margin-top: 12px;
     
-    .tip {
-      font-size: 12px;
-      color: #909399;
+    .left-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      
+      .help-icon {
+        color: #909399;
+        cursor: pointer;
+        font-size: 16px;
+        
+        &:hover {
+          color: #409eff;
+        }
+      }
+      
+      .tip {
+        font-size: 12px;
+        color: #909399;
+        margin-left: 4px;
+      }
     }
   }
 }
