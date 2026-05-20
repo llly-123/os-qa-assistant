@@ -3,7 +3,9 @@
     <el-container class="layout-container">
       <el-aside width="260px" class="sidebar">
         <div class="sidebar-header">
-          <el-icon :size="28" color="#409eff"><Reading /></el-icon>
+          <div class="logo-icon">
+            <el-icon :size="22" color="#fff"><Reading /></el-icon>
+          </div>
           <span class="title">OS AI助手</span>
         </div>
         
@@ -162,10 +164,11 @@ async function handleLogout() {
 }
 
 .sidebar {
-  background: #1e1e2e;
+  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #313244;
+  border-right: none;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
 }
 
 .sidebar-header {
@@ -173,12 +176,24 @@ async function handleLogout() {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid #313244;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  }
   
   .title {
     font-size: 18px;
-    font-weight: 600;
-    color: #cdd6f4;
+    font-weight: 700;
+    color: #e8e8f0;
+    letter-spacing: 0.5px;
   }
 }
 
@@ -190,6 +205,19 @@ async function handleLogout() {
 
 .new-chat-btn {
   margin-bottom: 16px;
+  
+  .el-button {
+    border-radius: 10px;
+    height: 40px;
+    font-size: 14px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    
+    &:hover {
+      opacity: 0.9;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+  }
 }
 
 .session-list {
@@ -198,20 +226,21 @@ async function handleLogout() {
     align-items: center;
     gap: 10px;
     padding: 12px;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
-    color: #a6adc8;
-    transition: all 0.2s;
+    color: #9ca3c0;
+    transition: all 0.25s ease;
     margin-bottom: 4px;
     
     &:hover {
-      background: #313244;
-      color: #cdd6f4;
+      background: rgba(255, 255, 255, 0.08);
+      color: #e8e8f0;
     }
     
     &.active {
-      background: #45475a;
-      color: #cdd6f4;
+      background: rgba(102, 126, 234, 0.2);
+      color: #e8e8f0;
+      border-left: 3px solid #667eea;
     }
     
     .session-title {
@@ -235,13 +264,17 @@ async function handleLogout() {
 
 .sidebar-footer {
   padding: 16px;
-  border-top: 1px solid #313244;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   
   .user-info {
     display: flex;
     align-items: center;
     gap: 12px;
     margin-bottom: 12px;
+    
+    .el-avatar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
     
     .user-detail {
       display: flex;
@@ -250,7 +283,8 @@ async function handleLogout() {
       
       .username {
         font-size: 14px;
-        color: #cdd6f4;
+        color: #e8e8f0;
+        font-weight: 500;
       }
     }
   }
@@ -262,17 +296,19 @@ async function handleLogout() {
     
     .el-button {
       justify-content: flex-start;
-      color: #a6adc8;
+      color: #9ca3c0;
+      border-radius: 8px;
       
       &:hover {
-        color: #cdd6f4;
+        color: #e8e8f0;
+        background: rgba(255, 255, 255, 0.05);
       }
     }
   }
 }
 
 .main-content {
-  background: #f5f7fa;
+  background: #f0f2f5;
   padding: 0;
 }
 </style>
