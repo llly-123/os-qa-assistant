@@ -36,8 +36,8 @@
       stripe
       style="width: 100%"
     >
-      <el-table-column prop="studentId" label="学号" width="150" />
-      <el-table-column prop="name" label="姓名" width="120" />
+      <el-table-column prop="username" label="学号" width="150" />
+      <el-table-column prop="realName" label="姓名" width="120" />
       <el-table-column prop="email" label="邮箱" />
       <el-table-column prop="createTime" label="创建时间" width="180">
         <template #default="{ row }">
@@ -46,8 +46,8 @@
       </el-table-column>
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'danger'">
-            {{ row.status === 'ACTIVE' ? '正常' : '冻结' }}
+          <el-tag :type="row.status === 1 ? 'success' : 'danger'">
+            {{ row.status === 1 ? '正常' : '冻结' }}
           </el-tag>
         </template>
       </el-table-column>
@@ -58,10 +58,10 @@
           </el-button>
           <el-button 
             size="small" 
-            :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
+            :type="row.status === 1 ? 'warning' : 'success'"
             @click="handleToggleStatus(row)"
           >
-            {{ row.status === 'ACTIVE' ? '冻结' : '解冻' }}
+            {{ row.status === 1 ? '冻结' : '解冻' }}
           </el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">
             删除
@@ -181,8 +181,9 @@ async function fetchStudents() {
       size: pageSize.value,
       keyword: searchKeyword.value
     })
-    students.value = res.data || []
-    total.value = res.total || 0
+    const data = res.data || {}
+    students.value = data.records || []
+    total.value = data.total || 0
   } finally {
     loading.value = false
   }
@@ -239,12 +240,13 @@ async function handleAdd() {
 async function handleResetPassword(row) {
   try {
     await ElMessageBox.confirm(
-      `确定要重置学生 ${row.name} 的密码吗？密码将被重置为学号后6位`,
+      `确定要重置学生 ${row.realName || row.username} 的密码吗？密码将被重置为学号后6位`,
       '提示',
       { type: 'warning' }
     )
     const res = await resetStudentPassword(row.id)
-    ElMessage.success(`密码已重置为: ${res.newPassword}`)
+    const data = res.data || res
+    ElMessage.success(`密码已重置为: ${data.newPassword}`)
   } catch (error) {
     if (error !== 'cancel') {
       console.error('重置失败:', error)
@@ -253,12 +255,12 @@ async function handleResetPassword(row) {
 }
 
 async function handleToggleStatus(row) {
-  const newStatus = row.status === 'ACTIVE' ? 'FROZEN' : 'ACTIVE'
-  const action = newStatus === 'FROZEN' ? '冻结' : '解冻'
+  const newStatus = row.status === 1 ? 0 : 1
+  const action = newStatus === 0 ? '冻结' : '解冻'
   
   try {
     await ElMessageBox.confirm(
-      `确定要${action}学生 ${row.name} 的账号吗？`,
+      `确定要${action}学生 ${row.realName || row.username} 的账号吗？`,
       '提示',
       { type: 'warning' }
     )
@@ -275,7 +277,7 @@ async function handleToggleStatus(row) {
 async function handleDelete(row) {
   try {
     await ElMessageBox.confirm(
-      `确定要删除学生 ${row.name} 吗？此操作不可恢复`,
+      `确定要删除学生 ${row.realName || row.username} 吗？此操作不可恢复`,
       '警告',
       { type: 'error' }
     )

@@ -69,7 +69,7 @@ export function sendMessage(sessionId, content, onMessage, onError, onComplete) 
   })
 }
 
-export function sendMessageStream(sessionId, content, webSearch = false) {
+export function sendMessageStream(sessionId, content) {
   const token = localStorage.getItem('token')
   return fetch(`/api/chat/sessions/${sessionId}/stream`, {
     method: 'POST',
@@ -77,6 +77,6 @@ export function sendMessageStream(sessionId, content, webSearch = false) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ content, webSearch })
+    body: JSON.stringify({ content })
   })
 }

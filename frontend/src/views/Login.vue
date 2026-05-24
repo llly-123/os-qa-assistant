@@ -1,16 +1,9 @@
 <template>
   <div class="login-container">
-    <div class="bg-decoration">
-      <div class="circle circle-1"></div>
-      <div class="circle circle-2"></div>
-      <div class="circle circle-3"></div>
-    </div>
     <div class="login-card">
       <div class="login-header">
         <div class="logo">
-          <div class="logo-icon">
-            <el-icon :size="36" color="#fff"><Reading /></el-icon>
-          </div>
+          <el-icon :size="48" color="#409eff"><Reading /></el-icon>
         </div>
         <h1>操作系统AI答疑助手</h1>
         <p>基于西安电子科技大学《操作系统》教材</p>
@@ -195,121 +188,34 @@ async function handleResetPassword() {
   display: flex;
   justify-content: center;
   align-items: center;
-  background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-  position: relative;
-  overflow: hidden;
-}
-
-.bg-decoration {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  
-  .circle {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    opacity: 0.4;
-  }
-  
-  .circle-1 {
-    width: 400px;
-    height: 400px;
-    background: #667eea;
-    top: -100px;
-    right: -100px;
-    animation: float1 8s ease-in-out infinite;
-  }
-  
-  .circle-2 {
-    width: 300px;
-    height: 300px;
-    background: #764ba2;
-    bottom: -50px;
-    left: -50px;
-    animation: float2 10s ease-in-out infinite;
-  }
-  
-  .circle-3 {
-    width: 200px;
-    height: 200px;
-    background: #f093fb;
-    top: 50%;
-    left: 60%;
-    animation: float3 12s ease-in-out infinite;
-  }
-}
-
-@keyframes float1 {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(-30px, 30px); }
-}
-
-@keyframes float2 {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(20px, -20px); }
-}
-
-@keyframes float3 {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(-15px, -25px); }
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .login-card {
   width: 420px;
-  padding: 48px 40px;
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.4), 0 0 40px rgba(102, 126, 234, 0.15);
-  backdrop-filter: blur(20px);
-  position: relative;
-  z-index: 1;
-  animation: cardAppear 0.6s ease-out;
-}
-
-@keyframes cardAppear {
-  from {
-    opacity: 0;
-    transform: translateY(30px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
+  padding: 40px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: 36px;
+  margin-bottom: 30px;
   
   .logo {
-    margin-bottom: 20px;
-    display: flex;
-    justify-content: center;
-    
-    .logo-icon {
-      width: 64px;
-      height: 64px;
-      border-radius: 18px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
-    }
+    margin-bottom: 16px;
   }
   
   h1 {
-    font-size: 26px;
-    color: #1a1a2e;
+    font-size: 24px;
+    color: #303133;
     margin-bottom: 8px;
-    font-weight: 700;
-    letter-spacing: 1px;
   }
   
   p {
     font-size: 14px;
-    color: #8c8c9a;
+    color: #909399;
   }
 }
 
@@ -317,28 +223,12 @@ async function handleResetPassword() {
   .login-btn {
     width: 100%;
     margin-top: 10px;
-    height: 44px;
-    font-size: 16px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border: none;
-    letter-spacing: 4px;
-    
-    &:hover {
-      opacity: 0.9;
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
-    }
   }
 }
 
 .login-footer {
   text-align: center;
   margin-top: 20px;
-  
-  .el-button {
-    color: #667eea;
-  }
 }
 
 .verify-code-input {

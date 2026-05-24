@@ -56,11 +56,9 @@
             <div v-else class="user-content">{{ msg.content }}</div>
           </div>
           
-          <div v-if="msg.citation" :class="['citation-card', msg.sourceType === 'web' ? 'citation-web' : 'citation-book']">
-            <el-icon v-if="msg.sourceType === 'web'"><Link /></el-icon>
-            <el-icon v-else><Document /></el-icon>
-            <span v-if="msg.sourceType === 'web'">🌐 网络来源，仅供参考：{{ msg.citation }}</span>
-            <span v-else>📚 参考资料：{{ msg.citation }}</span>
+          <div v-if="msg.citation" class="citation-card">
+            <el-icon><Document /></el-icon>
+            <span>参考资料：{{ msg.citation }}</span>
           </div>
         </div>
       </div>
@@ -93,18 +91,7 @@
         :disabled="isTyping"
       />
       <div class="input-actions">
-        <div class="left-actions">
-          <el-switch
-            v-model="webSearchEnabled"
-            active-text="联网搜索"
-            inactive-text=""
-            style="--el-switch-on-color: #409eff"
-          />
-          <el-tooltip content="开启后，当教材知识库未覆盖时将联网搜索补充回答" placement="top">
-            <el-icon class="help-icon"><QuestionFilled /></el-icon>
-          </el-tooltip>
-          <span class="tip">Ctrl + Enter 发送</span>
-        </div>
+        <span class="tip">Ctrl + Enter 发送</span>
         <el-button 
           type="primary" 
           :loading="isTyping"
@@ -135,7 +122,6 @@ const messagesContainer = ref(null)
 const inputMessage = ref('')
 const isTyping = ref(false)
 const streamingContent = ref('')
-const webSearchEnabled = ref(false)
 
 const messages = computed(() => chatStore.messages)
 const currentSessionId = computed(() => chatStore.currentSessionId)
@@ -220,13 +206,12 @@ async function sendMessage() {
     role: 'assistant',
     content: '',
     createTime: new Date().toISOString(),
-    citation: null,
-    sourceType: null
+    citation: null
   }
   chatStore.addMessage(assistantMessage)
   
   try {
-    const response = await sendMessageStream(currentSessionId.value, content, webSearchEnabled.value)
+    const response = await sendMessageStream(currentSessionId.value, content)
     
     if (!response.ok) {
       throw new Error('请求失败')
@@ -254,7 +239,6 @@ async function sendMessage() {
             } else if (data.type === 'citation') {
               const lastMsg = chatStore.messages[chatStore.messages.length - 1]
               lastMsg.citation = data.citation
-              lastMsg.sourceType = data.sourceType || 'book'
             } else if (data.type === 'error') {
               ElMessage.error(data.message || '回答出错')
             }
@@ -281,14 +265,13 @@ async function sendMessage() {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #f8f9fc 0%, #eef1f8 100%);
+  background: #fff;
 }
 
 .chat-header {
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(10px);
+  padding: 12px 20px;
+  border-bottom: 1px solid #e4e7ed;
+  background: #fafafa;
   
   .quick-questions {
     display: flex;
@@ -297,17 +280,11 @@ async function sendMessage() {
     
     .quick-tag {
       cursor: pointer;
-      transition: all 0.25s ease;
-      border-radius: 16px;
-      border: 1px solid #d9e2f0;
-      background: #fff;
+      transition: all 0.2s;
       
       &:hover {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: #409eff;
         color: #fff;
-        border-color: transparent;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
       }
     }
   }
@@ -316,7 +293,7 @@ async function sendMessage() {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 20px;
+  padding: 20px;
   
   .empty-state {
     display: flex;
@@ -329,7 +306,6 @@ async function sendMessage() {
     h3 {
       margin: 16px 0 8px;
       color: #606266;
-      font-size: 20px;
     }
     
     p {
@@ -343,45 +319,17 @@ async function sendMessage() {
   display: flex;
   gap: 12px;
   margin-bottom: 24px;
-  animation: msgAppear 0.3s ease-out;
   
   &.user {
     .message-content {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: #fff;
-      border-radius: 16px 16px 4px 16px;
-    }
-    
-    .user-content {
-      color: #fff !important;
-    }
-    
-    .role-name {
-      color: rgba(255, 255, 255, 0.9) !important;
-    }
-    
-    .time {
-      color: rgba(255, 255, 255, 0.6) !important;
+      background: #ecf5ff;
     }
   }
   
   &.assistant {
     .message-content {
-      background: #fff;
-      border-radius: 16px 16px 16px 4px;
-      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+      background: #f5f7fa;
     }
-  }
-}
-
-@keyframes msgAppear {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
 
@@ -392,8 +340,8 @@ async function sendMessage() {
 .message-content {
   flex: 1;
   max-width: 80%;
-  border-radius: 12px;
-  padding: 14px 18px;
+  border-radius: 8px;
+  padding: 12px 16px;
   
   .message-header {
     display: flex;
@@ -404,7 +352,6 @@ async function sendMessage() {
     .role-name {
       font-weight: 600;
       color: #303133;
-      font-size: 13px;
     }
     
     .time {
@@ -416,7 +363,7 @@ async function sendMessage() {
   .message-body {
     .user-content {
       color: #303133;
-      line-height: 1.7;
+      line-height: 1.6;
       white-space: pre-wrap;
     }
   }
@@ -486,32 +433,21 @@ async function sendMessage() {
 
 .citation-card {
   margin-top: 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
+  padding: 8px 12px;
+  background: #fdf6ec;
+  border-radius: 4px;
   font-size: 13px;
+  color: #e6a23c;
   display: flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s ease;
-  
-  &.citation-book {
-    background: linear-gradient(135deg, #fef9e7 0%, #fdf2d1 100%);
-    color: #b8860b;
-    border-left: 3px solid #e6a23c;
-  }
-  
-  &.citation-web {
-    background: linear-gradient(135deg, #e8f4fd 0%, #d6ecfa 100%);
-    color: #2b7ec1;
-    border-left: 3px solid #409eff;
-  }
 }
 
 .typing-indicator {
   display: inline-block;
   width: 8px;
   height: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: #409eff;
   border-radius: 50%;
   animation: typing 1s infinite;
   margin-left: 4px;
@@ -524,20 +460,8 @@ async function sendMessage() {
 
 .chat-input {
   padding: 16px 20px;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(10px);
-  
-  :deep(.el-textarea__inner) {
-    border-radius: 12px;
-    border: 1px solid #e4e8f0;
-    transition: all 0.25s ease;
-    
-    &:focus {
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-  }
+  border-top: 1px solid #e4e7ed;
+  background: #fff;
   
   .input-actions {
     display: flex;
@@ -545,38 +469,9 @@ async function sendMessage() {
     align-items: center;
     margin-top: 12px;
     
-    .left-actions {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      
-      .help-icon {
-        color: #909399;
-        cursor: pointer;
-        font-size: 16px;
-        
-        &:hover {
-          color: #667eea;
-        }
-      }
-      
-      .tip {
-        font-size: 12px;
-        color: #909399;
-        margin-left: 4px;
-      }
-    }
-    
-    .el-button--primary {
-      border-radius: 10px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      border: none;
-      padding: 8px 20px;
-      
-      &:hover {
-        opacity: 0.9;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
-      }
+    .tip {
+      font-size: 12px;
+      color: #909399;
     }
   }
 }

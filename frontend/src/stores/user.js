@@ -13,10 +13,11 @@ export const useUserStore = defineStore('user', () => {
 
   async function login(username, password) {
     const res = await loginApi(username, password)
-    token.value = res.token
-    userInfo.value = res.user
-    localStorage.setItem('token', res.token)
-    localStorage.setItem('userInfo', JSON.stringify(res.user))
+    const data = res.data || res
+    token.value = data.token
+    userInfo.value = data.user
+    localStorage.setItem('token', data.token)
+    localStorage.setItem('userInfo', JSON.stringify(data.user))
     return res
   }
 
@@ -30,8 +31,9 @@ export const useUserStore = defineStore('user', () => {
 
   async function fetchUserInfo() {
     const res = await getUserInfo()
-    userInfo.value = res
-    localStorage.setItem('userInfo', JSON.stringify(res))
+    const data = res.data || res
+    userInfo.value = data
+    localStorage.setItem('userInfo', JSON.stringify(data))
     return res
   }
 
