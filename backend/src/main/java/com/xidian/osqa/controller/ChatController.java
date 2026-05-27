@@ -1,10 +1,13 @@
 package com.xidian.osqa.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.ChatMessage;
 import com.xidian.osqa.entity.ChatSession;
 import com.xidian.osqa.service.ChatService;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -18,6 +21,9 @@ import java.util.concurrent.Executors;
 @RestController
 @RequestMapping("/api/chat")
 public class ChatController {
+
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
+    private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final ChatService chatService;
     private final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -60,47 +66,56 @@ public class ChatController {
         return Result.success();
     }
 
-    @PostMapping("/sessions/{sessionId}/stream")
+    @PostMapping(value = "/sessions/{sessionId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@PathVariable Long sessionId, @RequestBody Map<String, Object> body) {
         String content = (String) body.get("content");
         Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
 
         chatService.saveMessage(sessionId, "user", content, null, null);
 
-        SseEmitter emitter = new SseEmitter(120000L);
+        SseEmitter emitter = new SseEmitter(180000L);
+
+        emitter.onCompletion(() -> log.debug("SSE连接完成: sessionId={}", sessionId));
+        emitter.onTimeout(() -> {
+            log.warn("SSE连接超时: sessionId={}", sessionId);
+            emitter.complete();
+        });
+        emitter.onError(e -> {
+            log.warn("SSE连接错误: sessionId={}, error={}", sessionId, e.getMessage());
+            emitter.complete();
+        });
 
         executorService.execute(() -> {
             try {
+                log.info("开始处理问题: sessionId={}, content={}", sessionId, content);
+
                 String answer = chatService.askQuestion(sessionId, content, webSearch != null && webSearch);
                 String citation = chatService.getCitation(sessionId, content, webSearch != null && webSearch);
 
-                ChatMessage aiMessage = chatService.saveMessage(sessionId, "assistant", answer, citation, null);
+                chatService.saveMessage(sessionId, "assistant", answer, citation, null);
 
-                Map<String, Object> contentEvent = new HashMap<>();
-                contentEvent.put("type", "content");
-                contentEvent.put("content", answer);
-                emitter.send(SseEmitter.event().data(contentEvent));
+                String contentJson = objectMapper.writeValueAsString(Map.of("type", "content", "content", answer));
+                emitter.send(SseEmitter.event().name("message").data(contentJson));
 
-                if (citation != null) {
-                    Map<String, Object> citationEvent = new HashMap<>();
-                    citationEvent.put("type", "citation");
-                    citationEvent.put("citation", citation);
-                    emitter.send(SseEmitter.event().data(citationEvent));
+                if (citation != null && !citation.isEmpty()) {
+                    String citationJson = objectMapper.writeValueAsString(Map.of("type", "citation", "citation", citation));
+                    emitter.send(SseEmitter.event().name("message").data(citationJson));
                 }
 
-                Map<String, Object> doneEvent = new HashMap<>();
-                doneEvent.put("type", "done");
-                emitter.send(SseEmitter.event().data(doneEvent));
+                String doneJson = objectMapper.writeValueAsString(Map.of("type", "done"));
+                emitter.send(SseEmitter.event().name("message").data(doneJson));
 
                 emitter.complete();
+                log.info("问题处理完成: sessionId={}", sessionId);
             } catch (Exception e) {
+                log.error("处理问题失败: sessionId={}", sessionId, e);
                 try {
-                    Map<String, Object> errorEvent = new HashMap<>();
-                    errorEvent.put("type", "error");
-                    errorEvent.put("message", e.getMessage());
-                    emitter.send(SseEmitter.event().data(errorEvent));
-                } catch (Exception ignored) {}
-                emitter.completeWithError(e);
+                    String errorJson = objectMapper.writeValueAsString(Map.of("type", "error", "message", e.getMessage() != null ? e.getMessage() : "处理失败"));
+                    emitter.send(SseEmitter.event().name("message").data(errorJson));
+                    emitter.complete();
+                } catch (Exception ignored) {
+                    try { emitter.complete(); } catch (Exception ignored2) {}
+                }
             }
         });
 
@@ -120,8 +135,8 @@ public class ChatController {
         chatService.saveMessage(sessionId, "assistant", answer, citation, null);
 
         Map<String, Object> result = new HashMap<>();
-        result.put("content", answer);
-        result.put("citation", citation);
+        result.put("content", answer != null ? answer : "");
+        result.put("citation", citation != null ? citation : "");
         return Result.success(result);
     }
 }

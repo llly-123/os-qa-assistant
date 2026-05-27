@@ -114,14 +114,12 @@ import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 import { useChatStore } from '@/stores/chat'
-import { sendMessageStream } from '@/api/chat'
 
 const chatStore = useChatStore()
 
 const messagesContainer = ref(null)
 const inputMessage = ref('')
 const isTyping = ref(false)
-const streamingContent = ref('')
 
 const messages = computed(() => chatStore.messages)
 const currentSessionId = computed(() => chatStore.currentSessionId)
@@ -170,10 +168,6 @@ watch(messages, () => {
   scrollToBottom()
 }, { deep: true })
 
-watch(streamingContent, () => {
-  scrollToBottom()
-})
-
 onMounted(() => {
   scrollToBottom()
 })
@@ -200,7 +194,6 @@ async function sendMessage() {
   inputMessage.value = ''
   
   isTyping.value = true
-  streamingContent.value = ''
   
   const assistantMessage = {
     role: 'assistant',
@@ -211,51 +204,39 @@ async function sendMessage() {
   chatStore.addMessage(assistantMessage)
   
   try {
-    const response = await sendMessageStream(currentSessionId.value, content)
+    const token = localStorage.getItem('token')
+    const response = await fetch(`/api/chat/sessions/${currentSessionId.value}/ask`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ content })
+    })
     
     if (!response.ok) {
-      throw new Error('请求失败')
+      throw new Error(`请求失败: ${response.status}`)
     }
     
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
+    const res = await response.json()
     
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      
-      const chunk = decoder.decode(value, { stream: true })
-      const lines = chunk.split('\n')
-      
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          try {
-            const data = JSON.parse(line.slice(6))
-            
-            if (data.type === 'content') {
-              streamingContent.value += data.content
-              const lastMsg = chatStore.messages[chatStore.messages.length - 1]
-              lastMsg.content = streamingContent.value
-            } else if (data.type === 'citation') {
-              const lastMsg = chatStore.messages[chatStore.messages.length - 1]
-              lastMsg.citation = data.citation
-            } else if (data.type === 'error') {
-              ElMessage.error(data.message || '回答出错')
-            }
-          } catch (e) {
-            console.error('解析数据失败:', e)
-          }
-        }
-      }
+    if (res.code === 200 && res.data) {
+      const lastMsg = chatStore.messages[chatStore.messages.length - 1]
+      lastMsg.content = res.data.content || '暂无回答'
+      lastMsg.citation = res.data.citation || null
+    } else {
+      throw new Error(res.message || '请求失败')
     }
     
   } catch (error) {
     console.error('发送消息失败:', error)
     ElMessage.error('发送失败，请重试')
-    chatStore.messages.pop()
+    const lastMsg = chatStore.messages[chatStore.messages.length - 1]
+    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
+      chatStore.messages.pop()
+    }
   } finally {
     isTyping.value = false
-    streamingContent.value = ''
   }
 }
 </script>

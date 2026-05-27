@@ -67,7 +67,7 @@ langchain4j:
     collection-name: os_textbook
 
 knowledge:
-  upload-dir: ./uploads/knowledge
+  upload-dir: ${user.dir}/uploads/knowledge
   chunk-size: 500
   chunk-overlap: 50
 

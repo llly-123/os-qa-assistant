@@ -44,3 +44,14 @@ CREATE TABLE IF NOT EXISTS `knowledge` (
     `deleted` INT NOT NULL DEFAULT 0,
     PRIMARY KEY (`id`)
 );
+
+CREATE TABLE IF NOT EXISTS `knowledge_chunk` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `knowledge_id` BIGINT NOT NULL,
+    `content` CLOB NOT NULL,
+    `chunk_index` INT NOT NULL,
+    `source_file` VARCHAR(200) DEFAULT NULL,
+    `chapter_info` VARCHAR(200) DEFAULT NULL,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+);

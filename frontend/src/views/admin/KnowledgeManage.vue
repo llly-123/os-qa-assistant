@@ -47,21 +47,28 @@
       </template>
       
       <el-table :data="documents" v-loading="loading" stripe>
-        <el-table-column prop="name" label="文件名" />
-        <el-table-column prop="type" label="类型" width="120">
+        <el-table-column prop="fileName" label="文件名" />
+        <el-table-column label="类型" width="120">
           <template #default="{ row }">
-            <el-tag>{{ row.type }}</el-tag>
+            <el-tag>{{ getFileType(row.fileName) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="size" label="大小" width="120">
+        <el-table-column label="大小" width="120">
           <template #default="{ row }">
-            {{ formatSize(row.size) }}
+            {{ formatSize(row.fileSize) }}
           </template>
         </el-table-column>
         <el-table-column prop="chunkCount" label="切片数" width="100" />
-        <el-table-column prop="uploadTime" label="上传时间" width="180">
+        <el-table-column label="状态" width="120">
           <template #default="{ row }">
-            {{ formatDate(row.uploadTime) }}
+            <el-tag :type="row.status === 1 ? 'success' : row.status === 2 ? 'danger' : 'warning'">
+              {{ row.status === 1 ? '已处理' : row.status === 2 ? '处理失败' : '处理中' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="上传时间" width="180">
+          <template #default="{ row }">
+            {{ formatDate(row.createTime) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="120">
@@ -168,11 +175,18 @@ function formatSize(bytes) {
   if (!bytes) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']
   let i = 0
-  while (bytes >= 1024 && i < units.length - 1) {
-    bytes /= 1024
+  let size = bytes
+  while (size >= 1024 && i < units.length - 1) {
+    size /= 1024
     i++
   }
-  return `${bytes.toFixed(2)} ${units[i]}`
+  return `${size.toFixed(2)} ${units[i]}`
+}
+
+function getFileType(fileName) {
+  if (!fileName) return '未知'
+  const ext = fileName.substring(fileName.lastIndexOf('.') + 1).toUpperCase()
+  return ext
 }
 
 function handleFileChange(file, files) {
@@ -202,16 +216,18 @@ async function handleUpload() {
   fileList.value = []
   
   if (successCount > 0) {
-    ElMessage.success(`成功上传 ${successCount} 个文件`)
-    fetchDocuments()
-    fetchStatus()
+    ElMessage.success(`成功上传 ${successCount} 个文件，正在后台处理中...`)
+    setTimeout(() => {
+      fetchDocuments()
+      fetchStatus()
+    }, 3000)
   }
 }
 
 async function handleDelete(row) {
   try {
     await ElMessageBox.confirm(
-      `确定要删除文档 ${row.name} 吗？相关的向量数据也将被删除`,
+      `确定要删除文档 ${row.fileName} 吗？相关的向量数据也将被删除`,
       '警告',
       { type: 'error' }
     )
