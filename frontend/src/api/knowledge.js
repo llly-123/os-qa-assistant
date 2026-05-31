@@ -42,3 +42,11 @@ export function getKnowledgeStatus() {
     method: 'get'
   })
 }
+
+export function importKnowledgeText(title, content) {
+  return request({
+    url: '/admin/knowledge/import-text',
+    method: 'post',
+    data: { title, content }
+  })
+}

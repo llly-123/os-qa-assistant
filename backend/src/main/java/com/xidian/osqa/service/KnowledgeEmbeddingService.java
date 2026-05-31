@@ -132,12 +132,14 @@ public class KnowledgeEmbeddingService {
         File file = new File(filePath);
         if (!file.exists() || file.length() == 0) {
             log.error("文件不存在或为空: {}, size={}", filePath, file.exists() ? file.length() : -1);
+            markFailed(knowledgeId, "文件不存在或为空");
             return;
         }
 
         String text = parseDocument(filePath);
         if (text == null || text.isBlank()) {
-            log.warn("文档解析结果为空: {}", filePath);
+            log.warn("文档解析结果为空(可能是扫描版PDF): {}", filePath);
+            markFailed(knowledgeId, "文档解析结果为空，可能是扫描版PDF，需要OCR支持");
             return;
         }
 
@@ -170,6 +172,41 @@ public class KnowledgeEmbeddingService {
         log.info("文档处理完成: {} 个知识块已入库并索引", savedChunks.size());
     }
 
+    public void processText(Long knowledgeId, String title, String content) {
+        log.info("开始处理文本导入: knowledgeId={}, title={}, 内容长度={}", knowledgeId, title, content.length());
+
+        if (content == null || content.isBlank()) {
+            markFailed(knowledgeId, "文本内容为空");
+            return;
+        }
+
+        List<String> chunks = splitText(content);
+        log.info("文本切分为 {} 个知识块", chunks.size());
+
+        List<KnowledgeChunk> savedChunks = new ArrayList<>();
+        for (int i = 0; i < chunks.size(); i++) {
+            KnowledgeChunk chunk = new KnowledgeChunk();
+            chunk.setKnowledgeId(knowledgeId);
+            chunk.setContent(chunks.get(i));
+            chunk.setChunkIndex(i);
+            chunk.setSourceFile(title);
+            chunk.setCreateTime(LocalDateTime.now());
+            chunkMapper.insert(chunk);
+            savedChunks.add(chunk);
+        }
+
+        rebuildIndex();
+
+        Knowledge knowledge = knowledgeMapper.selectById(knowledgeId);
+        if (knowledge != null) {
+            knowledge.setChunkCount(savedChunks.size());
+            knowledge.setStatus(1);
+            knowledgeMapper.updateById(knowledge);
+        }
+
+        log.info("文本导入处理完成: {} 个知识块已入库并索引", savedChunks.size());
+    }
+
     String parseDocument(String filePath) {
         try {
             String ext = filePath.substring(filePath.lastIndexOf('.') + 1).toLowerCase();
@@ -189,32 +226,118 @@ public class KnowledgeEmbeddingService {
         }
     }
 
+    private void markFailed(Long knowledgeId, String reason) {
+        try {
+            Knowledge k = knowledgeMapper.selectById(knowledgeId);
+            if (k != null) {
+                k.setStatus(2);
+                knowledgeMapper.updateById(k);
+                log.info("已标记知识记录为失败: id={}, 原因={}", knowledgeId, reason);
+            }
+        } catch (Exception e) {
+            log.error("更新知识记录状态失败: id={}", knowledgeId, e);
+        }
+    }
+
     private String parsePdf(String filePath) throws Exception {
         File file = new File(filePath);
         log.info("开始解析PDF: {}, 大小: {}MB", file.getName(), file.length() / 1024 / 1024);
         
         try (PDDocument doc = Loader.loadPDF(file)) {
-            PDFTextStripper stripper = new PDFTextStripper();
-            stripper.setSortByPosition(true);
-            
             int totalPages = doc.getNumberOfPages();
             log.info("PDF共 {} 页", totalPages);
             
-            if (totalPages > 100) {
-                StringBuilder allText = new StringBuilder();
-                int batchSize = 50;
-                for (int start = 1; start <= totalPages; start += batchSize) {
-                    int end = Math.min(start + batchSize - 1, totalPages);
-                    stripper.setStartPage(start);
-                    stripper.setEndPage(end);
-                    allText.append(stripper.getText(doc));
-                    log.info("已解析PDF第 {}-{} 页", start, end);
+            PDFTextStripper stripper = new PDFTextStripper();
+            stripper.setSortByPosition(true);
+            String text = stripper.getText(doc);
+            
+            double charsPerPage = totalPages > 0 ? (double) text.length() / totalPages : 0;
+            log.info("提取文本长度: {}, 每页平均: {} 字符", text.length(), (int) charsPerPage);
+            
+            if (charsPerPage < 10) {
+                log.info("检测到扫描版PDF(每页平均仅{}字符)，尝试OCR识别...", (int) charsPerPage);
+                text = ocrPdf(doc, totalPages);
+                if (text.isBlank()) {
+                    throw new RuntimeException("OCR识别结果为空。请使用「文本导入」功能，将教材内容粘贴或上传TXT文件。");
                 }
-                return allText.toString();
-            } else {
-                return stripper.getText(doc);
+                log.info("OCR识别完成，文本长度: {} 字符", text.length());
+            }
+            
+            return text;
+        }
+    }
+
+    private String ocrPdf(PDDocument doc, int totalPages) {
+        try {
+            String tessdataPath = findTessdataPath();
+            if (tessdataPath == null) {
+                log.warn("未找到Tesseract tessdata目录，OCR不可用。请安装Tesseract或使用文本导入功能");
+                throw new RuntimeException("服务器未安装OCR引擎，请使用「文本导入」功能");
+            }
+
+            net.sourceforge.tess4j.Tesseract tesseract = new net.sourceforge.tess4j.Tesseract();
+            tesseract.setDatapath(tessdataPath);
+            tesseract.setLanguage("chi_sim+eng");
+            tesseract.setPageSegMode(3);
+
+            org.apache.pdfbox.rendering.PDFRenderer renderer = new org.apache.pdfbox.rendering.PDFRenderer(doc);
+            StringBuilder allText = new StringBuilder();
+
+            for (int p = 0; p < totalPages; p++) {
+                try {
+                    java.awt.image.BufferedImage pageImage = renderer.renderImageWithDPI(p, 72);
+                    String pageText = tesseract.doOCR(pageImage);
+                    allText.append(pageText).append("\n");
+                    if ((p + 1) % 10 == 0 || p == totalPages - 1) {
+                        log.info("OCR进度: {}/{} 页, 累计文本长度: {}", p + 1, totalPages, allText.length());
+                    }
+                } catch (Exception e) {
+                    log.warn("OCR第 {} 页失败: {}", p + 1, e.getMessage());
+                }
+            }
+
+            String result = allText.toString().trim();
+            if (result.isEmpty()) {
+                throw new RuntimeException("OCR识别结果为空，请检查语言包是否完整或PDF是否为图片。建议使用「文本导入」功能。");
+            }
+            return result;
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("OCR处理失败", e);
+            throw new RuntimeException("OCR处理失败: " + e.getMessage() + "。请使用「文本导入」功能");
+        }
+    }
+
+    private String findTessdataPath() {
+        String[] candidates = {
+            System.getenv("TESSDATA_PREFIX"),
+            System.getProperty("user.dir") + File.separator + "tessdata",
+            "C:\\Program Files\\Tesseract-OCR\\tessdata",
+            "/usr/share/tesseract-ocr/5/tessdata",
+            "/usr/share/tesseract-ocr/4.00/tessdata",
+            "/usr/share/tessdata"
+        };
+
+        for (String path : candidates) {
+            if (path == null) continue;
+            File dir = new File(path);
+            if (dir.isDirectory()) {
+                File chiSim = new File(dir, "chi_sim.traineddata");
+                if (chiSim.exists()) {
+                    log.info("找到tessdata目录: {}", path);
+                    return path;
+                }
+                File eng = new File(dir, "eng.traineddata");
+                if (eng.exists()) {
+                    log.info("找到tessdata目录(仅英文): {}", path);
+                    return path;
+                }
             }
         }
+
+        log.warn("未找到包含中文语言包的tessdata目录");
+        return null;
     }
 
     private String parsePptx(String filePath) throws Exception {
@@ -382,10 +505,12 @@ public class KnowledgeEmbeddingService {
         var chineseMatcher = CHINESE_PATTERN.matcher(text);
         while (chineseMatcher.find()) {
             String segment = chineseMatcher.group();
-            for (int i = 0; i < segment.length() - 1; i++) {
-                String bigram = segment.substring(i, i + 2);
-                if (!STOP_WORDS.contains(bigram)) {
-                    tokens.add(bigram);
+            for (int n = 4; n >= 2; n--) {
+                for (int i = 0; i <= segment.length() - n; i++) {
+                    String ngram = segment.substring(i, i + n);
+                    if (!STOP_WORDS.contains(ngram)) {
+                        tokens.add(ngram);
+                    }
                 }
             }
             for (char c : segment.toCharArray()) {
@@ -455,15 +580,19 @@ public class KnowledgeEmbeddingService {
 
     private double keywordScore(List<String> queryTokens, String content) {
         String lowerContent = content.toLowerCase();
-        int score = 0;
+        double score = 0;
         for (String token : queryTokens) {
             int idx = 0;
+            int count = 0;
             while ((idx = lowerContent.indexOf(token.toLowerCase(), idx)) != -1) {
-                score++;
+                count++;
                 idx += token.length();
             }
+            if (count > 0) {
+                score += count * token.length();
+            }
         }
-        return (double) score / queryTokens.size();
+        return score;
     }
 
     public void removeDocument(Long knowledgeId) {

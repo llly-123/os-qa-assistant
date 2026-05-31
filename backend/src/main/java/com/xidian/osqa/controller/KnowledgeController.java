@@ -41,6 +41,21 @@ public class KnowledgeController {
         }
     }
 
+    @PostMapping("/import-text")
+    public Result<?> importText(@RequestBody Map<String, String> body) {
+        try {
+            String title = body.getOrDefault("title", "教材文本导入");
+            String content = body.get("content");
+            if (content == null || content.isBlank()) {
+                return Result.error("内容不能为空");
+            }
+            Knowledge knowledge = knowledgeService.importText(title, content);
+            return Result.success(knowledge);
+        } catch (Exception e) {
+            return Result.error("导入失败：" + e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{id}")
     public Result<?> deleteKnowledge(@PathVariable Long id) {
         knowledgeService.deleteKnowledge(id);

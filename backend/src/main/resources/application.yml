@@ -68,8 +68,8 @@ langchain4j:
 
 knowledge:
   upload-dir: ${user.dir}/uploads/knowledge
-  chunk-size: 500
-  chunk-overlap: 50
+  chunk-size: 1000
+  chunk-overlap: 200
 
 logging:
   level:

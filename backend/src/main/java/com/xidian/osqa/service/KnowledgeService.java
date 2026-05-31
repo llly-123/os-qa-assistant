@@ -83,18 +83,103 @@ public class KnowledgeService {
         knowledgeMapper.insert(knowledge);
         log.info("知识记录已插入: id={}", knowledge.getId());
 
-        try {
-            log.info("========== 开始同步处理文档 ==========");
-            embeddingService.processDocument(knowledge.getId(), filePath.toAbsolutePath().toString());
-            log.info("========== 同步处理文档完成 ==========");
-        } catch (Exception e) {
-            log.error("========== 同步处理文档失败 ==========", e);
-            knowledge.setStatus(2);
-            knowledgeMapper.updateById(knowledge);
-            throw new RuntimeException("文档处理失败: " + e.getMessage(), e);
-        }
+        Long kid = knowledge.getId();
+        String absPath = filePath.toAbsolutePath().toString();
+        Thread processor = new Thread(() -> {
+            try {
+                log.info("========== 异步处理文档开始: id={}, path={} ==========", kid, absPath);
+                embeddingService.processDocument(kid, absPath);
+                log.info("========== 异步处理文档完成: id={} ==========", kid);
+            } catch (Exception e) {
+                log.error("========== 异步处理文档失败: id={} ==========", kid, e);
+                try {
+                    Knowledge k = knowledgeMapper.selectById(kid);
+                    if (k != null) {
+                        k.setStatus(2);
+                        knowledgeMapper.updateById(k);
+                        log.info("已更新知识记录状态为失败: id={}", kid);
+                    }
+                } catch (Exception ex) {
+                    log.error("更新知识记录状态失败: id={}", kid, ex);
+                }
+            }
+        }, "doc-processor-" + kid);
+        processor.setUncaughtExceptionHandler((t, e) -> {
+            log.error("未捕获异常 in thread {}: ", t.getName(), e);
+            try {
+                Knowledge k = knowledgeMapper.selectById(kid);
+                if (k != null) {
+                    k.setStatus(2);
+                    knowledgeMapper.updateById(k);
+                }
+            } catch (Exception ignored) {}
+        });
+        processor.start();
 
-        log.info("========== uploadKnowledge 完成 ==========");
+        Thread watchdog = new Thread(() -> {
+            try {
+                Thread.sleep(3600000);
+                if (processor.isAlive()) {
+                    log.warn("========== 文档处理超时(60分钟), 强制中断: id={} ==========", kid);
+                    processor.interrupt();
+                    Knowledge k = knowledgeMapper.selectById(kid);
+                    if (k != null && k.getStatus() == 0) {
+                        k.setStatus(2);
+                        knowledgeMapper.updateById(k);
+                    }
+                }
+            } catch (InterruptedException ignored) {}
+        }, "doc-watchdog-" + kid);
+        watchdog.setDaemon(true);
+        watchdog.start();
+
+        log.info("========== uploadKnowledge 返回（后台处理中）==========");
+        return knowledge;
+    }
+
+    public Knowledge importText(String title, String content) {
+        log.info("========== importText 开始: title={}, 内容长度={} ==========", title, content.length());
+
+        Knowledge knowledge = new Knowledge();
+        knowledge.setFileName(title + ".txt");
+        knowledge.setFilePath("text-import");
+        knowledge.setFileSize((long) content.getBytes().length);
+        knowledge.setChunkCount(0);
+        knowledge.setStatus(0);
+        knowledge.setCreateTime(LocalDateTime.now());
+        knowledgeMapper.insert(knowledge);
+        log.info("知识记录已插入: id={}", knowledge.getId());
+
+        Long kid = knowledge.getId();
+        Thread processor = new Thread(() -> {
+            try {
+                log.info("========== 异步处理文本导入开始: id={} ==========", kid);
+                embeddingService.processText(kid, title, content);
+                log.info("========== 异步处理文本导入完成: id={} ==========", kid);
+            } catch (Exception e) {
+                log.error("========== 异步处理文本导入失败: id={} ==========", kid, e);
+                try {
+                    Knowledge k = knowledgeMapper.selectById(kid);
+                    if (k != null) {
+                        k.setStatus(2);
+                        knowledgeMapper.updateById(k);
+                    }
+                } catch (Exception ignored) {}
+            }
+        }, "text-processor-" + kid);
+        processor.setUncaughtExceptionHandler((t, e) -> {
+            log.error("未捕获异常 in thread {}: ", t.getName(), e);
+            try {
+                Knowledge k = knowledgeMapper.selectById(kid);
+                if (k != null) {
+                    k.setStatus(2);
+                    knowledgeMapper.updateById(k);
+                }
+            } catch (Exception ignored) {}
+        });
+        processor.start();
+
+        log.info("========== importText 返回（后台处理中）==========");
         return knowledge;
     }
 

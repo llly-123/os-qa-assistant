@@ -39,7 +39,7 @@ public class RagService {
 
     public String answer(String question, boolean webSearch) {
         try {
-            List<String> relevantChunks = embeddingService.retrieve(question, 3);
+            List<String> relevantChunks = embeddingService.retrieve(question, 8);
 
             List<ChatMessage> messages = new ArrayList<>();
             messages.add(new SystemMessage(SYSTEM_PROMPT));
@@ -82,7 +82,7 @@ public class RagService {
     }
 
     public String getCitation(String question, boolean webSearch) {
-        List<String> relevantChunks = embeddingService.retrieve(question, 3);
+        List<String> relevantChunks = embeddingService.retrieve(question, 8);
         if (!relevantChunks.isEmpty()) {
             StringBuilder sb = new StringBuilder("📚 参考资料：\n");
             for (String chunk : relevantChunks) {

@@ -7,6 +7,10 @@
           <el-icon><Refresh /></el-icon>
           刷新状态
         </el-button>
+        <el-button type="success" @click="showImportDialog = true">
+          <el-icon><Document /></el-icon>
+          文本导入
+        </el-button>
         <el-button type="primary" @click="showUploadDialog = true">
           <el-icon><Upload /></el-icon>
           上传文档
@@ -120,6 +124,49 @@
         </el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="showImportDialog" title="文本导入" width="800px">
+      <el-alert
+        type="info"
+        :closable="false"
+        style="margin-bottom: 20px"
+      >
+        <template #title>
+          适用于扫描版PDF或已有文本内容。将教材内容粘贴到下方，系统将自动切分和索引。
+        </template>
+      </el-alert>
+      
+      <el-form label-width="80px">
+        <el-form-item label="标题">
+          <el-input v-model="importTitle" placeholder="如：计算机操作系统-西电" />
+        </el-form-item>
+        <el-form-item label="内容">
+          <el-input
+            v-model="importContent"
+            type="textarea"
+            :rows="15"
+            placeholder="将教材文本内容粘贴到此处..."
+          />
+        </el-form-item>
+        <el-form-item>
+          <el-button @click="handleFileImport">从TXT文件导入</el-button>
+          <input
+            ref="fileInputRef"
+            type="file"
+            accept=".txt"
+            style="display: none"
+            @change="onFileSelected"
+          />
+        </el-form-item>
+      </el-form>
+      
+      <template #footer>
+        <el-button @click="showImportDialog = false">取消</el-button>
+        <el-button type="primary" :loading="importing" @click="handleImport">
+          开始导入
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -130,17 +177,23 @@ import {
   getKnowledgeList, 
   uploadKnowledge, 
   deleteKnowledge,
+  importKnowledgeText,
   rebuildKnowledgeIndex,
   getKnowledgeStatus
 } from '@/api/knowledge'
 
 const loading = ref(false)
 const uploading = ref(false)
+const importing = ref(false)
 const showUploadDialog = ref(false)
+const showImportDialog = ref(false)
 const documents = ref([])
 const status = ref({})
 const fileList = ref([])
 const uploadRef = ref(null)
+const fileInputRef = ref(null)
+const importTitle = ref('')
+const importContent = ref('')
 
 onMounted(() => {
   fetchDocuments()
@@ -199,6 +252,8 @@ async function handleUpload() {
     return
   }
   
+  console.log('开始上传，文件列表:', fileList.value.map(f => ({ name: f.name, raw: !!f.raw, size: f.size })))
+  
   uploading.value = true
   let successCount = 0
   
@@ -208,6 +263,7 @@ async function handleUpload() {
       successCount++
     } catch (error) {
       console.error(`上传 ${file.name} 失败:`, error)
+      ElMessage.error(`上传 ${file.name} 失败: ${error.message || '未知错误'}`)
     }
   }
   
@@ -216,12 +272,35 @@ async function handleUpload() {
   fileList.value = []
   
   if (successCount > 0) {
-    ElMessage.success(`成功上传 ${successCount} 个文件，正在后台处理中...`)
-    setTimeout(() => {
-      fetchDocuments()
-      fetchStatus()
-    }, 3000)
+    ElMessage.info(`已上传 ${successCount} 个文件，正在后台处理中，请等待...`)
+    fetchDocuments()
+    fetchStatus()
+    startPolling()
   }
+}
+
+function startPolling() {
+  let count = 0
+  const maxPolls = 60
+  const timer = setInterval(async () => {
+    count++
+    await fetchDocuments()
+    await fetchStatus()
+    const processing = documents.value.some(d => d.status === 0)
+    if (!processing || count >= maxPolls) {
+      clearInterval(timer)
+      if (count >= maxPolls) {
+        ElMessage.warning('处理超时，请稍后刷新查看结果')
+      } else {
+        const failed = documents.value.filter(d => d.status === 2)
+        if (failed.length > 0) {
+          ElMessage.error(`${failed.length} 个文件处理失败`)
+        } else {
+          ElMessage.success('所有文件处理完成！')
+        }
+      }
+    }
+  }, 3000)
 }
 
 async function handleDelete(row) {
@@ -259,6 +338,53 @@ async function handleRebuildIndex() {
       console.error('重建失败:', error)
     }
   }
+}
+
+async function handleImport() {
+  if (!importContent.value.trim()) {
+    ElMessage.warning('请输入或导入文本内容')
+    return
+  }
+  if (!importTitle.value.trim()) {
+    ElMessage.warning('请输入标题')
+    return
+  }
+  
+  importing.value = true
+  try {
+    await importKnowledgeText(importTitle.value.trim(), importContent.value)
+    ElMessage.info('文本导入成功，正在后台处理中...')
+    showImportDialog.value = false
+    importTitle.value = ''
+    importContent.value = ''
+    fetchDocuments()
+    fetchStatus()
+    startPolling()
+  } catch (error) {
+    ElMessage.error('导入失败: ' + (error.message || '未知错误'))
+  } finally {
+    importing.value = false
+  }
+}
+
+function handleFileImport() {
+  fileInputRef.value.click()
+}
+
+function onFileSelected(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    importContent.value = e.target.result
+    if (!importTitle.value) {
+      importTitle.value = file.name.replace('.txt', '')
+    }
+    ElMessage.success(`已读取文件: ${file.name}`)
+  }
+  reader.readAsText(file, 'UTF-8')
+  event.target.value = ''
 }
 </script>
 
