@@ -1,11 +1,17 @@
 package com.xidian.osqa.service;
 
+import com.alibaba.excel.EasyExcel;
+import com.alibaba.excel.context.AnalysisContext;
+import com.alibaba.excel.read.listener.ReadListener;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xidian.osqa.entity.User;
 import com.xidian.osqa.mapper.UserMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -13,6 +19,8 @@ import java.util.Map;
 
 @Service
 public class StudentService {
+
+    private static final Logger log = LoggerFactory.getLogger(StudentService.class);
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
@@ -75,5 +83,65 @@ public class StudentService {
 
     public void deleteStudent(Long studentId) {
         userMapper.deleteById(studentId);
+    }
+
+    public Map<String, Object> batchImport(MultipartFile file) throws Exception {
+        if (file.isEmpty()) {
+            throw new RuntimeException("文件为空");
+        }
+
+        String filename = file.getOriginalFilename();
+        if (filename == null || (!filename.endsWith(".xlsx") && !filename.endsWith(".xls"))) {
+            throw new RuntimeException("请上传Excel文件（.xlsx或.xls）");
+        }
+
+        int[] counts = {0, 0, 0};
+
+        EasyExcel.read(file.getInputStream(), new ReadListener<Map<Integer, String>>() {
+            @Override
+            public void invoke(Map<Integer, String> row, AnalysisContext context) {
+                counts[0]++;
+                try {
+                    String studentId = row.get(0);
+                    String name = row.get(1);
+                    String email = row.size() > 2 ? row.get(2) : null;
+
+                    if (studentId == null || studentId.isBlank() || name == null || name.isBlank()) {
+                        counts[2]++;
+                        log.warn("跳过空行: 第{}行", counts[0]);
+                        return;
+                    }
+
+                    studentId = studentId.trim();
+                    name = name.trim();
+                    if (email != null) email = email.trim();
+
+                    LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+                    wrapper.eq(User::getUsername, studentId);
+                    if (userMapper.selectCount(wrapper) > 0) {
+                        counts[2]++;
+                        log.warn("学号已存在，跳过: {}", studentId);
+                        return;
+                    }
+
+                    createStudent(studentId, name, email);
+                    counts[1]++;
+                } catch (Exception e) {
+                    counts[2]++;
+                    log.warn("导入第{}行失败: {}", counts[0], e.getMessage());
+                }
+            }
+
+            @Override
+            public void doAfterAllAnalysed(AnalysisContext context) {
+                log.info("Excel解析完成: 总行数={}, 成功={}, 失败={}", counts[0], counts[1], counts[2]);
+            }
+        }).sheet().headRowNumber(1).doRead();
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("total", counts[0]);
+        result.put("success", counts[1]);
+        result.put("failed", counts[2]);
+        return result;
     }
 }

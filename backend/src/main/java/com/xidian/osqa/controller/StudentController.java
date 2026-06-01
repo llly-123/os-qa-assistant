@@ -39,7 +39,12 @@ public class StudentController {
 
     @PostMapping("/import")
     public Result<?> batchImport(@RequestParam("file") MultipartFile file) {
-        return Result.success("导入功能需要EasyExcel解析");
+        try {
+            Map<String, Object> result = studentService.batchImport(file);
+            return Result.success(result);
+        } catch (Exception e) {
+            return Result.error("导入失败：" + e.getMessage());
+        }
     }
 
     @PostMapping("/{id}/reset-password")

@@ -207,7 +207,15 @@ async function handleImport() {
   importing.value = true
   try {
     const res = await batchImportStudents(uploadFile.value)
-    ElMessage.success(`成功导入 ${res.count} 名学生`)
+    const data = res.data || res
+    const success = data.success || 0
+    const failed = data.failed || 0
+    const total = data.total || 0
+    if (success > 0) {
+      ElMessage.success(`导入完成：共${total}行，成功${success}名，失败${failed}名`)
+    } else {
+      ElMessage.warning(`导入失败：共${total}行，全部失败`)
+    }
     showImportDialog.value = false
     uploadFile.value = null
     fetchStudents()
