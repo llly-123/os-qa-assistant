@@ -5,8 +5,6 @@ import com.xidian.osqa.common.JwtUtil;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.User;
 import com.xidian.osqa.mapper.UserMapper;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -21,16 +19,14 @@ public class AuthService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-    private final JavaMailSender mailSender;
 
     private final Map<String, String> codeStore = new ConcurrentHashMap<>();
     private final Map<String, Long> codeExpiry = new ConcurrentHashMap<>();
 
-    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, JavaMailSender mailSender) {
+    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
-        this.mailSender = mailSender;
     }
 
     public Result<?> login(String username, String password) {
@@ -60,7 +56,7 @@ public class AuthService {
         userInfo.put("username", user.getUsername());
         userInfo.put("realName", user.getRealName());
         userInfo.put("role", user.getRole());
-        userInfo.put("email", user.getEmail());
+        userInfo.put("phone", user.getPhone());
         result.put("user", userInfo);
 
         return Result.success(result);
@@ -77,7 +73,7 @@ public class AuthService {
         userInfo.put("username", user.getUsername());
         userInfo.put("realName", user.getRealName());
         userInfo.put("role", user.getRole());
-        userInfo.put("email", user.getEmail());
+        userInfo.put("phone", user.getPhone());
 
         return Result.success(userInfo);
     }
@@ -99,45 +95,84 @@ public class AuthService {
         return Result.success();
     }
 
-    public Result<?> sendVerifyCode(String email) {
-        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
-        codeStore.put(email, code);
-        codeExpiry.put(email, System.currentTimeMillis() + 5 * 60 * 1000);
-
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom("your_email@qq.com");
-            message.setTo(email);
-            message.setSubject("操作系统AI答疑助手 - 验证码");
-            message.setText("您的验证码是：" + code + "，5分钟内有效。");
-            mailSender.send(message);
-        } catch (Exception e) {
-            return Result.error("邮件发送失败，请检查邮箱地址");
+    public Result<?> bindPhone(Long userId, String phone) {
+        if (phone == null || !phone.matches("^1[3-9]\\d{9}$")) {
+            return Result.error(400, "手机号格式不正确");
         }
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getPhone, phone);
+        if (userMapper.selectCount(wrapper) > 0) {
+            return Result.error(400, "该手机号已被其他账号绑定");
+        }
+
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.error(404, "用户不存在");
+        }
+
+        user.setPhone(phone);
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
 
         return Result.success();
     }
 
-    public Result<?> resetPassword(String email, String code) {
-        String storedCode = codeStore.get(email);
-        Long expiry = codeExpiry.get(email);
+    public Result<?> unbindPhone(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.error(404, "用户不存在");
+        }
+
+        user.setPhone(null);
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        return Result.success();
+    }
+
+    public Result<?> sendPhoneCode(String phone) {
+        if (phone == null || !phone.matches("^1[3-9]\\d{9}$")) {
+            return Result.error(400, "手机号格式不正确");
+        }
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getPhone, phone);
+        if (userMapper.selectCount(wrapper) == 0) {
+            return Result.error(404, "该手机号未绑定任何账号");
+        }
+
+        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+        codeStore.put(phone, code);
+        codeExpiry.put(phone, System.currentTimeMillis() + 5 * 60 * 1000);
+
+        // TODO: 接入短信服务发送验证码，目前仅存储验证码
+        // 实际部署时替换为阿里云/腾讯云短信API
+        logCode(phone, code);
+
+        return Result.success("验证码已发送");
+    }
+
+    public Result<?> resetPasswordByPhone(String phone, String code) {
+        String storedCode = codeStore.get(phone);
+        Long expiry = codeExpiry.get(phone);
 
         if (storedCode == null || !storedCode.equals(code)) {
             return Result.error(400, "验证码错误");
         }
 
         if (expiry == null || System.currentTimeMillis() > expiry) {
-            codeStore.remove(email);
-            codeExpiry.remove(email);
+            codeStore.remove(phone);
+            codeExpiry.remove(phone);
             return Result.error(400, "验证码已过期");
         }
 
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(User::getEmail, email);
+        wrapper.eq(User::getPhone, phone);
         User user = userMapper.selectOne(wrapper);
 
         if (user == null) {
-            return Result.error(404, "该邮箱未绑定任何账号");
+            return Result.error(404, "该手机号未绑定任何账号");
         }
 
         String newPassword = user.getUsername().length() >= 6
@@ -147,11 +182,18 @@ public class AuthService {
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
 
-        codeStore.remove(email);
-        codeExpiry.remove(email);
+        codeStore.remove(phone);
+        codeExpiry.remove(phone);
 
         Map<String, Object> result = new HashMap<>();
         result.put("newPassword", newPassword);
         return Result.success(result);
+    }
+
+    private void logCode(String phone, String code) {
+        System.out.println("============================================");
+        System.out.println("  手机号: " + phone + "  验证码: " + code);
+        System.out.println("  (开发模式，部署时替换为短信服务)");
+        System.out.println("============================================");
     }
 }

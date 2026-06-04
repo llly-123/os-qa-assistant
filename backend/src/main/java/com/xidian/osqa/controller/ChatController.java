@@ -128,6 +128,7 @@ public class ChatController {
         Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
 
         chatService.saveMessage(sessionId, "user", content, null, null);
+        chatService.autoTitleIfNeeded(sessionId, content);
 
         String answer = chatService.askQuestion(sessionId, content, webSearch != null && webSearch);
         String citation = chatService.getCitation(sessionId, content, webSearch != null && webSearch);
@@ -138,5 +139,15 @@ public class ChatController {
         result.put("content", answer != null ? answer : "");
         result.put("citation", citation != null ? citation : "");
         return Result.success(result);
+    }
+
+    @GetMapping("/my-stats")
+    public Result<?> getMyStats(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalQuestions", chatService.getUserQuestionCount(userId));
+        stats.put("citationRate", chatService.getUserCitationRate(userId));
+        stats.put("keywords", chatService.getUserKeywords(userId, 20));
+        return Result.success(stats);
     }
 }

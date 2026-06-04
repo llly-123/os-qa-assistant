@@ -18,26 +18,28 @@ public class StatisticsController {
     }
 
     @GetMapping("/qa")
-    public Result<?> getOverview() {
-        Map<String, Object> overview = statisticsService.getOverview();
+    public Result<?> getOverview(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Map<String, Object> overview = statisticsService.getOverview(startDate, endDate);
         return Result.success(overview);
     }
 
     @GetMapping("/keywords")
-    public Result<?> getHotKeywords(@RequestParam(defaultValue = "30") int limit) {
-        List<Map<String, Object>> keywords = statisticsService.getHotKeywords(limit);
+    public Result<?> getHotKeywords(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "30") int limit) {
+        List<Map<String, Object>> keywords = statisticsService.getHotKeywords(startDate, endDate, limit);
         return Result.success(keywords);
     }
 
-    @GetMapping("/trend")
-    public Result<?> getQuestionTrend() {
-        List<Map<String, Object>> trend = statisticsService.getQuestionTrend();
-        return Result.success(trend);
-    }
-
     @GetMapping("/recent")
-    public Result<?> getRecentQuestions(@RequestParam(defaultValue = "20") int limit) {
-        List<Map<String, Object>> recent = statisticsService.getRecentQuestions(limit);
+    public Result<?> getRecentQuestions(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "20") int limit) {
+        List<Map<String, Object>> recent = statisticsService.getRecentQuestions(startDate, endDate, limit);
         return Result.success(recent);
     }
 }

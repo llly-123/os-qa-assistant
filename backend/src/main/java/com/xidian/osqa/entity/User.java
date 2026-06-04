@@ -11,7 +11,10 @@ public class User {
     private String password;
     @TableField("real_name")
     private String realName;
-    private String email;
+    private String phone;
+    private String college;
+    private String major;
+    private String grade;
     private String role;
     private Integer status;
     @TableField("create_time")
@@ -29,8 +32,14 @@ public class User {
     public void setPassword(String password) { this.password = password; }
     public String getRealName() { return realName; }
     public void setRealName(String realName) { this.realName = realName; }
-    public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    public String getPhone() { return phone; }
+    public void setPhone(String phone) { this.phone = phone; }
+    public String getCollege() { return college; }
+    public void setCollege(String college) { this.college = college; }
+    public String getMajor() { return major; }
+    public void setMajor(String major) { this.major = major; }
+    public String getGrade() { return grade; }
+    public void setGrade(String grade) { this.grade = grade; }
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }
     public Integer getStatus() { return status; }

@@ -224,6 +224,7 @@ async function sendMessage() {
       const lastMsg = chatStore.messages[chatStore.messages.length - 1]
       lastMsg.content = res.data.content || '暂无回答'
       lastMsg.citation = res.data.citation || null
+      chatStore.fetchSessions()
     } else {
       throw new Error(res.message || '请求失败')
     }

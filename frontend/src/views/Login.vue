@@ -50,7 +50,7 @@
       </el-form>
       
       <div class="login-footer">
-        <el-button type="text" @click="showResetDialog = true">
+        <el-button link @click="showResetDialog = true">
           忘记密码？
         </el-button>
       </div>
@@ -58,21 +58,28 @@
     
     <el-dialog 
       v-model="showResetDialog" 
-      title="重置密码" 
-      width="400px"
+      title="找回密码" 
+      width="440px"
     >
+      <el-alert
+        type="info"
+        :closable="false"
+        style="margin-bottom: 16px"
+      >
+        <template #title>
+          绑定手机号后可通过验证码找回密码；未绑定手机号请联系教师重置。
+        </template>
+      </el-alert>
+
       <el-form :model="resetForm" label-width="80px">
-        <el-form-item label="学号">
-          <el-input v-model="resetForm.studentId" placeholder="请输入学号" />
-        </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="resetForm.email" placeholder="请输入绑定邮箱" />
+        <el-form-item label="手机号">
+          <el-input v-model="resetForm.phone" placeholder="请输入绑定的手机号" maxlength="11" />
         </el-form-item>
         <el-form-item label="验证码">
           <div class="verify-code-input">
-            <el-input v-model="resetForm.code" placeholder="请输入验证码" />
+            <el-input v-model="resetForm.code" placeholder="请输入验证码" maxlength="6" />
             <el-button 
-              :disabled="countdown > 0" 
+              :disabled="countdown > 0 || !resetForm.phone" 
               @click="sendCode"
             >
               {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
@@ -93,7 +100,7 @@ import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { sendVerifyCode, resetPassword } from '@/api/auth'
+import { sendPhoneCode, resetPasswordByPhone } from '@/api/auth'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -119,8 +126,7 @@ const loginRules = {
 }
 
 const resetForm = reactive({
-  studentId: '',
-  email: '',
+  phone: '',
   code: ''
 })
 
@@ -146,14 +152,14 @@ async function handleLogin() {
 }
 
 async function sendCode() {
-  if (!resetForm.email) {
-    ElMessage.warning('请输入邮箱')
+  if (!resetForm.phone || !/^1[3-9]\d{9}$/.test(resetForm.phone)) {
+    ElMessage.warning('请输入正确的手机号')
     return
   }
   
   try {
-    await sendVerifyCode(resetForm.email)
-    ElMessage.success('验证码已发送')
+    await sendPhoneCode(resetForm.phone)
+    ElMessage.success('验证码已发送（开发模式请查看后端控制台）')
     countdown.value = 60
     const timer = setInterval(() => {
       countdown.value--
@@ -167,14 +173,15 @@ async function sendCode() {
 }
 
 async function handleResetPassword() {
-  if (!resetForm.studentId || !resetForm.email || !resetForm.code) {
-    ElMessage.warning('请填写完整信息')
+  if (!resetForm.phone || !resetForm.code) {
+    ElMessage.warning('请填写手机号和验证码')
     return
   }
   
   try {
-    await resetPassword(resetForm.email)
-    ElMessage.success('密码已重置为学号后6位，请登录后修改')
+    const res = await resetPasswordByPhone(resetForm.phone, resetForm.code)
+    const data = res.data || res
+    ElMessage.success(`密码已重置为学号后6位，请登录后修改`)
     showResetDialog.value = false
   } catch (error) {
     console.error('重置密码失败:', error)

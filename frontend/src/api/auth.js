@@ -30,18 +30,33 @@ export function changePassword(oldPassword, newPassword) {
   })
 }
 
-export function resetPassword(email) {
+export function bindPhone(phone) {
   return request({
-    url: '/auth/reset-password',
+    url: '/auth/bind-phone',
     method: 'post',
-    data: { email }
+    data: { phone }
   })
 }
 
-export function sendVerifyCode(email) {
+export function unbindPhone() {
   return request({
-    url: '/auth/send-code',
+    url: '/auth/unbind-phone',
+    method: 'post'
+  })
+}
+
+export function sendPhoneCode(phone) {
+  return request({
+    url: '/auth/send-phone-code',
     method: 'post',
-    data: { email }
+    data: { phone }
+  })
+}
+
+export function resetPasswordByPhone(phone, code) {
+  return request({
+    url: '/auth/reset-password-by-phone',
+    method: 'post',
+    data: { phone, code }
   })
 }

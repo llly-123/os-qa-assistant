@@ -32,8 +32,11 @@ public class StudentController {
     public Result<?> createStudent(@RequestBody Map<String, String> body) {
         String studentId = body.get("studentId");
         String name = body.get("name");
-        String email = body.get("email");
-        User user = studentService.createStudent(studentId, name, email);
+        String phone = body.get("phone");
+        String college = body.get("college");
+        String major = body.get("major");
+        String grade = body.get("grade");
+        User user = studentService.createStudent(studentId, name, phone, college, major, grade);
         return Result.success(user);
     }
 
@@ -60,6 +63,12 @@ public class StudentController {
     public Result<?> toggleStatus(@PathVariable Long id, @RequestBody Map<String, Integer> body) {
         Integer status = body.get("status");
         studentService.toggleStatus(id, status);
+        return Result.success();
+    }
+
+    @PutMapping("/{id}")
+    public Result<?> updateStudent(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        studentService.updateStudent(id, body);
         return Result.success();
     }
 

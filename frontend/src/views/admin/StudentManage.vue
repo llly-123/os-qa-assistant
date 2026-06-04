@@ -3,11 +3,15 @@
     <div class="page-header">
       <h2>学生账号管理</h2>
       <div class="header-actions">
+        <el-button @click="showOptionDialog = true">
+          <el-icon><Setting /></el-icon>
+          选项设置
+        </el-button>
         <el-button type="primary" @click="showImportDialog = true">
           <el-icon><Upload /></el-icon>
           批量导入
         </el-button>
-        <el-button @click="showAddDialog = true">
+        <el-button @click="openAddDialog">
           <el-icon><Plus /></el-icon>
           添加学生
         </el-button>
@@ -36,9 +40,12 @@
       stripe
       style="width: 100%"
     >
-      <el-table-column prop="username" label="学号" width="150" />
-      <el-table-column prop="realName" label="姓名" width="120" />
-      <el-table-column prop="email" label="邮箱" />
+      <el-table-column prop="username" label="学号" width="130" />
+      <el-table-column prop="realName" label="姓名" width="100" />
+      <el-table-column prop="college" label="学院" />
+      <el-table-column prop="major" label="专业" />
+      <el-table-column prop="grade" label="年级" width="80" />
+      <el-table-column prop="phone" label="手机号" width="130" />
       <el-table-column prop="createTime" label="创建时间" width="180">
         <template #default="{ row }">
           {{ formatDate(row.createTime) }}
@@ -51,21 +58,25 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="280" fixed="right">
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="handleResetPassword(row)">
-            重置密码
+          <el-button size="small" @click="handleEdit(row)">
+            编辑
           </el-button>
-          <el-button 
-            size="small" 
-            :type="row.status === 1 ? 'warning' : 'success'"
-            @click="handleToggleStatus(row)"
-          >
-            {{ row.status === 1 ? '冻结' : '解冻' }}
-          </el-button>
-          <el-button size="small" type="danger" @click="handleDelete(row)">
-            删除
-          </el-button>
+          <el-dropdown trigger="click">
+            <el-button size="small">
+              操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleResetPassword(row)">重置密码</el-dropdown-item>
+                <el-dropdown-item @click="handleToggleStatus(row)">
+                  {{ row.status === 1 ? '冻结' : '解冻' }}
+                </el-dropdown-item>
+                <el-dropdown-item @click="handleDelete(row)" style="color: #f56c6c">删除</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </template>
       </el-table-column>
     </el-table>
@@ -82,6 +93,7 @@
       />
     </div>
     
+    <!-- 批量导入 -->
     <el-dialog v-model="showImportDialog" title="批量导入学生" width="500px">
       <el-alert
         type="info"
@@ -89,7 +101,7 @@
         style="margin-bottom: 20px"
       >
         <template #title>
-          请上传包含学号和姓名的Excel文件，格式：第一列学号，第二列姓名
+          请上传包含学号和姓名的Excel文件，格式：第1列学号，第2列姓名，第3列学院，第4列专业，第5列年级（第3-5列可选）
         </template>
       </el-alert>
       
@@ -118,6 +130,7 @@
       </template>
     </el-dialog>
     
+    <!-- 添加学生 -->
     <el-dialog v-model="showAddDialog" title="添加学生" width="400px">
       <el-form :model="addForm" label-width="80px">
         <el-form-item label="学号">
@@ -126,13 +139,101 @@
         <el-form-item label="姓名">
           <el-input v-model="addForm.name" placeholder="请输入姓名" />
         </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="addForm.email" placeholder="请输入邮箱（可选）" />
+        <el-form-item label="学院">
+          <el-select v-model="addForm.college" placeholder="请选择学院" clearable filterable allow-create style="width: 100%">
+            <el-option v-for="c in collegeOptions" :key="c" :label="c" :value="c" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="专业">
+          <el-select v-model="addForm.major" placeholder="请选择专业" clearable filterable allow-create style="width: 100%">
+            <el-option v-for="m in majorOptions" :key="m" :label="m" :value="m" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="年级">
+          <el-select v-model="addForm.grade" placeholder="请选择年级" clearable filterable allow-create style="width: 100%">
+            <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
+          </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showAddDialog = false">取消</el-button>
         <el-button type="primary" @click="handleAdd">确认</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 选项设置 -->
+    <el-dialog v-model="showOptionDialog" title="选项设置" width="600px">
+      <el-tabs>
+        <el-tab-pane label="学院">
+          <div class="option-list">
+            <div v-for="item in optionData.college || []" :key="item.id" class="option-item">
+              <span>{{ item.optionValue }}</span>
+              <el-button size="small" type="danger" link @click="handleDeleteOption(item.id, 'college')">删除</el-button>
+            </div>
+            <div v-if="!optionData.college || optionData.college.length === 0" class="option-empty">暂无选项</div>
+            <div class="option-add">
+              <el-input v-model="newOption.college" placeholder="输入新学院名称" size="small" style="width: 300px" />
+              <el-button size="small" type="primary" @click="handleAddOption('college')">添加</el-button>
+            </div>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="专业">
+          <div class="option-list">
+            <div v-for="item in optionData.major || []" :key="item.id" class="option-item">
+              <span>{{ item.optionValue }}</span>
+              <el-button size="small" type="danger" link @click="handleDeleteOption(item.id, 'major')">删除</el-button>
+            </div>
+            <div v-if="!optionData.major || optionData.major.length === 0" class="option-empty">暂无选项</div>
+            <div class="option-add">
+              <el-input v-model="newOption.major" placeholder="输入新专业名称" size="small" style="width: 300px" />
+              <el-button size="small" type="primary" @click="handleAddOption('major')">添加</el-button>
+            </div>
+          </div>
+        </el-tab-pane>
+        <el-tab-pane label="年级">
+          <div class="option-list">
+            <div v-for="item in optionData.grade || []" :key="item.id" class="option-item">
+              <span>{{ item.optionValue }}</span>
+              <el-button size="small" type="danger" link @click="handleDeleteOption(item.id, 'grade')">删除</el-button>
+            </div>
+            <div v-if="!optionData.grade || optionData.grade.length === 0" class="option-empty">暂无选项</div>
+            <div class="option-add">
+              <el-input v-model="newOption.grade" placeholder="输入新年级" size="small" style="width: 300px" />
+              <el-button size="small" type="primary" @click="handleAddOption('grade')">添加</el-button>
+            </div>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+    </el-dialog>
+
+    <!-- 编辑学生 -->
+    <el-dialog v-model="showEditDialog" title="编辑学生信息" width="400px">
+      <el-form :model="editForm" label-width="80px">
+        <el-form-item label="学号">
+          <el-input :model-value="editForm.username" disabled />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input v-model="editForm.realName" />
+        </el-form-item>
+        <el-form-item label="学院">
+          <el-select v-model="editForm.college" placeholder="请选择学院" clearable filterable allow-create style="width: 100%">
+            <el-option v-for="c in collegeOptions" :key="c" :label="c" :value="c" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="专业">
+          <el-select v-model="editForm.major" placeholder="请选择专业" clearable filterable allow-create style="width: 100%">
+            <el-option v-for="m in majorOptions" :key="m" :label="m" :value="m" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="年级">
+          <el-select v-model="editForm.grade" placeholder="请选择年级" clearable filterable allow-create style="width: 100%">
+            <el-option v-for="g in gradeOptions" :key="g" :label="g" :value="g" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showEditDialog = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveEdit">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -145,10 +246,12 @@ import {
   getStudentList, 
   batchImportStudents, 
   createStudent,
+  updateStudent,
   deleteStudent,
   resetStudentPassword,
   toggleStudentStatus
 } from '@/api/student'
+import { getOptionsByCategory, addOption, deleteOption } from '@/api/option'
 
 const loading = ref(false)
 const students = ref([])
@@ -159,19 +262,61 @@ const searchKeyword = ref('')
 
 const showImportDialog = ref(false)
 const showAddDialog = ref(false)
+const showOptionDialog = ref(false)
 const importing = ref(false)
 const uploadRef = ref(null)
 const uploadFile = ref(null)
 
+const collegeOptions = ref([])
+const majorOptions = ref([])
+const gradeOptions = ref([])
+const optionData = reactive({ college: [], major: [], grade: [] })
+const newOption = reactive({ college: '', major: '', grade: '' })
+
 const addForm = reactive({
   studentId: '',
   name: '',
-  email: ''
+  college: '',
+  major: '',
+  grade: ''
+})
+
+const showEditDialog = ref(false)
+const editForm = reactive({
+  id: null,
+  username: '',
+  realName: '',
+  college: '',
+  major: '',
+  grade: ''
 })
 
 onMounted(() => {
   fetchStudents()
+  fetchOptions()
 })
+
+async function fetchOptions() {
+  try {
+    const [collegeRes, majorRes, gradeRes] = await Promise.all([
+      getOptionsByCategory('college'),
+      getOptionsByCategory('major'),
+      getOptionsByCategory('grade')
+    ])
+    collegeOptions.value = (collegeRes.data || []).map(o => o.optionValue)
+    majorOptions.value = (majorRes.data || []).map(o => o.optionValue)
+    gradeOptions.value = (gradeRes.data || []).map(o => o.optionValue)
+    optionData.college = collegeRes.data || []
+    optionData.major = majorRes.data || []
+    optionData.grade = gradeRes.data || []
+  } catch (e) {
+    console.error('获取选项失败:', e)
+  }
+}
+
+function openAddDialog() {
+  showAddDialog.value = true
+}
 
 async function fetchStudents() {
   loading.value = true
@@ -238,10 +383,38 @@ async function handleAdd() {
     showAddDialog.value = false
     addForm.studentId = ''
     addForm.name = ''
-    addForm.email = ''
+    addForm.college = ''
+    addForm.major = ''
+    addForm.grade = ''
     fetchStudents()
   } catch (error) {
     console.error('添加失败:', error)
+  }
+}
+
+function handleEdit(row) {
+  editForm.id = row.id
+  editForm.username = row.username
+  editForm.realName = row.realName || ''
+  editForm.college = row.college || ''
+  editForm.major = row.major || ''
+  editForm.grade = row.grade || ''
+  showEditDialog.value = true
+}
+
+async function handleSaveEdit() {
+  try {
+    await updateStudent(editForm.id, {
+      realName: editForm.realName,
+      college: editForm.college,
+      major: editForm.major,
+      grade: editForm.grade
+    })
+    ElMessage.success('保存成功')
+    showEditDialog.value = false
+    fetchStudents()
+  } catch (error) {
+    console.error('保存失败:', error)
   }
 }
 
@@ -298,6 +471,33 @@ async function handleDelete(row) {
     }
   }
 }
+
+async function handleAddOption(category) {
+  const value = newOption[category]
+  if (!value || !value.trim()) {
+    ElMessage.warning('请输入选项值')
+    return
+  }
+  try {
+    await addOption(category, value.trim())
+    newOption[category] = ''
+    fetchOptions()
+    ElMessage.success('添加成功')
+  } catch (e) {
+    console.error('添加选项失败:', e)
+  }
+}
+
+async function handleDeleteOption(id, category) {
+  try {
+    await ElMessageBox.confirm('确定删除此选项？', '提示', { type: 'warning' })
+    await deleteOption(id)
+    fetchOptions()
+    ElMessage.success('删除成功')
+  } catch (e) {
+    if (e !== 'cancel') console.error('删除选项失败:', e)
+  }
+}
 </script>
 
 <style scoped lang="scss">
@@ -331,5 +531,31 @@ async function handleDelete(row) {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.option-list {
+  .option-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #f0f0f0;
+    
+    span {
+      font-size: 14px;
+    }
+  }
+  
+  .option-empty {
+    color: #999;
+    text-align: center;
+    padding: 20px;
+  }
+  
+  .option-add {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+  }
 }
 </style>

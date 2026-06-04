@@ -3,7 +3,10 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
     `username` VARCHAR(50) NOT NULL,
     `password` VARCHAR(200) NOT NULL,
     `real_name` VARCHAR(50) DEFAULT NULL,
-    `email` VARCHAR(100) DEFAULT NULL,
+    `phone` VARCHAR(20) DEFAULT NULL,
+    `college` VARCHAR(100) DEFAULT NULL,
+    `major` VARCHAR(100) DEFAULT NULL,
+    `grade` VARCHAR(20) DEFAULT NULL,
     `role` VARCHAR(20) NOT NULL DEFAULT 'STUDENT',
     `status` INT NOT NULL DEFAULT 1,
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -52,6 +55,15 @@ CREATE TABLE IF NOT EXISTS `knowledge_chunk` (
     `chunk_index` INT NOT NULL,
     `source_file` VARCHAR(200) DEFAULT NULL,
     `chapter_info` VARCHAR(200) DEFAULT NULL,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `sys_option` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `category` VARCHAR(50) NOT NULL,
+    `option_value` VARCHAR(200) NOT NULL,
+    `sort_order` INT DEFAULT 0,
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
 );

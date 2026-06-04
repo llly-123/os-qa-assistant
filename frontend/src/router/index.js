@@ -22,6 +22,12 @@ const routes = [
         meta: { requiresAuth: true, role: 'STUDENT' }
       },
       {
+        path: 'my-stats',
+        name: 'MyStats',
+        component: () => import('@/views/student/MyStats.vue'),
+        meta: { requiresAuth: true, role: 'STUDENT' }
+      },
+      {
         path: 'admin',
         name: 'Admin',
         component: () => import('@/views/admin/AdminLayout.vue'),

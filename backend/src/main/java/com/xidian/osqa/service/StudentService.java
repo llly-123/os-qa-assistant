@@ -41,13 +41,16 @@ public class StudentService {
         return userMapper.selectPage(pageParam, wrapper);
     }
 
-    public User createStudent(String studentId, String name, String email) {
+    public User createStudent(String studentId, String name, String phone, String college, String major, String grade) {
         User user = new User();
         user.setUsername(studentId);
         String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : studentId;
         user.setPassword(passwordEncoder.encode(defaultPassword));
         user.setRealName(name);
-        user.setEmail(email);
+        user.setPhone(phone);
+        user.setCollege(college);
+        user.setMajor(major);
+        user.setGrade(grade);
         user.setRole("STUDENT");
         user.setStatus(1);
         user.setCreateTime(LocalDateTime.now());
@@ -85,6 +88,20 @@ public class StudentService {
         userMapper.deleteById(studentId);
     }
 
+    public void updateStudent(Long id, Map<String, String> body) {
+        User user = userMapper.selectById(id);
+        if (user == null) {
+            throw new RuntimeException("学生不存在");
+        }
+        if (body.containsKey("realName")) user.setRealName(body.get("realName"));
+        if (body.containsKey("college")) user.setCollege(body.get("college"));
+        if (body.containsKey("major")) user.setMajor(body.get("major"));
+        if (body.containsKey("grade")) user.setGrade(body.get("grade"));
+        if (body.containsKey("phone")) user.setPhone(body.get("phone"));
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+    }
+
     public Map<String, Object> batchImport(MultipartFile file) throws Exception {
         if (file.isEmpty()) {
             throw new RuntimeException("文件为空");
@@ -104,7 +121,10 @@ public class StudentService {
                 try {
                     String studentId = row.get(0);
                     String name = row.get(1);
-                    String email = row.size() > 2 ? row.get(2) : null;
+                    String phone = row.size() > 2 ? row.get(2) : null;
+                    String college = row.size() > 3 ? row.get(3) : null;
+                    String major = row.size() > 4 ? row.get(4) : null;
+                    String grade = row.size() > 5 ? row.get(5) : null;
 
                     if (studentId == null || studentId.isBlank() || name == null || name.isBlank()) {
                         counts[2]++;
@@ -114,7 +134,10 @@ public class StudentService {
 
                     studentId = studentId.trim();
                     name = name.trim();
-                    if (email != null) email = email.trim();
+                    if (phone != null) phone = phone.trim();
+                    if (college != null) college = college.trim();
+                    if (major != null) major = major.trim();
+                    if (grade != null) grade = grade.trim();
 
                     LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
                     wrapper.eq(User::getUsername, studentId);
@@ -124,7 +147,7 @@ public class StudentService {
                         return;
                     }
 
-                    createStudent(studentId, name, email);
+                    createStudent(studentId, name, phone, college, major, grade);
                     counts[1]++;
                 } catch (Exception e) {
                     counts[2]++;

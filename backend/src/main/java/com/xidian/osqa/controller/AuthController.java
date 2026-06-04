@@ -43,16 +43,29 @@ public class AuthController {
         return authService.changePassword(userId, oldPassword, newPassword);
     }
 
-    @PostMapping("/send-code")
-    public Result<?> sendVerifyCode(@RequestBody Map<String, String> body) {
-        String email = body.get("email");
-        return authService.sendVerifyCode(email);
+    @PostMapping("/bind-phone")
+    public Result<?> bindPhone(HttpServletRequest request, @RequestBody Map<String, String> body) {
+        Long userId = (Long) request.getAttribute("userId");
+        String phone = body.get("phone");
+        return authService.bindPhone(userId, phone);
     }
 
-    @PostMapping("/reset-password")
-    public Result<?> resetPassword(@RequestBody Map<String, String> body) {
-        String email = body.get("email");
+    @PostMapping("/unbind-phone")
+    public Result<?> unbindPhone(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return authService.unbindPhone(userId);
+    }
+
+    @PostMapping("/send-phone-code")
+    public Result<?> sendPhoneCode(@RequestBody Map<String, String> body) {
+        String phone = body.get("phone");
+        return authService.sendPhoneCode(phone);
+    }
+
+    @PostMapping("/reset-password-by-phone")
+    public Result<?> resetPasswordByPhone(@RequestBody Map<String, String> body) {
+        String phone = body.get("phone");
         String code = body.get("code");
-        return authService.resetPassword(email, code);
+        return authService.resetPasswordByPhone(phone, code);
     }
 }

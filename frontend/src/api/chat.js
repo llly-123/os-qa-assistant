@@ -69,6 +69,13 @@ export function sendMessage(sessionId, content, onMessage, onError, onComplete) 
   })
 }
 
+export function getMyStats() {
+  return request({
+    url: '/chat/my-stats',
+    method: 'get'
+  })
+}
+
 export function sendMessageStream(sessionId, content) {
   const token = localStorage.getItem('token')
   return fetch(`/api/chat/sessions/${sessionId}/stream`, {
