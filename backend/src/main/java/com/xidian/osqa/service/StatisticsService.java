@@ -3,12 +3,16 @@ package com.xidian.osqa.service;
 import com.xidian.osqa.mapper.ChatMessageMapper;
 import com.xidian.osqa.mapper.ChatSessionMapper;
 import com.xidian.osqa.mapper.UserMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
 
 @Service
 public class StatisticsService {
+
+    private static final Logger log = LoggerFactory.getLogger(StatisticsService.class);
 
     private final ChatMessageMapper messageMapper;
     private final ChatSessionMapper sessionMapper;
@@ -102,11 +106,82 @@ public class StatisticsService {
 
     public List<Map<String, Object>> getRecentQuestions(String startDate, String endDate, int limit) {
         try {
+            List<Map<String, Object>> raw;
             if (startDate != null && endDate != null) {
-                return messageMapper.findRecentQuestionsByDate(startDate, endDate, limit);
+                raw = messageMapper.findRecentQuestionsByDate(startDate, endDate, limit);
+            } else {
+                raw = messageMapper.findRecentQuestions(limit);
             }
-            return messageMapper.findRecentQuestions(limit);
+            // 转换CLOB为String
+            for (Map<String, Object> row : raw) {
+                for (Map.Entry<String, Object> entry : row.entrySet()) {
+                    if (entry.getValue() instanceof java.sql.Clob) {
+                        try {
+                            entry.setValue(((java.sql.Clob) entry.getValue()).getSubString(1, (int) ((java.sql.Clob) entry.getValue()).length()));
+                        } catch (Exception e) {
+                            entry.setValue(String.valueOf(entry.getValue()));
+                        }
+                    }
+                }
+            }
+            return raw;
         } catch (Exception e) {
+            return new ArrayList<>();
+        }
+    }
+
+    public List<Map<String, Object>> getUserRecentQuestions(Long userId, int limit) {
+        try {
+            List<Map<String, Object>> raw = messageMapper.findUserRecentQuestions(userId, limit);
+            // 转换所有CLOB为String
+            for (Map<String, Object> row : raw) {
+                Map<String, Object> newRow = new LinkedHashMap<>();
+                for (Map.Entry<String, Object> entry : row.entrySet()) {
+                    Object value = entry.getValue();
+                    if (value instanceof java.sql.Clob) {
+                        try {
+                            value = ((java.sql.Clob) value).getSubString(1, (int) ((java.sql.Clob) value).length());
+                        } catch (Exception e) {
+                            value = "[内容解析失败]";
+                        }
+                    }
+                    newRow.put(entry.getKey(), value);
+                }
+
+                // 处理问题内容
+                String questionText = null;
+                Object q = newRow.get("question");
+                if (q == null) q = newRow.get("QUESTION");
+                if (q != null) {
+                    questionText = q.toString().trim();
+                    if (questionText.length() > 100) {
+                        questionText = questionText.substring(0, 100) + "...";
+                    }
+                }
+                newRow.put("question", questionText != null ? questionText : "[无内容]");
+                newRow.put("QUESTION", questionText != null ? questionText : "[无内容]");
+
+                // 判断是否与教材相关
+                boolean isRelated = false;
+                if (questionText != null) {
+                    String lowerText = questionText.toLowerCase();
+                    isRelated = lowerText.contains("进程") || lowerText.contains("线程") ||
+                            lowerText.contains("内存") || lowerText.contains("文件") ||
+                            lowerText.contains("死锁") || lowerText.contains("调度") ||
+                            lowerText.contains("虚拟") || lowerText.contains("页面") ||
+                            lowerText.contains("磁盘") || lowerText.contains("io") ||
+                            lowerText.contains("操作系统") || lowerText.contains("os") ||
+                            lowerText.contains("算法") || lowerText.contains("同步") ||
+                            lowerText.contains("信号量") || lowerText.contains("管程");
+                }
+                newRow.put("isRelated", isRelated);
+
+                row.clear();
+                row.putAll(newRow);
+            }
+            return raw;
+        } catch (Exception e) {
+            log.error("获取用户提问记录失败", e);
             return new ArrayList<>();
         }
     }

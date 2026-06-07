@@ -31,3 +31,11 @@ export function getRecentQuestions(params) {
     params
   })
 }
+
+export function getUserQuestions(userId, limit = 20) {
+  return request({
+    url: `/admin/statistics/user/${userId}/questions`,
+    method: 'get',
+    params: { limit }
+  })
+}

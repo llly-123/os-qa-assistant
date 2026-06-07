@@ -42,4 +42,12 @@ public class StatisticsController {
         List<Map<String, Object>> recent = statisticsService.getRecentQuestions(startDate, endDate, limit);
         return Result.success(recent);
     }
+
+    @GetMapping("/user/{userId}/questions")
+    public Result<?> getUserQuestions(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "20") int limit) {
+        List<Map<String, Object>> questions = statisticsService.getUserRecentQuestions(userId, limit);
+        return Result.success(questions);
+    }
 }

@@ -82,6 +82,10 @@
     </div>
     
     <div class="chat-input">
+      <div class="input-options">
+        <el-checkbox v-model="webSearchEnabled" label="联网搜索" />
+        <span class="search-tip">开启后将搜索网络资源获取答案</span>
+      </div>
       <el-input
         v-model="inputMessage"
         type="textarea"
@@ -120,6 +124,7 @@ const chatStore = useChatStore()
 const messagesContainer = ref(null)
 const inputMessage = ref('')
 const isTyping = ref(false)
+const webSearchEnabled = ref(false)
 
 const messages = computed(() => chatStore.messages)
 const currentSessionId = computed(() => chatStore.currentSessionId)
@@ -211,7 +216,7 @@ async function sendMessage() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ content })
+      body: JSON.stringify({ content, webSearch: webSearchEnabled.value })
     })
     
     if (!response.ok) {
@@ -416,13 +421,19 @@ async function sendMessage() {
 .citation-card {
   margin-top: 12px;
   padding: 8px 12px;
-  background: #fdf6ec;
   border-radius: 4px;
   font-size: 13px;
-  color: #e6a23c;
   display: flex;
   align-items: center;
   gap: 8px;
+
+  &:has(span:contains("网络")) {
+    background: #ecf5ff;
+    color: #409eff;
+  }
+
+  background: #fdf6ec;
+  color: #e6a23c;
 }
 
 .typing-indicator {
@@ -444,7 +455,19 @@ async function sendMessage() {
   padding: 16px 20px;
   border-top: 1px solid #e4e7ed;
   background: #fff;
-  
+
+  .input-options {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+
+    .search-tip {
+      font-size: 12px;
+      color: #909399;
+    }
+  }
+
   .input-actions {
     display: flex;
     justify-content: space-between;

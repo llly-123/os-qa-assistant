@@ -71,6 +71,11 @@ knowledge:
   chunk-size: 1000
   chunk-overlap: 200
 
+web:
+  search:
+    enabled: true
+    subject: 操作系统
+
 logging:
   level:
     com.xidian.osqa: debug

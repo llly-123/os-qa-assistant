@@ -29,19 +29,21 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     @Select("SELECT content FROM chat_message WHERE role = 'user' AND create_time >= #{startDate} AND create_time <= #{endDate} ORDER BY create_time DESC LIMIT #{limit}")
     List<String> findQuestionContentsByDate(@Param("startDate") String startDate, @Param("endDate") String endDate, @Param("limit") int limit);
 
-    @Select("SELECT m.id, CAST(m.content AS VARCHAR(1000)) as question, m.create_time, m.citation, m.source_type, u.username as studentName, u.real_name as studentRealName " +
+    @Select("SELECT m.id, m.content as question, m.create_time, m.citation, m.source_type, " +
+            "u.username as studentName, u.real_name as studentRealName " +
             "FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "LEFT JOIN sys_user u ON s.user_id = u.id AND u.deleted = 0 " +
-            "WHERE m.role = 'user' AND u.role = 'STUDENT' " +
+            "LEFT JOIN sys_user u ON s.user_id = u.id AND (u.deleted = 0 OR u.deleted IS NULL) " +
+            "WHERE m.role = 'user' " +
             "ORDER BY m.create_time DESC LIMIT #{limit}")
     List<Map<String, Object>> findRecentQuestions(int limit);
 
-    @Select("SELECT m.id, CAST(m.content AS VARCHAR(1000)) as question, m.create_time, m.citation, m.source_type, u.username as studentName, u.real_name as studentRealName " +
+    @Select("SELECT m.id, m.content as question, m.create_time, m.citation, m.source_type, " +
+            "u.username as studentName, u.real_name as studentRealName " +
             "FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "LEFT JOIN sys_user u ON s.user_id = u.id AND u.deleted = 0 " +
-            "WHERE m.role = 'user' AND u.role = 'STUDENT' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "LEFT JOIN sys_user u ON s.user_id = u.id AND (u.deleted = 0 OR u.deleted IS NULL) " +
+            "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
             "ORDER BY m.create_time DESC LIMIT #{limit}")
     List<Map<String, Object>> findRecentQuestionsByDate(@Param("startDate") String startDate, @Param("endDate") String endDate, @Param("limit") int limit);
 
@@ -77,4 +79,11 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
             "WHERE m.role = 'assistant' AND s.user_id = #{userId}")
     int countUserTotalAnswers(@Param("userId") Long userId);
+
+    @Select("SELECT m.id, m.content as question, m.create_time, m.citation, m.source_type " +
+            "FROM chat_message m " +
+            "LEFT JOIN chat_session s ON m.session_id = s.id " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} " +
+            "ORDER BY m.create_time DESC LIMIT #{limit}")
+    List<Map<String, Object>> findUserRecentQuestions(@Param("userId") Long userId, @Param("limit") int limit);
 }

@@ -69,6 +69,9 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item @click="handleViewRecords(row)">
+                  <el-icon><Document /></el-icon>查看记录
+                </el-dropdown-item>
                 <el-dropdown-item @click="handleResetPassword(row)">重置密码</el-dropdown-item>
                 <el-dropdown-item @click="handleToggleStatus(row)">
                   {{ row.status === 1 ? '冻结' : '解冻' }}
@@ -236,6 +239,42 @@
         <el-button type="primary" @click="handleSaveEdit">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 查看提问记录 -->
+    <el-dialog v-model="showRecordsDialog" :title="'提问记录 - ' + currentStudentName" width="700px">
+      <div v-if="recordsLoading" style="text-align: center; padding: 40px">
+        <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+        <p style="margin-top: 10px">加载中...</p>
+      </div>
+      <div v-else>
+        <div v-if="questionRecords.length === 0" style="text-align: center; padding: 40px; color: #909399">
+          <el-icon :size="48"><Document /></el-icon>
+          <p style="margin-top: 10px">暂无提问记录</p>
+        </div>
+        <el-table v-else :data="questionRecords" stripe max-height="400">
+          <el-table-column label="问题内容" min-width="300">
+            <template #default="{ row }">
+              <span>{{ row.question || row.QUESTION }}</span>
+              <el-tag v-if="row.isRelated === false" type="danger" size="small" style="margin-left: 8px">无关内容</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="时间" width="180">
+            <template #default="{ row }">
+              {{ formatRecordTime(row.create_time || row.CREATE_TIME) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="来源" width="100">
+            <template #default="{ row }">
+              <el-tag v-if="row.source_type === 'web'" type="primary" size="small">网络</el-tag>
+              <el-tag v-else type="success" size="small">教材</el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #footer>
+        <el-button @click="showRecordsDialog = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -252,6 +291,7 @@ import {
   toggleStudentStatus
 } from '@/api/student'
 import { getOptionsByCategory, addOption, deleteOption } from '@/api/option'
+import { getUserQuestions } from '@/api/statistics'
 
 const loading = ref(false)
 const students = ref([])
@@ -290,6 +330,12 @@ const editForm = reactive({
   major: '',
   grade: ''
 })
+
+// 查看提问记录
+const showRecordsDialog = ref(false)
+const recordsLoading = ref(false)
+const questionRecords = ref([])
+const currentStudentName = ref('')
 
 onMounted(() => {
   fetchStudents()
@@ -453,6 +499,28 @@ async function handleToggleStatus(row) {
       console.error('操作失败:', error)
     }
   }
+}
+
+async function handleViewRecords(row) {
+  currentStudentName.value = row.realName || row.username
+  showRecordsDialog.value = true
+  recordsLoading.value = true
+  questionRecords.value = []
+
+  try {
+    const res = await getUserQuestions(row.id, 20)
+    questionRecords.value = res.data || []
+  } catch (error) {
+    console.error('获取提问记录失败:', error)
+    ElMessage.error('获取提问记录失败')
+  } finally {
+    recordsLoading.value = false
+  }
+}
+
+function formatRecordTime(date) {
+  if (!date) return ''
+  return new Date(date).toLocaleString('zh-CN')
 }
 
 async function handleDelete(row) {

@@ -20,6 +20,7 @@ public class RagService {
 
     private final ChatLanguageModel chatModel;
     private final KnowledgeEmbeddingService embeddingService;
+    private final WebSearchService webSearchService;
 
     private static final String SYSTEM_PROMPT = """
             你是西安电子科技大学《操作系统》课程的AI答疑助教。你的职责是：
@@ -32,13 +33,32 @@ public class RagService {
             7. 在回答末尾，如果引用了教材内容，请标注参考资料来源。
             """;
 
-    public RagService(ChatLanguageModel chatModel, KnowledgeEmbeddingService embeddingService) {
+    public RagService(ChatLanguageModel chatModel, KnowledgeEmbeddingService embeddingService, WebSearchService webSearchService) {
         this.chatModel = chatModel;
         this.embeddingService = embeddingService;
+        this.webSearchService = webSearchService;
     }
 
     public String answer(String question, boolean webSearch) {
         try {
+            // 如果开启联网搜索，优先使用网络搜索
+            if (webSearch) {
+                log.info("开启联网搜索模式");
+                List<WebSearchService.SearchResult> searchResults = webSearchService.search(question, "操作系统");
+
+                if (!searchResults.isEmpty()) {
+                    // 使用DeepSeek整理搜索结果
+                    String aiAnswer = webSearchService.summarizeWithAI(searchResults, question);
+                    if (aiAnswer != null) {
+                        return aiAnswer;
+                    }
+                }
+
+                // 搜索无结果时降级到教材检索
+                log.info("联网搜索无结果，降级到教材检索");
+            }
+
+            // 教材知识库检索
             List<String> relevantChunks = embeddingService.retrieve(question, 8);
 
             List<ChatMessage> messages = new ArrayList<>();
@@ -55,13 +75,11 @@ public class RagService {
                 contextBuilder.append("请基于以上教材内容回答学生的问题。如果以上内容不足以回答问题，请如实说明。\n\n");
             } else {
                 contextBuilder.append("注意：知识库中未检索到与问题直接相关的教材内容。");
-                if (!webSearch) {
-                    contextBuilder.append("请基于操作系统通用知识谨慎回答，并明确告知学生此回答未引用教材原文，建议开启联网搜索或咨询老师。\n\n");
-                }
+                contextBuilder.append("请基于操作系统通用知识谨慎回答，并明确告知学生此回答未引用教材原文，建议开启联网搜索或咨询老师。\n\n");
             }
 
             if (webSearch) {
-                contextBuilder.append("（已开启联网搜索，当前暂未接入外部搜索服务，仅基于教材内容回答）\n\n");
+                contextBuilder.append("（已尝试联网搜索但未获得有效结果，现基于教材内容或通用知识回答）\n\n");
             }
 
             String userPrompt = contextBuilder + "学生问题：" + question;
@@ -82,6 +100,11 @@ public class RagService {
     }
 
     public String getCitation(String question, boolean webSearch) {
+        // 联网搜索时返回网络来源
+        if (webSearch) {
+            return "🌐 来源：网络搜索";
+        }
+
         List<String> relevantChunks = embeddingService.retrieve(question, 8);
         if (!relevantChunks.isEmpty()) {
             StringBuilder sb = new StringBuilder("📚 参考资料：\n");

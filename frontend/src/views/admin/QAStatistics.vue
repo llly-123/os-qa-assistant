@@ -81,109 +81,44 @@
         </el-card>
       </el-col>
     </el-row>
-    
-    <el-card style="margin-top: 20px">
-      <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center">
-          <span>最近提问记录</span>
-          <el-button size="small" @click="fetchAllData">刷新</el-button>
-        </div>
-      </template>
-      
-      <el-table :data="recentQuestions" stripe>
-        <el-table-column label="学号" width="130">
-          <template #default="{ row }">
-            {{ row.STUDENTNAME || row.studentName || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="姓名" width="100">
-          <template #default="{ row }">
-            {{ row.STUDENTREALNAME || row.studentRealName || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="问题" show-overflow-tooltip>
-          <template #default="{ row }">
-            {{ row.QUESTION || row.question || '-' }}
-          </template>
-        </el-table-column>
-        <el-table-column label="引用" width="80">
-          <template #default="{ row }">
-            <el-icon v-if="row.CITATION || row.citation" color="#67c23a"><SuccessFilled /></el-icon>
-            <el-icon v-else color="#f56c6c"><CircleClose /></el-icon>
-          </template>
-        </el-table-column>
-        <el-table-column label="时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.CREATE_TIME || row.create_time) }}
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { getQAStatistics, getHotKeywords, getRecentQuestions } from '@/api/statistics'
+import { getQAStatistics, getHotKeywords } from '@/api/statistics'
 
 const dateRange = ref([])
 const overview = ref({})
 const keywords = ref([])
-const recentQuestions = ref([])
 
 onMounted(() => {
   fetchAllData()
 })
 
-function getDateParams() {
-  if (dateRange.value && dateRange.value.length === 2) {
-    return {
-      startDate: new Date(dateRange.value[0]).toISOString().slice(0, 19).replace('T', ' '),
-      endDate: new Date(dateRange.value[1]).toISOString().slice(0, 19).replace('T', ' ')
-    }
-  }
-  return {}
-}
-
 async function fetchAllData() {
-  const params = getDateParams()
   await Promise.all([
-    fetchStatistics(params),
-    fetchKeywords(params),
-    fetchRecentQuestions(params)
+    fetchStatistics(),
+    fetchKeywords()
   ])
 }
 
-async function fetchStatistics(params) {
+async function fetchStatistics() {
   try {
-    const res = await getQAStatistics(params)
+    const res = await getQAStatistics({ dateRange: dateRange.value })
     overview.value = res.data || {}
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
 }
 
-async function fetchKeywords(params) {
+async function fetchKeywords() {
   try {
-    const res = await getHotKeywords({ ...params, limit: 30 })
+    const res = await getHotKeywords({ dateRange: dateRange.value, limit: 30 })
     keywords.value = res.data || []
   } catch (error) {
     console.error('获取关键词失败:', error)
   }
-}
-
-async function fetchRecentQuestions(params) {
-  try {
-    const res = await getRecentQuestions({ ...params, limit: 20 })
-    recentQuestions.value = res.data || []
-  } catch (error) {
-    console.error('获取最近提问失败:', error)
-  }
-}
-
-function formatDate(date) {
-  if (!date) return ''
-  return new Date(date).toLocaleString('zh-CN')
 }
 
 function getTagSize(count) {
