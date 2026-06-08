@@ -99,6 +99,7 @@ public class WebSearchService {
 
         try {
             JsonNode root = objectMapper.readTree(jsonBody);
+            log.info("DuckDuckGo原始响应: {}", jsonBody.substring(0, Math.min(500, jsonBody.length())));
 
             // 解析Abstract（主要答案）
             JsonNode abstractNode = root.get("Abstract");
@@ -106,28 +107,34 @@ public class WebSearchService {
                 SearchResult result = new SearchResult();
                 result.setTitle(root.get("Heading") != null ? root.get("Heading").asText() : query);
                 result.setContent(abstractNode.asText());
-                result.setUrl(root.get("AbstractURL") != null ? root.get("AbstractURL").asText() : "");
+                String abstractUrl = root.get("AbstractURL") != null ? root.get("AbstractURL").asText() : "";
+                result.setUrl(abstractUrl);
                 result.setSource("DuckDuckGo");
                 results.add(result);
+                log.info("解析到Abstract结果: title={}, url={}", result.getTitle(), abstractUrl);
             }
 
             // 解析RelatedTopics（相关主题）
             JsonNode relatedTopics = root.get("RelatedTopics");
             if (relatedTopics != null && relatedTopics.isArray()) {
                 for (JsonNode topic : relatedTopics) {
-                    if (results.size() >= 5) break; // 限制结果数量
+                    if (results.size() >= 5) break;
 
                     JsonNode textNode = topic.get("Text");
                     if (textNode != null && !textNode.asText().isEmpty()) {
                         SearchResult result = new SearchResult();
-                        result.setTitle(topic.get("FirstURL") != null ? topic.get("FirstURL").asText() : query);
+                        String firstUrl = topic.get("FirstURL") != null ? topic.get("FirstURL").asText() : "";
+                        result.setTitle(firstUrl); // 用URL作为标题显示
                         result.setContent(textNode.asText());
-                        result.setUrl(topic.get("FirstURL") != null ? topic.get("FirstURL").asText() : "");
+                        result.setUrl(firstUrl);
                         result.setSource("DuckDuckGo");
                         results.add(result);
+                        log.info("解析到RelatedTopic: url={}", firstUrl);
                     }
                 }
             }
+            
+            log.info("共解析到{}个搜索结果", results.size());
         } catch (Exception e) {
             log.error("解析搜索响应失败", e);
         }

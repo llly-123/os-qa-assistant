@@ -76,6 +76,10 @@ web:
     enabled: true
     subject: 操作系统
 
+sms:
+  dev-mode: true
+  # 开发模式：true=返回验证码到前端(方便测试)，false=需接入真实短信服务
+
 logging:
   level:
     com.xidian.osqa: debug

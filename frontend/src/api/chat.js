@@ -76,6 +76,14 @@ export function getMyStats() {
   })
 }
 
+export function getQuickPrompts() {
+  return request({
+    url: '/chat/quick-prompts',
+    method: 'get',
+    params: { _t: Date.now() }
+  })
+}
+
 export function sendMessageStream(sessionId, content) {
   const token = localStorage.getItem('token')
   return fetch(`/api/chat/sessions/${sessionId}/stream`, {

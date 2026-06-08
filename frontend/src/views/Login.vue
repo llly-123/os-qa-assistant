@@ -85,6 +85,16 @@
               {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
             </el-button>
           </div>
+          <!-- 开发模式：显示验证码 -->
+          <div v-if="devCode" class="dev-code-tip" @click="copyDevCode">
+            <el-alert type="warning" :closable="false" show-icon>
+              <template #title>
+                <span style="font-size: 16px; font-weight: bold">开发模式验证码：</span>
+                <span style="font-size: 20px; font-weight: bold; color: #409eff; letter-spacing: 4px">{{ devCode }}</span>
+                <span style="margin-left: 8px; font-size: 12px">(点击可复制)</span>
+              </template>
+            </el-alert>
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -109,6 +119,7 @@ const loginFormRef = ref(null)
 const loading = ref(false)
 const showResetDialog = ref(false)
 const countdown = ref(0)
+const devCode = ref('')  // 开发模式验证码
 
 const loginForm = reactive({
   username: '',
@@ -158,8 +169,18 @@ async function sendCode() {
   }
   
   try {
-    await sendPhoneCode(resetForm.phone)
-    ElMessage.success('验证码已发送（开发模式请查看后端控制台）')
+    const res = await sendPhoneCode(resetForm.phone)
+    const data = res.data || res
+    
+    // 开发模式：显示验证码
+    if (data.devMode && data.devCode) {
+      devCode.value = data.devCode
+      ElMessage.success('验证码已生成（开发模式）')
+    } else {
+      devCode.value = ''
+      ElMessage.success('验证码已发送')
+    }
+    
     countdown.value = 60
     const timer = setInterval(() => {
       countdown.value--
@@ -183,8 +204,26 @@ async function handleResetPassword() {
     const data = res.data || res
     ElMessage.success(`密码已重置为学号后6位，请登录后修改`)
     showResetDialog.value = false
+    devCode.value = ''  // 清空验证码
   } catch (error) {
     console.error('重置密码失败:', error)
+  }
+}
+
+function copyDevCode() {
+  if (devCode.value) {
+    navigator.clipboard.writeText(devCode.value).then(() => {
+      ElMessage.success('验证码已复制')
+    }).catch(() => {
+      // 降级方案
+      const input = document.createElement('input')
+      input.value = devCode.value
+      document.body.appendChild(input)
+      input.select()
+      document.execCommand('copy')
+      document.body.removeChild(input)
+      ElMessage.success('验证码已复制')
+    })
   }
 }
 </script>
@@ -244,6 +283,14 @@ async function handleResetPassword() {
   
   .el-input {
     flex: 1;
+  }
+}
+
+.dev-code-tip {
+  margin-top: 10px;
+  
+  :deep(.el-alert__title) {
+    cursor: pointer;
   }
 }
 </style>

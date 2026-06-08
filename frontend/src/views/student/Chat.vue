@@ -56,9 +56,9 @@
             <div v-else class="user-content">{{ msg.content }}</div>
           </div>
           
-          <div v-if="msg.citation" class="citation-card">
+          <div v-if="msg.citation" class="citation-card" :class="msg.sourceType === 'web' ? 'web-source' : ''">
             <el-icon><Document /></el-icon>
-            <span>参考资料：{{ msg.citation }}</span>
+            <div class="citation-content" v-html="renderCitation(msg.citation)"></div>
           </div>
         </div>
       </div>
@@ -118,25 +118,39 @@ import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
 import 'highlight.js/styles/github-dark.css'
 import { useChatStore } from '@/stores/chat'
+import { getQuickPrompts } from '@/api/chat'
 
 const chatStore = useChatStore()
 
 const messagesContainer = ref(null)
 const inputMessage = ref('')
 const isTyping = ref(false)
+const streamingContent = ref('')
 const webSearchEnabled = ref(false)
 
 const messages = computed(() => chatStore.messages)
 const currentSessionId = computed(() => chatStore.currentSessionId)
 
-const quickQuestions = [
-  '什么是进程死锁？',
-  '死锁的四个必要条件',
-  'LRU算法原理',
-  '页面置换算法',
-  '信号量与P/V操作',
-  '进程调度算法'
-]
+const quickQuestions = ref([])
+
+// 登录后动态获取快捷提示
+async function loadQuickPrompts() {
+  try {
+    const res = await getQuickPrompts()
+    if (res?.data?.length > 0) {
+      quickQuestions.value = res.data
+    } else {
+      quickQuestions.value = ['什么是进程死锁？', '死锁的四个必要条件', 'LRU算法原理', '页面置换算法', '信号量与P/V操作', '进程调度算法']
+    }
+  } catch (e) {
+    quickQuestions.value = ['什么是进程死锁？', '死锁的四个必要条件', 'LRU算法原理', '页面置换算法', '信号量与P/V操作', '进程调度算法']
+  }
+}
+
+onMounted(() => {
+  loadQuickPrompts()
+  scrollToBottom()
+})
 
 marked.setOptions({
   highlight: function(code, lang) {
@@ -152,7 +166,18 @@ marked.setOptions({
 function renderMarkdown(content) {
   if (!content) return ''
   const rawHtml = marked.parse(content)
-  return DOMPurify.sanitize(rawHtml)
+  const sanitized = DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target'] })
+  // 所有链接在新标签页打开
+  return sanitized.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
+}
+
+function renderCitation(citation) {
+  if (!citation) return ''
+  // 将Markdown链接转换为HTML，链接在新标签页打开
+  const rawHtml = marked.parse(citation)
+  const sanitized = DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target'] })
+  // 为所有链接添加 target="_blank"
+  return sanitized.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ')
 }
 
 function formatTime(time) {
@@ -172,10 +197,6 @@ function scrollToBottom() {
 watch(messages, () => {
   scrollToBottom()
 }, { deep: true })
-
-onMounted(() => {
-  scrollToBottom()
-})
 
 function askQuickQuestion(question) {
   inputMessage.value = question
@@ -229,6 +250,7 @@ async function sendMessage() {
       const lastMsg = chatStore.messages[chatStore.messages.length - 1]
       lastMsg.content = res.data.content || '暂无回答'
       lastMsg.citation = res.data.citation || null
+      lastMsg.sourceType = webSearchEnabled.value ? 'web' : 'textbook'
       chatStore.fetchSessions()
     } else {
       throw new Error(res.message || '请求失败')
@@ -420,20 +442,38 @@ async function sendMessage() {
 
 .citation-card {
   margin-top: 12px;
-  padding: 8px 12px;
-  border-radius: 4px;
+  padding: 10px 14px;
+  border-radius: 6px;
   font-size: 13px;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-
-  &:has(span:contains("网络")) {
-    background: #ecf5ff;
-    color: #409eff;
-  }
-
   background: #fdf6ec;
   color: #e6a23c;
+  
+  .citation-content {
+    flex: 1;
+    line-height: 1.8;
+    
+    :deep(a) {
+      color: #409eff;
+      text-decoration: none;
+      
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+    
+    :deep(p) {
+      margin: 0;
+    }
+  }
+
+  &.web-source {
+    background: #ecf5ff;
+    color: #409eff;
+    border: 1px solid #d9ecff;
+  }
 }
 
 .typing-indicator {

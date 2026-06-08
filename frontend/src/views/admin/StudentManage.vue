@@ -45,7 +45,12 @@
       <el-table-column prop="college" label="学院" />
       <el-table-column prop="major" label="专业" />
       <el-table-column prop="grade" label="年级" width="80" />
-      <el-table-column prop="phone" label="手机号" width="130" />
+      <el-table-column label="最近提问" width="180">
+        <template #default="{ row }">
+          <span v-if="row.extraInfo">{{ formatDateTime(row.extraInfo) }}</span>
+          <span v-else style="color: #909399">暂无记录</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="createTime" label="创建时间" width="180">
         <template #default="{ row }">
           {{ formatDate(row.createTime) }}
@@ -107,6 +112,13 @@
           请上传包含学号和姓名的Excel文件，格式：第1列学号，第2列姓名，第3列学院，第4列专业，第5列年级（第3-5列可选）
         </template>
       </el-alert>
+
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 12px">
+        <el-button size="small" type="primary" link @click="downloadTemplate">
+          <el-icon><Download /></el-icon>
+          下载导入模板
+        </el-button>
+      </div>
       
       <el-upload
         ref="uploadRef"
@@ -281,6 +293,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import * as XLSX from 'xlsx'
 import { 
   getStudentList, 
   batchImportStudents, 
@@ -385,6 +398,18 @@ function formatDate(date) {
   return new Date(date).toLocaleString('zh-CN')
 }
 
+function formatDateTime(dateStr) {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  const h = String(date.getHours()).padStart(2, '0')
+  const min = String(date.getMinutes()).padStart(2, '0')
+  const s = String(date.getSeconds()).padStart(2, '0')
+  return `${y}-${m}-${d} ${h}:${min}:${s}`
+}
+
 function handleFileChange(file) {
   uploadFile.value = file.raw
 }
@@ -415,6 +440,26 @@ async function handleImport() {
   } finally {
     importing.value = false
   }
+}
+
+function downloadTemplate() {
+  // 使用SheetJS生成真正的Excel文件
+  const headers = ['学号', '姓名', '学院', '专业', '年级']
+  const ws = XLSX.utils.aoa_to_sheet([headers])
+  
+  // 设置列宽
+  ws['!cols'] = [
+    { wch: 15 }, // 学号
+    { wch: 12 }, // 姓名
+    { wch: 15 }, // 学院
+    { wch: 20 }, // 专业
+    { wch: 10 }, // 年级
+  ]
+  
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, '学生导入')
+  XLSX.writeFile(wb, '学生导入模板.xlsx')
+  ElMessage.success('模板下载成功')
 }
 
 async function handleAdd() {

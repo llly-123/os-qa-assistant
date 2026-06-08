@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.User;
 import com.xidian.osqa.service.StudentService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.net.URLEncoder;
 import java.util.Map;
 
 @RestController
@@ -76,5 +78,10 @@ public class StudentController {
     public Result<?> deleteStudent(@PathVariable Long id) {
         studentService.deleteStudent(id);
         return Result.success();
+    }
+
+    @GetMapping("/template")
+    public void downloadTemplate(HttpServletResponse response) throws Exception {
+        studentService.downloadTemplate(response);
     }
 }

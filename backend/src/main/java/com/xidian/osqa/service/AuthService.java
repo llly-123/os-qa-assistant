@@ -5,6 +5,7 @@ import com.xidian.osqa.common.JwtUtil;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.User;
 import com.xidian.osqa.mapper.UserMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,9 @@ public class AuthService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+
+    @Value("${sms.dev-mode:true}")
+    private boolean smsDevMode;
 
     private final Map<String, String> codeStore = new ConcurrentHashMap<>();
     private final Map<String, Long> codeExpiry = new ConcurrentHashMap<>();
@@ -146,10 +150,19 @@ public class AuthService {
         codeStore.put(phone, code);
         codeExpiry.put(phone, System.currentTimeMillis() + 5 * 60 * 1000);
 
-        // TODO: 接入短信服务发送验证码，目前仅存储验证码
-        // 实际部署时替换为阿里云/腾讯云短信API
         logCode(phone, code);
 
+        // 开发模式：返回验证码到前端，方便测试
+        if (smsDevMode) {
+            Map<String, Object> result = new HashMap<>();
+            result.put("message", "验证码已发送（开发模式）");
+            result.put("devCode", code);
+            result.put("devMode", true);
+            return Result.success(result);
+        }
+
+        // 生产模式：接入真实短信服务
+        // TODO: 实际部署时替换为阿里云/腾讯云短信API
         return Result.success("验证码已发送");
     }
 

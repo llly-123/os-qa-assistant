@@ -24,6 +24,10 @@ public class User {
     @TableLogic
     private Integer deleted;
 
+    // 非数据库字段，用于传递额外信息（如最近提问时间）
+    @TableField(exist = false)
+    private String extraInfo;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getUsername() { return username; }
@@ -50,4 +54,6 @@ public class User {
     public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
     public Integer getDeleted() { return deleted; }
     public void setDeleted(Integer deleted) { this.deleted = deleted; }
+    public String getExtraInfo() { return extraInfo; }
+    public void setExtraInfo(String extraInfo) { this.extraInfo = extraInfo; }
 }

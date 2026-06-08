@@ -97,24 +97,37 @@ onMounted(() => {
 })
 
 async function fetchAllData() {
+  const params = {}
+  if (dateRange.value && dateRange.value.length === 2) {
+    params.startDate = formatDate(dateRange.value[0])
+    params.endDate = formatDate(dateRange.value[1])
+  }
   await Promise.all([
-    fetchStatistics(),
-    fetchKeywords()
+    fetchStatistics(params),
+    fetchKeywords(params)
   ])
 }
 
-async function fetchStatistics() {
+function formatDate(date) {
+  if (!date) return ''
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+async function fetchStatistics(params) {
   try {
-    const res = await getQAStatistics({ dateRange: dateRange.value })
+    const res = await getQAStatistics(params)
     overview.value = res.data || {}
   } catch (error) {
     console.error('获取统计数据失败:', error)
   }
 }
 
-async function fetchKeywords() {
+async function fetchKeywords(params) {
   try {
-    const res = await getHotKeywords({ dateRange: dateRange.value, limit: 30 })
+    const res = await getHotKeywords({ ...params, limit: 30 })
     keywords.value = res.data || []
   } catch (error) {
     console.error('获取关键词失败:', error)

@@ -150,4 +150,11 @@ public class ChatController {
         stats.put("keywords", chatService.getUserKeywords(userId, 20));
         return Result.success(stats);
     }
+
+    @GetMapping("/quick-prompts")
+    public Result<?> getQuickPrompts(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        List<String> prompts = chatService.getQuickPrompts(userId);
+        return Result.success(prompts);
+    }
 }

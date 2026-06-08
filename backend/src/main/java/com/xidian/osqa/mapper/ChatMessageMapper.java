@@ -86,4 +86,11 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
             "WHERE m.role = 'user' AND s.user_id = #{userId} " +
             "ORDER BY m.create_time DESC LIMIT #{limit}")
     List<Map<String, Object>> findUserRecentQuestions(@Param("userId") Long userId, @Param("limit") int limit);
+
+    @Select("SELECT s.user_id as userId, MAX(m.create_time) as lastQuestionTime " +
+            "FROM chat_message m " +
+            "LEFT JOIN chat_session s ON m.session_id = s.id " +
+            "WHERE m.role = 'user' " +
+            "GROUP BY s.user_id")
+    List<Map<String, Object>> findAllLastQuestionTimes();
 }
