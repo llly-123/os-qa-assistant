@@ -51,6 +51,12 @@ const routes = [
             name: 'KnowledgeManage',
             component: () => import('@/views/admin/KnowledgeManage.vue'),
             meta: { requiresAuth: true, role: 'TEACHER' }
+          },
+          {
+            path: 'videos',
+            name: 'VideoManage',
+            component: () => import('@/views/admin/VideoManage.vue'),
+            meta: { requiresAuth: true, role: 'TEACHER' }
           }
         ]
       }

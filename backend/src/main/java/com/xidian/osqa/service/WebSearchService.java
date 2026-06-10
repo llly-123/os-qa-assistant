@@ -22,6 +22,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 @Service
 public class WebSearchService {
@@ -38,9 +42,100 @@ public class WebSearchService {
     public WebSearchService(ChatLanguageModel chatModel) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(10))
+                .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
         this.objectMapper = new ObjectMapper();
         this.chatModel = chatModel;
+    }
+
+    // URL有效性检查专用客户端（模拟浏览器）
+    private static final String BROWSER_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+    private static final ExecutorService urlCheckExecutor = Executors.newFixedThreadPool(3);
+    private static final Semaphore urlCheckSemaphore = new Semaphore(2); // 限制并发数
+
+    /**
+     * 并发检查搜索结果中URL的有效性
+     * @param results 搜索结果列表
+     */
+    public void checkUrlValidity(List<SearchResult> results) {
+        if (results == null || results.isEmpty()) return;
+
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+
+        for (SearchResult result : results) {
+            if (result.getUrl() == null || result.getUrl().isEmpty()) {
+                result.setValid(false);
+                continue;
+            }
+            // 跳过搜索引擎链接（始终有效）
+            if (result.getUrl().contains("bing.com/search") || result.getUrl().contains("baidu.com/s?")) {
+                result.setValid(true);
+                continue;
+            }
+
+            futures.add(CompletableFuture.runAsync(() -> {
+                try {
+                    urlCheckSemaphore.acquire();
+                    boolean valid = checkSingleUrl(result.getUrl());
+                    result.setValid(valid);
+                    log.info("URL检查: {} -> {}", result.getUrl(), valid ? "有效" : "失效");
+                } catch (InterruptedException e) {
+                    result.setValid(null);
+                } finally {
+                    urlCheckSemaphore.release();
+                }
+            }, urlCheckExecutor));
+        }
+
+        // 等待所有检查完成，最多等5秒
+        try {
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
+                    .get(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            log.warn("URL检查超时，部分结果未完成验证");
+        }
+    }
+
+    /**
+     * 检查单个URL是否可访问
+     */
+    private boolean checkSingleUrl(String url) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(5))
+                    .header("User-Agent", BROWSER_USER_AGENT)
+                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                    .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .build();
+
+            HttpResponse<Void> response = httpClient.send(request, HttpResponse.BodyHandlers.discarding());
+            int status = response.statusCode();
+            // 2xx和3xx视为有效
+            return status >= 200 && status < 400;
+        } catch (Exception e) {
+            // HEAD请求可能被拒绝，尝试GET请求（只读取头部）
+            try {
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(url))
+                        .timeout(Duration.ofSeconds(5))
+                        .header("User-Agent", BROWSER_USER_AGENT)
+                        .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+                        .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
+                        .GET()
+                        .build();
+
+                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(
+                        java.nio.charset.StandardCharsets.UTF_8
+                ));
+                int status = response.statusCode();
+                return status >= 200 && status < 400;
+            } catch (Exception e2) {
+                log.debug("URL检查失败: {} - {}", url, e2.getMessage());
+                return false;
+            }
+        }
     }
 
     /**
@@ -199,6 +294,7 @@ public class WebSearchService {
         private String content;
         private String url;
         private String source;
+        private Boolean valid; // null=未检查, true=有效, false=失效
 
         public String getTitle() { return title; }
         public void setTitle(String title) { this.title = title; }
@@ -208,5 +304,7 @@ public class WebSearchService {
         public void setUrl(String url) { this.url = url; }
         public String getSource() { return source; }
         public void setSource(String source) { this.source = source; }
+        public Boolean getValid() { return valid; }
+        public void setValid(Boolean valid) { this.valid = valid; }
     }
 }

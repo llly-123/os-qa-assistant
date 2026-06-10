@@ -9,6 +9,16 @@
         
         <!-- 学生端：聊天侧边栏 -->
         <div v-if="role === 'STUDENT'" class="sidebar-content">
+          <div class="student-top-nav">
+            <div 
+              :class="['nav-item', { active: currentRoute === '/my-stats' }]"
+              @click="router.push('/my-stats')"
+            >
+              <el-icon><DataAnalysis /></el-icon>
+              <span>学习统计</span>
+            </div>
+          </div>
+
           <div class="new-chat-btn">
             <el-button type="primary" @click="createNewSession" style="width: 100%">
               <el-icon><Plus /></el-icon>
@@ -39,16 +49,6 @@
               </el-dropdown>
             </div>
           </div>
-
-          <div class="student-nav">
-            <div 
-              :class="['nav-item', { active: currentRoute === '/my-stats' }]"
-              @click="router.push('/my-stats')"
-            >
-              <el-icon><DataAnalysis /></el-icon>
-              <span>学习统计</span>
-            </div>
-          </div>
         </div>
         
         <!-- 教师端：管理导航 -->
@@ -75,6 +75,13 @@
               <el-icon><DataAnalysis /></el-icon>
               <span>问答统计</span>
             </div>
+            <div 
+              :class="['nav-item', { active: currentRoute === '/admin/videos' }]"
+              @click="router.push('/admin/videos')"
+            >
+              <el-icon><VideoCamera /></el-icon>
+              <span>视频管理</span>
+            </div>
           </div>
         </div>
         
@@ -90,18 +97,25 @@
           </div>
           
           <div class="action-btns">
-            <el-button v-if="role === 'STUDENT'" link @click="showPhoneDialog = true">
-              <el-icon><Phone /></el-icon>
-              {{ userPhone ? '更换手机' : '绑定手机' }}
-            </el-button>
-            <el-button link @click="showPasswordDialog = true">
-              <el-icon><Lock /></el-icon>
-              修改密码
-            </el-button>
-            <el-button link @click="handleLogout">
-              <el-icon><SwitchButton /></el-icon>
-              退出登录
-            </el-button>
+            <div class="settings-toggle" @click="settingsOpen = !settingsOpen">
+              <el-icon><Setting /></el-icon>
+              <span>设置</span>
+              <el-icon class="arrow" :class="{ open: settingsOpen }"><ArrowRight /></el-icon>
+            </div>
+            <div v-if="settingsOpen" class="settings-sub">
+              <div class="settings-row" @click="showPhoneDialog = true">
+                <el-icon><Phone /></el-icon>
+                <span>{{ userPhone ? '更换手机' : '绑定手机' }}</span>
+              </div>
+              <div class="settings-row" @click="showPasswordDialog = true">
+                <el-icon><Lock /></el-icon>
+                <span>修改密码</span>
+              </div>
+              <div class="settings-row" @click="handleLogout">
+                <el-icon><SwitchButton /></el-icon>
+                <span>退出登录</span>
+              </div>
+            </div>
           </div>
         </div>
       </el-aside>
@@ -119,7 +133,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="showPhoneDialog" title="手机号绑定" width="440px">
+    <el-dialog v-model="showPhoneDialog" :title="userPhone ? '手机号管理' : '绑定手机号'" width="440px" @close="resetPhoneForm">
       <el-alert
         v-if="!userPhone"
         type="info"
@@ -130,18 +144,69 @@
           绑定手机号后可通过验证码找回密码，否则只能联系教师重置。
         </template>
       </el-alert>
-      <div v-if="userPhone" style="margin-bottom: 16px">
-        <el-tag type="success">已绑定：{{ maskedPhone }}</el-tag>
-      </div>
-      <el-form label-width="80px">
-        <el-form-item label="手机号">
-          <el-input v-model="phoneForm.phone" placeholder="请输入手机号" maxlength="11" />
-        </el-form-item>
-      </el-form>
+
+      <!-- 已绑定：显示当前手机号 + 更改手机号 -->
+      <template v-if="userPhone">
+        <div style="margin-bottom: 20px">
+          <div style="color: #909399; font-size: 13px; margin-bottom: 6px">当前手机号</div>
+          <el-tag type="success" size="large">{{ maskedPhone }}</el-tag>
+        </div>
+
+        <div class="change-phone-section">
+          <div style="color: #606266; font-size: 14px; font-weight: 600; margin-bottom: 12px">更改手机号</div>
+          
+          <!-- 步骤1：发送验证码到原手机 -->
+          <div v-if="changePhoneStep === 1">
+            <div style="color: #909399; font-size: 13px; margin-bottom: 12px">
+              点击发送验证码，验证码将发送至 {{ maskedPhone }}
+            </div>
+            <el-button 
+              type="primary" 
+              :loading="sendingCode" 
+              :disabled="codeCountdown > 0"
+              @click="handleSendChangeCode"
+              style="width: 100%"
+            >
+              {{ codeCountdown > 0 ? `${codeCountdown}s 后重新发送` : '发送验证码' }}
+            </el-button>
+          </div>
+
+          <!-- 步骤2：输入验证码和新手机号 -->
+          <div v-else>
+            <el-form label-width="80px">
+              <el-form-item label="验证码">
+                <div style="display: flex; gap: 8px; width: 100%">
+                  <el-input v-model="changePhoneForm.code" placeholder="请输入验证码" maxlength="6" />
+                  <el-button 
+                    :loading="sendingCode" 
+                    :disabled="codeCountdown > 0"
+                    @click="handleSendChangeCode"
+                  >
+                    {{ codeCountdown > 0 ? `${codeCountdown}s` : '重新发送' }}
+                  </el-button>
+                </div>
+              </el-form-item>
+              <el-form-item label="新手机号">
+                <el-input v-model="changePhoneForm.newPhone" placeholder="请输入新手机号" maxlength="11" />
+              </el-form-item>
+            </el-form>
+          </div>
+        </div>
+      </template>
+
+      <!-- 未绑定：绑定手机号 -->
+      <template v-else>
+        <el-form label-width="80px">
+          <el-form-item label="手机号">
+            <el-input v-model="phoneForm.phone" placeholder="请输入手机号" maxlength="11" />
+          </el-form-item>
+        </el-form>
+      </template>
+
       <template #footer>
         <el-button @click="showPhoneDialog = false">取消</el-button>
-        <el-button v-if="userPhone" type="danger" @click="handleUnbindPhone">解绑</el-button>
-        <el-button type="primary" @click="handleBindPhone">绑定</el-button>
+        <el-button v-if="!userPhone" type="primary" @click="handleBindPhone">绑定</el-button>
+        <el-button v-if="userPhone && changePhoneStep === 2" type="primary" :loading="changingPhone" @click="handleChangePhone">确认更改</el-button>
       </template>
     </el-dialog>
 
@@ -170,7 +235,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { bindPhone, unbindPhone, changePassword } from '@/api/auth'
+import { bindPhone, unbindPhone, changePhone, changePassword, sendPhoneCode } from '@/api/auth'
 import { useChatStore } from '@/stores/chat'
 
 const router = useRouter()
@@ -183,9 +248,15 @@ const newTitle = ref('')
 const renamingSession = ref(null)
 const showPhoneDialog = ref(false)
 const phoneForm = reactive({ phone: '' })
+const changePhoneForm = reactive({ code: '', newPhone: '' })
+const changePhoneStep = ref(1) // 1=发送验证码, 2=输入验证码和新手机号
+const sendingCode = ref(false)
+const codeCountdown = ref(0)
+const changingPhone = ref(false)
 const showPasswordDialog = ref(false)
 const changingPassword = ref(false)
 const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPassword: '' })
+const settingsOpen = ref(false)
 
 const sessions = computed(() => chatStore.sessions)
 const currentSessionId = computed(() => chatStore.currentSessionId)
@@ -278,6 +349,60 @@ async function handleUnbindPhone() {
       console.error('解绑失败:', error)
     }
   }
+}
+
+async function handleSendChangeCode() {
+  sendingCode.value = true
+  try {
+    const res = await sendPhoneCode(userPhone.value)
+    if (res?.data?.devCode) {
+      ElMessage.success(`验证码已发送（开发模式：${res.data.devCode}）`)
+    } else {
+      ElMessage.success('验证码已发送')
+    }
+    changePhoneStep.value = 2
+    codeCountdown.value = 60
+    const timer = setInterval(() => {
+      codeCountdown.value--
+      if (codeCountdown.value <= 0) {
+        clearInterval(timer)
+      }
+    }, 1000)
+  } catch (error) {
+    console.error('发送验证码失败:', error)
+  } finally {
+    sendingCode.value = false
+  }
+}
+
+async function handleChangePhone() {
+  if (!changePhoneForm.code) {
+    ElMessage.warning('请输入验证码')
+    return
+  }
+  if (!changePhoneForm.newPhone || !/^1[3-9]\d{9}$/.test(changePhoneForm.newPhone)) {
+    ElMessage.warning('请输入正确的新手机号')
+    return
+  }
+  changingPhone.value = true
+  try {
+    await changePhone(changePhoneForm.code, changePhoneForm.newPhone)
+    ElMessage.success('手机号更改成功')
+    showPhoneDialog.value = false
+    await userStore.fetchUserInfo()
+  } catch (error) {
+    console.error('更改手机号失败:', error)
+  } finally {
+    changingPhone.value = false
+  }
+}
+
+function resetPhoneForm() {
+  phoneForm.phone = ''
+  changePhoneForm.code = ''
+  changePhoneForm.newPhone = ''
+  changePhoneStep.value = 1
+  codeCountdown.value = 0
 }
 
 async function handleChangePassword() {
@@ -396,16 +521,14 @@ function formatSessionTime(time) {
   }
 }
 
-.student-nav {
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid #313244;
+.student-top-nav {
+  margin-bottom: 12px;
   
   .nav-item {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px 12px;
     border-radius: 8px;
     cursor: pointer;
     color: #a6adc8;
@@ -418,8 +541,8 @@ function formatSessionTime(time) {
     }
     
     &.active {
-      background: #45475a;
-      color: #cdd6f4;
+      background: #409eff;
+      color: #fff;
     }
   }
 }
@@ -503,6 +626,53 @@ function formatSessionTime(time) {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    
+    .settings-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 4px;
+      cursor: pointer;
+      color: #a6adc8;
+      font-size: 14px;
+      transition: color 0.2s;
+      
+      &:hover {
+        color: #cdd6f4;
+      }
+      
+      span {
+        flex: 1;
+      }
+      
+      .arrow {
+        transition: transform 0.2s;
+        font-size: 12px;
+        
+        &.open {
+          transform: rotate(90deg);
+        }
+      }
+    }
+    
+    .settings-sub {
+      padding-left: 24px;
+      
+      .settings-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 4px;
+        cursor: pointer;
+        color: #a6adc8;
+        font-size: 13px;
+        transition: color 0.2s;
+        
+        &:hover {
+          color: #cdd6f4;
+        }
+      }
+    }
     
     .el-button {
       justify-content: flex-start;

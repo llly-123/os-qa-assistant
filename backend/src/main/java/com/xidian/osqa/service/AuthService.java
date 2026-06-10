@@ -135,6 +135,52 @@ public class AuthService {
         return Result.success();
     }
 
+    public Result<?> changePhone(Long userId, String code, String newPhone) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.error(404, "用户不存在");
+        }
+
+        if (user.getPhone() == null || user.getPhone().isEmpty()) {
+            return Result.error(400, "当前未绑定手机号，请先绑定");
+        }
+
+        // 验证原手机号的验证码
+        String storedCode = codeStore.get(user.getPhone());
+        Long expiry = codeExpiry.get(user.getPhone());
+
+        if (storedCode == null || !storedCode.equals(code)) {
+            return Result.error(400, "验证码错误");
+        }
+
+        if (expiry == null || System.currentTimeMillis() > expiry) {
+            codeStore.remove(user.getPhone());
+            codeExpiry.remove(user.getPhone());
+            return Result.error(400, "验证码已过期");
+        }
+
+        // 验证新手机号格式
+        if (newPhone == null || !newPhone.matches("^1[3-9]\\d{9}$")) {
+            return Result.error(400, "新手机号格式不正确");
+        }
+
+        // 检查新手机号是否已被绑定
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getPhone, newPhone);
+        if (userMapper.selectCount(wrapper) > 0) {
+            return Result.error(400, "该手机号已被其他账号绑定");
+        }
+
+        user.setPhone(newPhone);
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        codeStore.remove(user.getPhone());
+        codeExpiry.remove(user.getPhone());
+
+        return Result.success();
+    }
+
     public Result<?> sendPhoneCode(String phone) {
         if (phone == null || !phone.matches("^1[3-9]\\d{9}$")) {
             return Result.error(400, "手机号格式不正确");

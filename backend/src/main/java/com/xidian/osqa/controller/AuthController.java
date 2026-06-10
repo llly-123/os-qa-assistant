@@ -1,6 +1,7 @@
 package com.xidian.osqa.controller;
 
 import com.xidian.osqa.common.Result;
+import com.xidian.osqa.security.RateLimiter;
 import com.xidian.osqa.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
@@ -12,13 +13,20 @@ import java.util.Map;
 public class AuthController {
 
     private final AuthService authService;
+    private final RateLimiter rateLimiter;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, RateLimiter rateLimiter) {
         this.authService = authService;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/login")
-    public Result<?> login(@RequestBody Map<String, String> body) {
+    public Result<?> login(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        // 登录限流
+        String clientIp = getClientIp(request);
+        if (!rateLimiter.allowLoginRequest(clientIp)) {
+            return Result.error(429, "登录请求过于频繁，请稍后再试");
+        }
         String username = body.get("username");
         String password = body.get("password");
         return authService.login(username, password);
@@ -56,6 +64,14 @@ public class AuthController {
         return authService.unbindPhone(userId);
     }
 
+    @PostMapping("/change-phone")
+    public Result<?> changePhone(HttpServletRequest request, @RequestBody Map<String, String> body) {
+        Long userId = (Long) request.getAttribute("userId");
+        String code = body.get("code");
+        String newPhone = body.get("newPhone");
+        return authService.changePhone(userId, code, newPhone);
+    }
+
     @PostMapping("/send-phone-code")
     public Result<?> sendPhoneCode(@RequestBody Map<String, String> body) {
         String phone = body.get("phone");
@@ -67,5 +83,19 @@ public class AuthController {
         String phone = body.get("phone");
         String code = body.get("code");
         return authService.resetPasswordByPhone(phone, code);
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        return ip;
     }
 }

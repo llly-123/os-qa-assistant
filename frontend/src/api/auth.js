@@ -45,6 +45,14 @@ export function unbindPhone() {
   })
 }
 
+export function changePhone(code, newPhone) {
+  return request({
+    url: '/auth/change-phone',
+    method: 'post',
+    data: { code, newPhone }
+  })
+}
+
 export function sendPhoneCode(phone) {
   return request({
     url: '/auth/send-phone-code',

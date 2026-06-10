@@ -38,8 +38,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 50MB
+      max-file-size: 500MB
+      max-request-size: 500MB
 
 mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
@@ -78,6 +78,10 @@ web:
 
 sms:
   dev-mode: true
+
+video:
+  upload-dir: ${user.dir}/uploads/videos
+  max-size: 524288000
   # 开发模式：true=返回验证码到前端(方便测试)，false=需接入真实短信服务
 
 logging:

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.ChatMessage;
 import com.xidian.osqa.entity.ChatSession;
+import com.xidian.osqa.security.PromptInjectionFilter;
+import com.xidian.osqa.security.RateLimiter;
 import com.xidian.osqa.service.ChatService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -26,10 +28,14 @@ public class ChatController {
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
     private final ChatService chatService;
+    private final PromptInjectionFilter promptInjectionFilter;
+    private final RateLimiter rateLimiter;
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
-    public ChatController(ChatService chatService) {
+    public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter) {
         this.chatService = chatService;
+        this.promptInjectionFilter = promptInjectionFilter;
+        this.rateLimiter = rateLimiter;
     }
 
     @GetMapping("/sessions")
@@ -67,11 +73,50 @@ public class ChatController {
     }
 
     @PostMapping(value = "/sessions/{sessionId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter streamChat(@PathVariable Long sessionId, @RequestBody Map<String, Object> body) {
-        String content = (String) body.get("content");
-        Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
+    public SseEmitter streamChat(@PathVariable Long sessionId, @RequestBody Map<String, Object> body, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        String clientIp = getClientIp(request);
 
-        chatService.saveMessage(sessionId, "user", content, null, null);
+        // 限流检查
+        if (!rateLimiter.allowChatRequest(userId, clientIp)) {
+            SseEmitter emitter = new SseEmitter();
+            try {
+                String errorJson = objectMapper.writeValueAsString(Map.of("type", "error", "message", "请求过于频繁，请稍后再试"));
+                emitter.send(SseEmitter.event().name("message").data(errorJson));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
+
+        String content = (String) body.get("content");
+
+        // Prompt注入检查
+        String injectionWarning = promptInjectionFilter.checkInjection(content);
+        if (injectionWarning != null) {
+            SseEmitter emitter = new SseEmitter();
+            try {
+                String errorJson = objectMapper.writeValueAsString(Map.of("type", "error", "message", "输入内容存在安全风险，请修改后重试"));
+                emitter.send(SseEmitter.event().name("message").data(errorJson));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
+
+        // 清洗输入
+        final String sanitizedContent = promptInjectionFilter.sanitize(content);
+
+        Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
+        String videoContext = (String) body.get("videoContext");
+
+        // 如果有视频上下文，附加到问题中
+        final String effectiveContent;
+        if (videoContext != null && !videoContext.isEmpty()) {
+            effectiveContent = "[当前正在观看视频：" + videoContext + "]\n" + sanitizedContent;
+        } else {
+            effectiveContent = sanitizedContent;
+        }
+
+        chatService.saveMessage(sessionId, "user", sanitizedContent, null, null);
 
         SseEmitter emitter = new SseEmitter(180000L);
 
@@ -89,8 +134,8 @@ public class ChatController {
             try {
                 log.info("开始处理问题: sessionId={}, content={}", sessionId, content);
 
-                String answer = chatService.askQuestion(sessionId, content, webSearch != null && webSearch);
-                String citation = chatService.getCitation(sessionId, content, webSearch != null && webSearch);
+                String answer = chatService.askQuestion(sessionId, effectiveContent, webSearch != null && webSearch);
+                String citation = chatService.getCitation(sessionId, effectiveContent, webSearch != null && webSearch);
 
                 chatService.saveMessage(sessionId, "assistant", answer, citation, null);
 
@@ -123,22 +168,54 @@ public class ChatController {
     }
 
     @PostMapping("/sessions/{sessionId}/ask")
-    public Result<?> askNonStream(@PathVariable Long sessionId, @RequestBody Map<String, Object> body) {
-        String content = (String) body.get("content");
-        Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
+    public Result<?> askNonStream(@PathVariable Long sessionId, @RequestBody Map<String, Object> body, HttpServletRequest request) {
+        try {
+            Long userId = (Long) request.getAttribute("userId");
+            String clientIp = getClientIp(request);
 
-        chatService.saveMessage(sessionId, "user", content, null, null);
-        chatService.autoTitleIfNeeded(sessionId, content);
+            // 限流检查
+            if (!rateLimiter.allowChatRequest(userId, clientIp)) {
+                return Result.error(429, "请求过于频繁，请稍后再试");
+            }
 
-        String answer = chatService.askQuestion(sessionId, content, webSearch != null && webSearch);
-        String citation = chatService.getCitation(sessionId, content, webSearch != null && webSearch);
+            String content = (String) body.get("content");
 
-        chatService.saveMessage(sessionId, "assistant", answer, citation, null);
+            // Prompt注入检查
+            String injectionWarning = promptInjectionFilter.checkInjection(content);
+            if (injectionWarning != null) {
+                return Result.error(400, "输入内容存在安全风险，请修改后重试");
+            }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("content", answer != null ? answer : "");
-        result.put("citation", citation != null ? citation : "");
-        return Result.success(result);
+            // 清洗输入
+            final String sanitizedContent = promptInjectionFilter.sanitize(content);
+
+            Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
+            String videoContext = (String) body.get("videoContext");
+
+            // 如果有视频上下文，附加到问题中
+            final String effectiveContent;
+            if (videoContext != null && !videoContext.isEmpty()) {
+                effectiveContent = "[当前正在观看视频：" + videoContext + "]\n" + sanitizedContent;
+            } else {
+                effectiveContent = sanitizedContent;
+            }
+
+            chatService.saveMessage(sessionId, "user", sanitizedContent, null, null);
+            chatService.autoTitleIfNeeded(sessionId, sanitizedContent);
+
+            String answer = chatService.askQuestion(sessionId, effectiveContent, webSearch != null && webSearch);
+            String citation = chatService.getCitation(sessionId, effectiveContent, webSearch != null && webSearch);
+
+            chatService.saveMessage(sessionId, "assistant", answer, citation, null);
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("content", answer != null ? answer : "");
+            result.put("citation", citation != null ? citation : "");
+            return Result.success(result);
+        } catch (Exception e) {
+            log.error("askNonStream处理失败: sessionId={}", sessionId, e);
+            return Result.error(500, "处理失败: " + e.getMessage());
+        }
     }
 
     @GetMapping("/my-stats")
@@ -156,5 +233,23 @@ public class ChatController {
         Long userId = (Long) request.getAttribute("userId");
         List<String> prompts = chatService.getQuickPrompts(userId);
         return Result.success(prompts);
+    }
+
+    /**
+     * 获取客户端真实IP地址
+     */
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        // 多级代理时取第一个
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        return ip;
     }
 }

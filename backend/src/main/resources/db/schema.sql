@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS `chat_message` (
     `session_id` BIGINT NOT NULL,
     `role` VARCHAR(20) NOT NULL,
     `content` CLOB NOT NULL,
-    `citation` VARCHAR(500) DEFAULT NULL,
+    `citation` TEXT DEFAULT NULL,
     `source_type` VARCHAR(20) DEFAULT NULL,
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
@@ -67,3 +67,43 @@ CREATE TABLE IF NOT EXISTS `sys_option` (
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`)
 );
+
+CREATE TABLE IF NOT EXISTS `chapter` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `title` VARCHAR(200) NOT NULL,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `deleted` INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `section` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `chapter_id` BIGINT NOT NULL,
+    `title` VARCHAR(200) NOT NULL,
+    `video_url` VARCHAR(500) DEFAULT NULL,
+    `video_size` BIGINT DEFAULT 0,
+    `video_duration` INT DEFAULT 0,
+    `sort_order` INT NOT NULL DEFAULT 0,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `deleted` INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`)
+);
+
+DROP TABLE IF EXISTS `video_progress`;
+CREATE TABLE IF NOT EXISTS `video_progress` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT NOT NULL,
+    `section_id` BIGINT NOT NULL,
+    `play_time` DOUBLE DEFAULT 0,
+    `completed` INT NOT NULL DEFAULT 0,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    CONSTRAINT `uk_user_section` UNIQUE (`user_id`, `section_id`)
+);
+
+-- 修复：将 citation 字段从 VARCHAR(500) 扩大为 TEXT
+ALTER TABLE chat_message ALTER COLUMN citation TEXT;
