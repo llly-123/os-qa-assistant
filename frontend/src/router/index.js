@@ -31,7 +31,7 @@ const routes = [
         path: 'admin',
         name: 'Admin',
         component: () => import('@/views/admin/AdminLayout.vue'),
-        redirect: '/admin/students',
+        redirect: '/admin/classes',
         meta: { requiresAuth: true, role: 'TEACHER' },
         children: [
           {
@@ -57,6 +57,12 @@ const routes = [
             name: 'VideoManage',
             component: () => import('@/views/admin/VideoManage.vue'),
             meta: { requiresAuth: true, role: 'TEACHER' }
+          },
+          {
+            path: 'classes',
+            name: 'ClassManage',
+            component: () => import('@/views/admin/ClassManage.vue'),
+            meta: { requiresAuth: true, role: 'TEACHER' }
           }
         ]
       }
@@ -78,7 +84,7 @@ router.beforeEach((to, from, next) => {
     if (userStore.role === 'STUDENT') {
       next('/chat')
     } else if (userStore.role === 'TEACHER') {
-      next('/admin/students')
+      next('/admin/classes')
     } else {
       next('/login')
     }

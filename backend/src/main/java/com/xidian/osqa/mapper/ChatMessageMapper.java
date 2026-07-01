@@ -93,4 +93,74 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
             "WHERE m.role = 'user' " +
             "GROUP BY s.user_id")
     List<Map<String, Object>> findAllLastQuestionTimes();
+
+    // ===== 班级维度统计 =====
+    // 班级列表（用于前端班级选择器）
+    @Select("SELECT c.id as id, c.name as name, c.status as status, c.start_time as startTime, c.end_time as endTime, " +
+            "COUNT(DISTINCT cs.student_id) as studentCount " +
+            "FROM clazz c " +
+            "LEFT JOIN class_student cs ON cs.class_id = c.id " +
+            "WHERE c.deleted = 0 " +
+            "GROUP BY c.id, c.name, c.status, c.start_time, c.end_time " +
+            "ORDER BY c.status DESC, c.id DESC")
+    List<Map<String, Object>> findClassList();
+
+    // 按班级ID统计问答概览
+    @Select("SELECT COUNT(DISTINCT m.id) as totalQuestions, " +
+            "COUNT(DISTINCT s.user_id) as activeUsers " +
+            "FROM class_student cs " +
+            "JOIN sys_user u ON u.id = cs.student_id AND u.deleted = 0 " +
+            "JOIN chat_session s ON s.user_id = u.id AND s.deleted = 0 " +
+            "JOIN chat_message m ON m.session_id = s.id AND m.role = 'user' " +
+            "WHERE cs.class_id = #{classId}")
+    Map<String, Object> findClassOverview(@Param("classId") Long classId);
+
+    @Select("SELECT COUNT(DISTINCT m.id) as totalQuestions, " +
+            "COUNT(DISTINCT s.user_id) as activeUsers " +
+            "FROM class_student cs " +
+            "JOIN sys_user u ON u.id = cs.student_id AND u.deleted = 0 " +
+            "JOIN chat_session s ON s.user_id = u.id AND s.deleted = 0 " +
+            "JOIN chat_message m ON m.session_id = s.id AND m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "WHERE cs.class_id = #{classId}")
+    Map<String, Object> findClassOverviewByDate(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 按班级ID统计引用
+    @Select("SELECT COUNT(*) FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN class_student cs ON cs.student_id = s.user_id AND cs.class_id = #{classId} " +
+            "WHERE m.role = 'assistant' AND m.citation IS NOT NULL AND m.citation != ''")
+    int countClassCitedAnswers(@Param("classId") Long classId);
+
+    @Select("SELECT COUNT(*) FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN class_student cs ON cs.student_id = s.user_id AND cs.class_id = #{classId} " +
+            "WHERE m.role = 'assistant' AND m.citation IS NOT NULL AND m.citation != '' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate}")
+    int countClassCitedAnswersByDate(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    @Select("SELECT COUNT(*) FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN class_student cs ON cs.student_id = s.user_id AND cs.class_id = #{classId} " +
+            "WHERE m.role = 'assistant'")
+    int countClassTotalAnswers(@Param("classId") Long classId);
+
+    @Select("SELECT COUNT(*) FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN class_student cs ON cs.student_id = s.user_id AND cs.class_id = #{classId} " +
+            "WHERE m.role = 'assistant' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate}")
+    int countClassTotalAnswersByDate(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 按班级ID获取学生提问内容（用于关键词统计）
+    @Select("SELECT m.content FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN class_student cs ON cs.student_id = s.user_id AND cs.class_id = #{classId} " +
+            "WHERE m.role = 'user' " +
+            "ORDER BY m.create_time DESC LIMIT #{limit}")
+    List<String> findClassQuestionContents(@Param("classId") Long classId, @Param("limit") int limit);
+
+    @Select("SELECT m.content FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN class_student cs ON cs.student_id = s.user_id AND cs.class_id = #{classId} " +
+            "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "ORDER BY m.create_time DESC LIMIT #{limit}")
+    List<String> findClassQuestionContentsByDate(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate, @Param("limit") int limit);
 }

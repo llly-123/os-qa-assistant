@@ -30,6 +30,7 @@ public class VideoController {
 
     private final VideoService videoService;
     private final VideoProgressMapper videoProgressMapper;
+    private final com.xidian.osqa.service.ClazzService clazzService;
 
     @Value("${video.upload-dir:${user.dir}/uploads/videos}")
     private String uploadDir;
@@ -37,9 +38,10 @@ public class VideoController {
     @Value("${video.max-size:524288000}")
     private long maxVideoSize;
 
-    public VideoController(VideoService videoService, VideoProgressMapper videoProgressMapper) {
+    public VideoController(VideoService videoService, VideoProgressMapper videoProgressMapper, com.xidian.osqa.service.ClazzService clazzService) {
         this.videoService = videoService;
         this.videoProgressMapper = videoProgressMapper;
+        this.clazzService = clazzService;
     }
 
     // ========== 公共：获取章节列表 ==========
@@ -194,6 +196,12 @@ public class VideoController {
             Long userId = (Long) request.getAttribute("userId");
             if (userId == null) {
                 return Result.error(401, "未登录");
+            }
+
+            // 检查是否在班级中
+            var clazz = clazzService.getStudentActiveClass(userId);
+            if (clazz == null) {
+                return Result.error(403, "请先进入班级");
             }
 
             Object sectionIdObj = body.get("sectionId");

@@ -22,7 +22,6 @@ spring:
     init:
       mode: always
       schema-locations: classpath:db/schema.sql
-      data-locations: classpath:db/data.sql
 
   mail:
     host: smtp.qq.com
@@ -87,3 +86,4 @@ video:
 logging:
   level:
     com.xidian.osqa: debug
+    org.springframework.web.context.request.async: error

@@ -54,14 +54,7 @@
         <!-- 教师端：管理导航 -->
         <div v-else class="sidebar-content">
           <div class="admin-nav">
-            <div 
-              :class="['nav-item', { active: currentRoute === '/admin/students' }]"
-              @click="router.push('/admin/students')"
-            >
-              <el-icon><User /></el-icon>
-              <span>学生管理</span>
-            </div>
-            <div 
+            <div
               :class="['nav-item', { active: currentRoute === '/admin/knowledge' }]"
               @click="router.push('/admin/knowledge')"
             >
@@ -81,6 +74,20 @@
             >
               <el-icon><VideoCamera /></el-icon>
               <span>视频管理</span>
+            </div>
+            <div 
+              :class="['nav-item', { active: currentRoute === '/admin/students' }]"
+              @click="router.push('/admin/students')"
+            >
+              <el-icon><User /></el-icon>
+              <span>学生管理</span>
+            </div>
+            <div 
+              :class="['nav-item', { active: currentRoute === '/admin/classes' }]"
+              @click="router.push('/admin/classes')"
+            >
+              <el-icon><School /></el-icon>
+              <span>班级管理</span>
             </div>
           </div>
         </div>

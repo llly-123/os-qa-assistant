@@ -20,7 +20,10 @@
           <el-icon :size="64" color="#c0c4cc"><ChatDotRound /></el-icon>
           <h3>开始提问吧！</h3>
           <p>我是基于西电《操作系统》教材的AI答疑助手</p>
-          <p>点击上方标签快速提问，或直接输入您的问题</p>
+          <p v-if="!inClass" style="color: #e6a23c; font-size: 13px; margin-top: 8px">
+            ⚠️ 未进入班级，教师无法统计问答情况
+          </p>
+          <p v-else>点击上方标签快速提问，或直接输入您的问题</p>
         </div>
         
         <div 
@@ -113,6 +116,15 @@
       </div>
 
       <div class="video-panel-content">
+        <!-- 未进入班级：锁定视频区 -->
+        <div v-if="!inClass" class="no-class-notice">
+          <el-icon :size="48" color="#e6a23c"><Lock /></el-icon>
+          <h3>请先进入班级</h3>
+          <p>联系教师将你加入班级后即可观看视频</p>
+        </div>
+
+        <!-- 已进入班级：正常显示 -->
+        <template v-else>
         <div class="video-header">
         <span class="video-title">视频学习</span>
         <el-tag v-if="currentVideoSection" type="success" size="small">
@@ -170,6 +182,7 @@
         <span class="progress-text">学习进度：{{ completedCount }} / {{ totalSectionCount }} 节</span>
         <el-progress :percentage="totalSectionCount > 0 ? Math.round(completedCount / totalSectionCount * 100) : 0" :stroke-width="8" />
       </div>
+        </template>
       </div><!-- end video-panel-content -->
     </div>
   </div>
@@ -178,7 +191,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ChatDotRound, Reading, Document, Promotion, VideoCamera, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ChatDotRound, Reading, Document, Promotion, VideoCamera, ArrowLeft, ArrowRight, Lock } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
@@ -188,6 +201,7 @@ import 'katex/dist/katex.min.css'
 import { useChatStore } from '@/stores/chat'
 import { getQuickPrompts } from '@/api/chat'
 import { getChapters, getVideoProgress, saveVideoProgress } from '@/api/video'
+import { getMyClass } from '@/api/clazz'
 
 const chatStore = useChatStore()
 
@@ -210,6 +224,10 @@ const currentVideoSection = ref(null)
 const currentVideoChapter = ref(null)
 const videoProgressMap = ref({}) // sectionId -> { currentTime, completed }
 let progressSaveTimer = null
+
+// ===== 班级状态 =====
+const myClass = ref(null) // null = 未进班
+const inClass = ref(false)
 
 // ===== 拖拽分隔 =====
 const leftWidth = ref(0)
@@ -240,7 +258,7 @@ function toggleVideoPanel() {
 onMounted(() => {
   loadQuickPrompts()
   scrollToBottom()
-  loadVideoData()
+  loadClassAndVideoData()
 
   // 恢复宽度和收起状态偏好
   const wasCollapsed = localStorage.getItem('isVideoCollapsed') === 'true'
@@ -276,31 +294,43 @@ async function loadQuickPrompts() {
 }
 
 // ===== 视频数据 =====
-async function loadVideoData() {
+async function loadClassAndVideoData() {
   try {
-    const [chaptersRes, progressRes] = await Promise.all([getChapters(), getVideoProgress()])
-    chapters.value = chaptersRes.data || []
-    // 默认展开所有章
-    expandedChapters.value = chapters.value.map(c => c.id)
+    // 先检查班级状态
+    const classRes = await getMyClass()
+    if (classRes.data) {
+      myClass.value = classRes.data
+      inClass.value = true
+    } else {
+      myClass.value = null
+      inClass.value = false
+    }
 
-    const progressList = progressRes.data || []
-    const map = {}
-    progressList.forEach(p => { map[p.sectionId] = p })
-    videoProgressMap.value = map
+    // 仅在班级中才加载视频数据
+    if (inClass.value) {
+      const [chaptersRes, progressRes] = await Promise.all([getChapters(), getVideoProgress()])
+      chapters.value = chaptersRes.data || []
+      expandedChapters.value = chapters.value.map(c => c.id)
 
-    // 恢复上次观看的视频
-    const lastSectionId = localStorage.getItem('lastVideoSectionId')
-    if (lastSectionId) {
-      for (const ch of chapters.value) {
-        const sec = ch.sections?.find(s => s.id === Number(lastSectionId))
-        if (sec && sec.videoUrl) {
-          selectVideoSection(sec, ch)
-          break
+      const progressList = progressRes.data || []
+      const map = {}
+      progressList.forEach(p => { map[p.sectionId] = p })
+      videoProgressMap.value = map
+
+      // 恢复上次观看的视频
+      const lastSectionId = localStorage.getItem('lastVideoSectionId')
+      if (lastSectionId) {
+        for (const ch of chapters.value) {
+          const sec = ch.sections?.find(s => s.id === Number(lastSectionId))
+          if (sec && sec.videoUrl) {
+            selectVideoSection(sec, ch)
+            break
+          }
         }
       }
     }
   } catch (e) {
-    console.error('加载视频数据失败:', e)
+    console.error('加载班级/视频数据失败:', e)
   }
 }
 
@@ -718,6 +748,25 @@ async function sendMessage() {
     align-items: center;
     color: #909399;
     p { margin-top: 12px; }
+  }
+
+  .no-class-notice {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #909399;
+    text-align: center;
+
+    h3 {
+      margin-top: 16px;
+      color: #e6a23c;
+    }
+    p {
+      margin-top: 8px;
+      font-size: 14px;
+    }
   }
 
   .player-wrapper {

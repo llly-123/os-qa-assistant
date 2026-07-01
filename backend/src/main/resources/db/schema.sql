@@ -92,7 +92,6 @@ CREATE TABLE IF NOT EXISTS `section` (
     PRIMARY KEY (`id`)
 );
 
-DROP TABLE IF EXISTS `video_progress`;
 CREATE TABLE IF NOT EXISTS `video_progress` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `user_id` BIGINT NOT NULL,
@@ -105,5 +104,44 @@ CREATE TABLE IF NOT EXISTS `video_progress` (
     CONSTRAINT `uk_user_section` UNIQUE (`user_id`, `section_id`)
 );
 
--- 修复：将 citation 字段从 VARCHAR(500) 扩大为 TEXT
-ALTER TABLE chat_message ALTER COLUMN citation TEXT;
+CREATE TABLE IF NOT EXISTS `clazz` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `teacher_id` BIGINT NOT NULL,
+    `start_time` TIMESTAMP NOT NULL,
+    `end_time` TIMESTAMP NOT NULL,
+    `status` INT NOT NULL DEFAULT 1,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `deleted` INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`)
+);
+
+CREATE TABLE IF NOT EXISTS `class_student` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `class_id` BIGINT NOT NULL,
+    `student_id` BIGINT NOT NULL,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    CONSTRAINT `uk_class_student` UNIQUE (`class_id`, `student_id`)
+);
+
+-- 初始化默认用户（仅当表为空时插入，不覆盖已有数据）
+INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `phone`, `college`, `major`, `grade`, `role`, `status`) SELECT 1, 'teacher', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '教师', NULL, NULL, NULL, NULL, 'TEACHER', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `id` = 1);
+INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `phone`, `college`, `major`, `grade`, `role`, `status`) SELECT 2, 'student', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '学生', NULL, '计算机科学与技术学院', '计算机科学与技术', '2024', 'STUDENT', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `id` = 2);
+
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 1, 'college', '计算机科学与技术学院', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 1);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 2, 'college', '网络与信息安全学院', 2 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 2);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 3, 'college', '电子工程学院', 3 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 3);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 4, 'college', '通信工程学院', 4 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 4);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 5, 'college', '人工智能学院', 5 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 5);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 6, 'major', '计算机科学与技术', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 6);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 7, 'major', '网络工程', 2 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 7);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 8, 'major', '信息安全', 3 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 8);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 9, 'major', '电子信息工程', 4 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 9);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 10, 'major', '通信工程', 5 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 10);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 11, 'major', '人工智能', 6 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 11);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 12, 'grade', '2022', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 12);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 13, 'grade', '2023', 2 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 13);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 14, 'grade', '2024', 3 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 14);
+INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 15, 'grade', '2025', 4 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 15);

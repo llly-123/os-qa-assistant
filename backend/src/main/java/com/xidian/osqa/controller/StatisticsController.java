@@ -50,4 +50,29 @@ public class StatisticsController {
         List<Map<String, Object>> questions = statisticsService.getUserRecentQuestions(userId, limit);
         return Result.success(questions);
     }
+
+    @GetMapping("/classes")
+    public Result<?> getClassList() {
+        List<Map<String, Object>> list = statisticsService.getClassList();
+        return Result.success(list);
+    }
+
+    @GetMapping("/classes/{classId}/overview")
+    public Result<?> getClassOverview(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Map<String, Object> overview = statisticsService.getClassOverview(classId, startDate, endDate);
+        return Result.success(overview);
+    }
+
+    @GetMapping("/classes/{classId}/keywords")
+    public Result<?> getClassHotKeywords(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "30") int limit) {
+        List<Map<String, Object>> keywords = statisticsService.getClassHotKeywords(classId, startDate, endDate, limit);
+        return Result.success(keywords);
+    }
 }

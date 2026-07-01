@@ -30,12 +30,14 @@ public class ChatController {
     private final ChatService chatService;
     private final PromptInjectionFilter promptInjectionFilter;
     private final RateLimiter rateLimiter;
+    private final com.xidian.osqa.service.ClazzService clazzService;
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
-    public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter) {
+    public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter, com.xidian.osqa.service.ClazzService clazzService) {
         this.chatService = chatService;
         this.promptInjectionFilter = promptInjectionFilter;
         this.rateLimiter = rateLimiter;
+        this.clazzService = clazzService;
     }
 
     @GetMapping("/sessions")
@@ -108,15 +110,21 @@ public class ChatController {
         Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
         String videoContext = (String) body.get("videoContext");
 
+        // 检查是否在班级中
+        var clazz = clazzService.getStudentActiveClass(userId);
+        final boolean inClass = (clazz != null);
+
         // 如果有视频上下文，附加到问题中
         final String effectiveContent;
         if (videoContext != null && !videoContext.isEmpty()) {
             effectiveContent = "[当前正在观看视频：" + videoContext + "]\n" + sanitizedContent;
+        } else if (!inClass) {
+            effectiveContent = "[注意：该学生未进入班级，教师无法统计其问答情况]\n" + sanitizedContent;
         } else {
             effectiveContent = sanitizedContent;
         }
 
-        chatService.saveMessage(sessionId, "user", sanitizedContent, null, null);
+        chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? null : "no_class");
 
         SseEmitter emitter = new SseEmitter(180000L);
 
@@ -187,21 +195,27 @@ public class ChatController {
             }
 
             // 清洗输入
-            final String sanitizedContent = promptInjectionFilter.sanitize(content);
+        final String sanitizedContent = promptInjectionFilter.sanitize(content);
 
-            Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
-            String videoContext = (String) body.get("videoContext");
+        Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
+        String videoContext = (String) body.get("videoContext");
 
-            // 如果有视频上下文，附加到问题中
-            final String effectiveContent;
-            if (videoContext != null && !videoContext.isEmpty()) {
-                effectiveContent = "[当前正在观看视频：" + videoContext + "]\n" + sanitizedContent;
-            } else {
-                effectiveContent = sanitizedContent;
-            }
+        // 检查是否在班级中
+        var clazz = clazzService.getStudentActiveClass(userId);
+        final boolean inClass = (clazz != null);
 
-            chatService.saveMessage(sessionId, "user", sanitizedContent, null, null);
-            chatService.autoTitleIfNeeded(sessionId, sanitizedContent);
+        // 如果有视频上下文，附加到问题中
+        final String effectiveContent;
+        if (videoContext != null && !videoContext.isEmpty()) {
+            effectiveContent = "[当前正在观看视频：" + videoContext + "]\n" + sanitizedContent;
+        } else if (!inClass) {
+            effectiveContent = "[注意：该学生未进入班级，教师无法统计其问答情况]\n" + sanitizedContent;
+        } else {
+            effectiveContent = sanitizedContent;
+        }
+
+        chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? null : "no_class");
+        chatService.autoTitleIfNeeded(sessionId, sanitizedContent);
 
             String answer = chatService.askQuestion(sessionId, effectiveContent, webSearch != null && webSearch);
             String citation = chatService.getCitation(sessionId, effectiveContent, webSearch != null && webSearch);

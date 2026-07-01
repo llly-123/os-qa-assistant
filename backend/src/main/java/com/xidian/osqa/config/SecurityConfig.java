@@ -44,6 +44,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/videos/**").permitAll()
                 .requestMatchers("/api/courses/chapters").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("TEACHER")
+                .requestMatchers("/api/students/**").authenticated()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
