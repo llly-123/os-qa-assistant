@@ -27,10 +27,15 @@ public class JwtUtil {
     }
 
     public String generateToken(Long userId, String username, String role) {
+        return generateToken(userId, username, role, 0L);
+    }
+
+    public String generateToken(Long userId, String username, String role, long tokenVersion) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
         claims.put("role", role);
+        claims.put("tokenVersion", tokenVersion);
 
         return Jwts.builder()
                 .claims(claims)
@@ -39,6 +44,15 @@ public class JwtUtil {
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    public Long getTokenVersionFromToken(String token) {
+        try {
+            Claims claims = parseToken(token);
+            return claims.get("tokenVersion", Long.class);
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 
     public Claims parseToken(String token) {

@@ -1,6 +1,7 @@
 package com.xidian.osqa.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xidian.osqa.common.NetworkUtil;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.ChatMessage;
 import com.xidian.osqa.entity.ChatSession;
@@ -31,7 +32,7 @@ public class ChatController {
     private final PromptInjectionFilter promptInjectionFilter;
     private final RateLimiter rateLimiter;
     private final com.xidian.osqa.service.ClazzService clazzService;
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final ExecutorService executorService = Executors.newFixedThreadPool(10);
 
     public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter, com.xidian.osqa.service.ClazzService clazzService) {
         this.chatService = chatService;
@@ -56,19 +57,31 @@ public class ChatController {
     }
 
     @GetMapping("/sessions/{sessionId}/messages")
-    public Result<?> getMessages(@PathVariable Long sessionId) {
+    public Result<?> getMessages(@PathVariable Long sessionId, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (!chatService.isSessionOwner(sessionId, userId)) {
+            return Result.error(403, "无权访问此对话");
+        }
         List<ChatMessage> messages = chatService.getSessionMessages(sessionId);
         return Result.success(messages);
     }
 
     @DeleteMapping("/sessions/{sessionId}")
-    public Result<?> deleteSession(@PathVariable Long sessionId) {
+    public Result<?> deleteSession(@PathVariable Long sessionId, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (!chatService.isSessionOwner(sessionId, userId)) {
+            return Result.error(403, "无权操作此对话");
+        }
         chatService.deleteSession(sessionId);
         return Result.success();
     }
 
     @PutMapping("/sessions/{sessionId}")
-    public Result<?> updateSessionTitle(@PathVariable Long sessionId, @RequestBody Map<String, String> body) {
+    public Result<?> updateSessionTitle(@PathVariable Long sessionId, @RequestBody Map<String, String> body, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        if (!chatService.isSessionOwner(sessionId, userId)) {
+            return Result.error(403, "无权操作此对话");
+        }
         String title = body.get("title");
         chatService.updateSessionTitle(sessionId, title);
         return Result.success();
@@ -77,7 +90,18 @@ public class ChatController {
     @PostMapping(value = "/sessions/{sessionId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamChat(@PathVariable Long sessionId, @RequestBody Map<String, Object> body, HttpServletRequest request) {
         Long userId = (Long) request.getAttribute("userId");
-        String clientIp = getClientIp(request);
+
+        // 会话归属校验
+        if (!chatService.isSessionOwner(sessionId, userId)) {
+            SseEmitter emitter = new SseEmitter();
+            try {
+                String errorJson = objectMapper.writeValueAsString(Map.of("type", "error", "message", "无权操作此对话"));
+                emitter.send(SseEmitter.event().name("message").data(errorJson));
+                emitter.complete();
+            } catch (Exception ignored) {}
+            return emitter;
+        }
+        String clientIp = NetworkUtil.getClientIp(request);
 
         // 限流检查
         if (!rateLimiter.allowChatRequest(userId, clientIp)) {
@@ -124,7 +148,7 @@ public class ChatController {
             effectiveContent = sanitizedContent;
         }
 
-        chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? null : "no_class");
+        chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? "textbook" : "no_class");
 
         SseEmitter emitter = new SseEmitter(180000L);
 
@@ -145,7 +169,8 @@ public class ChatController {
                 String answer = chatService.askQuestion(sessionId, effectiveContent, webSearch != null && webSearch);
                 String citation = chatService.getCitation(sessionId, effectiveContent, webSearch != null && webSearch);
 
-                chatService.saveMessage(sessionId, "assistant", answer, citation, null);
+                String streamSourceType = (webSearch != null && webSearch) ? "web" : "textbook";
+                chatService.saveMessage(sessionId, "assistant", answer, citation, streamSourceType);
 
                 String contentJson = objectMapper.writeValueAsString(Map.of("type", "content", "content", answer));
                 emitter.send(SseEmitter.event().name("message").data(contentJson));
@@ -177,9 +202,15 @@ public class ChatController {
 
     @PostMapping("/sessions/{sessionId}/ask")
     public Result<?> askNonStream(@PathVariable Long sessionId, @RequestBody Map<String, Object> body, HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+
+        // 会话归属校验
+        if (!chatService.isSessionOwner(sessionId, userId)) {
+            return Result.error(403, "无权操作此对话");
+        }
+
         try {
-            Long userId = (Long) request.getAttribute("userId");
-            String clientIp = getClientIp(request);
+            String clientIp = NetworkUtil.getClientIp(request);
 
             // 限流检查
             if (!rateLimiter.allowChatRequest(userId, clientIp)) {
@@ -195,7 +226,7 @@ public class ChatController {
             }
 
             // 清洗输入
-        final String sanitizedContent = promptInjectionFilter.sanitize(content);
+            final String sanitizedContent = promptInjectionFilter.sanitize(content);
 
         Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
         String videoContext = (String) body.get("videoContext");
@@ -214,13 +245,14 @@ public class ChatController {
             effectiveContent = sanitizedContent;
         }
 
-        chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? null : "no_class");
+        chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? "textbook" : "no_class");
         chatService.autoTitleIfNeeded(sessionId, sanitizedContent);
 
             String answer = chatService.askQuestion(sessionId, effectiveContent, webSearch != null && webSearch);
             String citation = chatService.getCitation(sessionId, effectiveContent, webSearch != null && webSearch);
 
-            chatService.saveMessage(sessionId, "assistant", answer, citation, null);
+            String assistantSourceType = (webSearch != null && webSearch) ? "web" : "textbook";
+            chatService.saveMessage(sessionId, "assistant", answer, citation, assistantSourceType);
 
             Map<String, Object> result = new HashMap<>();
             result.put("content", answer != null ? answer : "");
@@ -228,7 +260,7 @@ public class ChatController {
             return Result.success(result);
         } catch (Exception e) {
             log.error("askNonStream处理失败: sessionId={}", sessionId, e);
-            return Result.error(500, "处理失败: " + e.getMessage());
+            return Result.error(500, "处理失败，请稍后重试");
         }
     }
 
@@ -249,21 +281,4 @@ public class ChatController {
         return Result.success(prompts);
     }
 
-    /**
-     * 获取客户端真实IP地址
-     */
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        // 多级代理时取第一个
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
-    }
 }

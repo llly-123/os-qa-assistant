@@ -319,7 +319,7 @@ function formatSize(bytes) {
 
 <style scoped lang="scss">
 .video-manage {
-  padding: 20px;
+  padding: 28px 32px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -329,8 +329,14 @@ function formatSize(bytes) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  h2 { margin: 0; }
+  margin-bottom: 24px;
+
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
 }
 
 .content-layout {

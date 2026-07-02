@@ -682,8 +682,8 @@ function formatTime(time) {
 
 <style scoped lang="scss">
 .class-manage {
-  padding: 20px;
-  max-width: 1000px;
+  padding: 28px 32px;
+  max-width: 1100px;
   margin: 0 auto;
 }
 
@@ -691,9 +691,14 @@ function formatTime(time) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 
-  h2 { margin: 0; }
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
   .header-left {
     display: flex;
     align-items: center;

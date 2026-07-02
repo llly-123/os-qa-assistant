@@ -281,16 +281,21 @@ function getTagType(count) {
 
 <style scoped lang="scss">
 .qa-statistics {
-  padding: 20px;
+  padding: 28px 32px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
 
-  h2 { margin: 0; }
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
 }
 
 .stat-cards {
@@ -305,13 +310,15 @@ function getTagType(count) {
 
       .stat-value {
         font-size: 28px;
-        font-weight: 600;
-        color: #303133;
+        font-weight: 700;
+        color: var(--color-text-primary);
+        line-height: 1.1;
       }
 
       .stat-label {
         font-size: 14px;
-        color: #909399;
+        color: var(--color-text-tertiary);
+        margin-top: 2px;
       }
     }
   }
@@ -328,7 +335,7 @@ function getTagType(count) {
 
   .selector-label {
     font-size: 15px;
-    color: #606266;
+    color: var(--color-text-secondary);
     margin-right: 8px;
     white-space: nowrap;
   }

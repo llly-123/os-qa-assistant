@@ -1,5 +1,6 @@
 package com.xidian.osqa.controller;
 
+import com.xidian.osqa.common.NetworkUtil;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.security.RateLimiter;
 import com.xidian.osqa.service.AuthService;
@@ -23,7 +24,7 @@ public class AuthController {
     @PostMapping("/login")
     public Result<?> login(@RequestBody Map<String, String> body, HttpServletRequest request) {
         // 登录限流
-        String clientIp = getClientIp(request);
+        String clientIp = NetworkUtil.getClientIp(request);
         if (!rateLimiter.allowLoginRequest(clientIp)) {
             return Result.error(429, "登录请求过于频繁，请稍后再试");
         }
@@ -83,19 +84,5 @@ public class AuthController {
         String phone = body.get("phone");
         String code = body.get("code");
         return authService.resetPasswordByPhone(phone, code);
-    }
-
-    private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
-        }
-        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
-        }
-        return ip;
     }
 }

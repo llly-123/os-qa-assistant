@@ -65,8 +65,11 @@ public class KnowledgeEmbeddingService {
     @Value("${knowledge.upload-dir:./uploads/knowledge}")
     private String uploadDir;
 
+    private static final int VECTOR_DIM = 256;
+
     private final Map<Long, double[]> chunkVectors = new HashMap<>();
     private final Map<String, Double> idfCache = new HashMap<>();
+    private volatile List<KnowledgeChunk> cachedChunks = new ArrayList<>();
     private volatile boolean indexReady = false;
 
     public KnowledgeEmbeddingService(KnowledgeChunkMapper chunkMapper, KnowledgeMapper knowledgeMapper) {
@@ -99,6 +102,7 @@ public class KnowledgeEmbeddingService {
     }
 
     private void buildIndex(List<KnowledgeChunk> chunks) {
+        this.cachedChunks = new ArrayList<>(chunks);
         Map<String, Integer> docFreq = new HashMap<>();
         int totalDocs = chunks.size();
 
@@ -450,7 +454,7 @@ public class KnowledgeEmbeddingService {
     }
 
     public List<String> retrieve(String query, int maxResults) {
-        List<KnowledgeChunk> allChunks = chunkMapper.selectList(null);
+        List<KnowledgeChunk> allChunks = this.cachedChunks;
         if (allChunks.isEmpty()) {
             log.info("知识库为空，无检索结果");
             return Collections.emptyList();
@@ -550,26 +554,28 @@ public class KnowledgeEmbeddingService {
     }
 
     private double[] sparseToVector(Map<String, Double> tfidf) {
-        double[] vector = new double[1];
+        double[] vector = new double[VECTOR_DIM];
+        for (Map.Entry<String, Double> entry : tfidf.entrySet()) {
+            int hash = Math.abs(entry.getKey().hashCode()) % VECTOR_DIM;
+            vector[hash] += entry.getValue();
+        }
+        // L2 normalize
         double norm = 0;
-        for (double v : tfidf.values()) {
+        for (double v : vector) {
             norm += v * v;
         }
-        norm = Math.sqrt(norm);
         if (norm > 0) {
-            double sum = 0;
-            for (double v : tfidf.values()) {
-                sum += v / norm;
+            norm = Math.sqrt(norm);
+            for (int i = 0; i < VECTOR_DIM; i++) {
+                vector[i] /= norm;
             }
-            vector[0] = sum / tfidf.size();
         }
         return vector;
     }
 
     private double cosineSimilarity(double[] a, double[] b) {
-        if (a.length != b.length || a.length == 0) return 0;
         double dotProduct = 0, normA = 0, normB = 0;
-        for (int i = 0; i < a.length; i++) {
+        for (int i = 0; i < VECTOR_DIM; i++) {
             dotProduct += a[i] * b[i];
             normA += a[i] * a[i];
             normB += b[i] * b[i];

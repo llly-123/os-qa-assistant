@@ -41,7 +41,6 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login", "/api/auth/send-code", "/api/auth/reset-password", "/api/auth/send-phone-code", "/api/auth/reset-password-by-phone").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
-                .requestMatchers("/api/videos/**").permitAll()
                 .requestMatchers("/api/courses/chapters").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("TEACHER")
                 .requestMatchers("/api/students/**").authenticated()

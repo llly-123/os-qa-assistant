@@ -1,12 +1,14 @@
 package com.xidian.osqa.security;
 
 import com.xidian.osqa.common.JwtUtil;
+import com.xidian.osqa.service.AuthService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -19,9 +21,11 @@ import java.util.Collections;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
+    private final AuthService authService;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil, @Lazy AuthService authService) {
         this.jwtUtil = jwtUtil;
+        this.authService = authService;
     }
 
     @Override
@@ -35,6 +39,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 Long userId = jwtUtil.getUserIdFromToken(token);
                 String username = jwtUtil.getUsernameFromToken(token);
                 String role = jwtUtil.getRoleFromToken(token);
+                Long tokenVersion = jwtUtil.getTokenVersionFromToken(token);
+
+                // 验证token版本（密码重置后旧token即刻失效）
+                if (tokenVersion != null && !authService.isTokenVersionValid(userId, tokenVersion)) {
+                    SecurityContextHolder.clearContext();
+                    filterChain.doFilter(request, response);
+                    return;
+                }
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(

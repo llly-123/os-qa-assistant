@@ -1,6 +1,7 @@
 package com.xidian.osqa.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xidian.osqa.common.OsConstants;
 import com.xidian.osqa.entity.ChatMessage;
 import com.xidian.osqa.entity.ChatSession;
 import com.xidian.osqa.mapper.ChatMessageMapper;
@@ -71,6 +72,11 @@ public class ChatService {
             session.setUpdateTime(LocalDateTime.now());
             sessionMapper.updateById(session);
         }
+    }
+
+    public boolean isSessionOwner(Long sessionId, Long userId) {
+        ChatSession session = sessionMapper.selectById(sessionId);
+        return session != null && session.getUserId().equals(userId);
     }
 
     public void deleteSession(Long sessionId) {
@@ -177,23 +183,7 @@ public class ChatService {
         try {
             List<String> questions = messageMapper.findUserQuestionContents(userId, limit * 3);
             Map<String, Integer> wordCount = new HashMap<>();
-            String[] osKeywords = {"进程", "线程", "死锁", "信号量", "内存", "页面置换",
-                    "LRU", "调度", "文件系统", "中断", "同步", "互斥", "虚拟内存",
-                    "分页", "分段", "缓冲", "管道", "套接字", "PV操作", "银行家算法",
-                    "进程通信", "进程调度", "作业调度", "磁盘调度", "内存分配", "内存保护",
-                    "抖动", "缺页", "快表", "位图", "空闲链表", "伙伴系统",
-                    "索引节点", "目录", "超级块", "FAT", "RAID", "SPOOLing",
-                    "用户态", "内核态", "系统调用", "上下文切换", "时间片", "优先级",
-                    "临界区", "管程", "条件变量", "读写锁", "自旋锁",
-                    "生产者消费者", "读者写者", "哲学家就餐", "饥饿", "活锁",
-                    "安全序列", "资源分配图", "抢占", "非抢占", "死锁避免", "死锁检测",
-                    "死锁预防", "死锁恢复", "页表", "多级页表", "反置页表",
-                    "TLB", "局部性原理", "工作集", "置换算法", "FIFO", "OPT", "CLOCK",
-                    "覆盖", "交换", "虚拟页式", "实页式", "段页式",
-                    "文件控制块", "文件目录", "空闲空间管理", "连续分配", "链接分配",
-                    "索引分配", "磁盘结构", "寻道", "旋转延迟", "传输时间",
-                    "I/O软件", "设备驱动", "中断处理", "DMA", "通道",
-                    "进程控制块", "PCB", "进程状态", "就绪", "阻塞", "运行"};
+            String[] osKeywords = OsConstants.OS_KEYWORDS;
 
             for (String question : questions) {
                 if (question == null) continue;

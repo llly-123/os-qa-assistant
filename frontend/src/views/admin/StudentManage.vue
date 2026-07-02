@@ -615,19 +615,22 @@ async function handleDeleteOption(id, category) {
 
 <style scoped lang="scss">
 .student-manage {
-  padding: 20px;
+  padding: 28px 32px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  
+  margin-bottom: 24px;
+
   h2 {
     margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
   }
-  
+
   .header-actions {
     display: flex;
     gap: 10px;
@@ -652,19 +655,19 @@ async function handleDeleteOption(id, category) {
     justify-content: space-between;
     align-items: center;
     padding: 8px 0;
-    border-bottom: 1px solid #f0f0f0;
-    
+    border-bottom: 1px solid var(--color-border-light);
+
     span {
       font-size: 14px;
     }
   }
-  
+
   .option-empty {
-    color: #999;
+    color: var(--color-text-tertiary);
     text-align: center;
     padding: 20px;
   }
-  
+
   .option-add {
     display: flex;
     gap: 10px;

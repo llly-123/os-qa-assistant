@@ -7,7 +7,7 @@
 <style scoped>
 .admin-content {
   height: 100%;
-  background: #f5f7fa;
+  background: var(--color-bg);
   overflow-y: auto;
 }
 </style>

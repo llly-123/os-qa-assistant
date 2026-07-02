@@ -7,6 +7,7 @@ import com.xidian.osqa.entity.Section;
 import com.xidian.osqa.mapper.ChapterMapper;
 import com.xidian.osqa.mapper.SectionMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -66,6 +67,7 @@ public class VideoService {
         return Result.success();
     }
 
+    @Transactional
     public Result<?> deleteChapter(Long id) {
         // 删除该章下所有节
         LambdaQueryWrapper<Section> wrapper = new LambdaQueryWrapper<>();

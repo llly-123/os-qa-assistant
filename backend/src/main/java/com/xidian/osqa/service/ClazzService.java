@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.alibaba.excel.EasyExcel;
@@ -86,6 +87,7 @@ public class ClazzService {
         return Result.success(clazz);
     }
 
+    @Transactional
     public Result<?> deleteClass(Long classId, Long teacherId) {
         Clazz clazz = clazzMapper.selectById(classId);
         if (clazz == null) {
@@ -105,6 +107,7 @@ public class ClazzService {
         return Result.success();
     }
 
+    @Transactional
     public Result<?> dissolveClass(Long classId, Long teacherId) {
         Clazz clazz = clazzMapper.selectById(classId);
         if (clazz == null) {

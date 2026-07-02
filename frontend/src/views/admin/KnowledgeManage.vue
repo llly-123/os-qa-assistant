@@ -390,19 +390,22 @@ function onFileSelected(event) {
 
 <style scoped lang="scss">
 .knowledge-manage {
-  padding: 20px;
+  padding: 28px 32px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  
+  margin-bottom: 24px;
+
   h2 {
     margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
   }
-  
+
   .header-actions {
     display: flex;
     gap: 10px;

@@ -1,71 +1,102 @@
 <template>
-  <div class="login-container">
-    <div class="login-card">
-      <div class="login-header">
-        <div class="logo">
-          <el-icon :size="48" color="#409eff"><Reading /></el-icon>
+  <div class="login-page">
+    <!-- Left: Brand Panel -->
+    <div class="brand-panel">
+      <div class="brand-content">
+        <div class="brand-icon">
+          <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="48" height="48" rx="12" fill="rgba(255,255,255,0.2)"/>
+            <path d="M14 16h20M14 24h14M14 32h20" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="36" cy="24" r="5" stroke="white" stroke-width="2" fill="none"/>
+            <circle cx="36" cy="24" r="1.5" fill="white"/>
+          </svg>
         </div>
-        <h1>操作系统AI答疑助手</h1>
-        <p>基于西安电子科技大学《操作系统》教材</p>
-      </div>
-      
-      <el-form 
-        ref="loginFormRef" 
-        :model="loginForm" 
-        :rules="loginRules" 
-        class="login-form"
-      >
-        <el-form-item prop="username">
-          <el-input 
-            v-model="loginForm.username" 
-            placeholder="请输入学号/工号"
-            prefix-icon="User"
-            size="large"
-          />
-        </el-form-item>
-        
-        <el-form-item prop="password">
-          <el-input 
-            v-model="loginForm.password" 
-            type="password" 
-            placeholder="请输入密码"
-            prefix-icon="Lock"
-            size="large"
-            show-password
-            @keyup.enter="handleLogin"
-          />
-        </el-form-item>
-        
-        <el-form-item>
-          <el-button 
-            type="primary" 
-            size="large" 
-            :loading="loading"
-            class="login-btn"
-            @click="handleLogin"
-          >
-            登 录
-          </el-button>
-        </el-form-item>
-      </el-form>
-      
-      <div class="login-footer">
-        <el-button link @click="showResetDialog = true">
-          忘记密码？
-        </el-button>
+        <h1>操作系统 AI 答疑助手</h1>
+        <p class="brand-desc">基于西安电子科技大学《操作系统》教材<br/>智能检索 · 精准回答 · 高效学习</p>
+        <div class="brand-features">
+          <div class="feature-item">
+            <span class="feature-icon">📚</span>
+            <span>教材知识库检索</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🤖</span>
+            <span>AI 智能答疑</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-icon">🎬</span>
+            <span>视频同步学习</span>
+          </div>
+        </div>
       </div>
     </div>
-    
-    <el-dialog 
-      v-model="showResetDialog" 
-      title="找回密码" 
+
+    <!-- Right: Login Form -->
+    <div class="form-panel">
+      <div class="form-wrapper">
+        <div class="form-header">
+          <h2>欢迎回来</h2>
+          <p>请使用学号/工号登录</p>
+        </div>
+
+        <el-form
+          ref="loginFormRef"
+          :model="loginForm"
+          :rules="loginRules"
+          class="login-form"
+          @keyup.enter="handleLogin"
+        >
+          <el-form-item prop="username">
+            <el-input
+              v-model="loginForm.username"
+              placeholder="请输入学号/工号"
+              :prefix-icon="User"
+              size="large"
+              class="custom-input"
+            />
+          </el-form-item>
+
+          <el-form-item prop="password">
+            <el-input
+              v-model="loginForm.password"
+              type="password"
+              placeholder="请输入密码"
+              :prefix-icon="Lock"
+              size="large"
+              show-password
+              class="custom-input"
+              @keyup.enter="handleLogin"
+            />
+          </el-form-item>
+
+          <el-form-item>
+            <el-button
+              type="primary"
+              size="large"
+              :loading="loading"
+              class="login-btn"
+              @click="handleLogin"
+            >
+              {{ loading ? '登录中...' : '登 录' }}
+            </el-button>
+          </el-form-item>
+        </el-form>
+
+        <div class="form-footer">
+          <el-button link class="forgot-link" @click="showResetDialog = true">
+            忘记密码？
+          </el-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Reset Password Dialog -->
+    <el-dialog
+      v-model="showResetDialog"
+      title="找回密码"
       width="440px"
+      :close-on-click-modal="false"
     >
-      <el-alert
-        type="info"
-        :closable="false"
-        style="margin-bottom: 16px"
-      >
+      <el-alert type="info" :closable="false" style="margin-bottom: 20px">
         <template #title>
           绑定手机号后可通过验证码找回密码；未绑定手机号请联系教师重置。
         </template>
@@ -76,24 +107,19 @@
           <el-input v-model="resetForm.phone" placeholder="请输入绑定的手机号" maxlength="11" />
         </el-form-item>
         <el-form-item label="验证码">
-          <div class="verify-code-input">
-            <el-input v-model="resetForm.code" placeholder="请输入验证码" maxlength="6" />
-            <el-button 
-              :disabled="countdown > 0 || !resetForm.phone" 
+          <div style="display: flex; gap: 10px; width: 100%">
+            <el-input v-model="resetForm.code" placeholder="请输入验证码" maxlength="6" style="flex:1" />
+            <el-button
+              :disabled="countdown > 0 || !resetForm.phone"
               @click="sendCode"
             >
               {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
             </el-button>
           </div>
-          <!-- 开发模式：显示验证码 -->
           <div v-if="devCode" class="dev-code-tip" @click="copyDevCode">
-            <el-alert type="warning" :closable="false" show-icon>
-              <template #title>
-                <span style="font-size: 16px; font-weight: bold">开发模式验证码：</span>
-                <span style="font-size: 20px; font-weight: bold; color: #409eff; letter-spacing: 4px">{{ devCode }}</span>
-                <span style="margin-left: 8px; font-size: 12px">(点击可复制)</span>
-              </template>
-            </el-alert>
+            <span class="dev-label">开发模式验证码：</span>
+            <span class="dev-value">{{ devCode }}</span>
+            <span class="dev-hint">(点击复制)</span>
           </div>
         </el-form-item>
       </el-form>
@@ -109,6 +135,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { User, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { sendPhoneCode, resetPasswordByPhone } from '@/api/auth'
 
@@ -119,7 +146,7 @@ const loginFormRef = ref(null)
 const loading = ref(false)
 const showResetDialog = ref(false)
 const countdown = ref(0)
-const devCode = ref('')  // 开发模式验证码
+const devCode = ref('')
 
 const loginForm = reactive({
   username: '',
@@ -144,12 +171,12 @@ const resetForm = reactive({
 async function handleLogin() {
   const valid = await loginFormRef.value.validate().catch(() => false)
   if (!valid) return
-  
+
   loading.value = true
   try {
     await userStore.login(loginForm.username, loginForm.password)
     ElMessage.success('登录成功')
-    
+
     if (userStore.role === 'TEACHER') {
       router.push('/admin/students')
     } else {
@@ -167,12 +194,11 @@ async function sendCode() {
     ElMessage.warning('请输入正确的手机号')
     return
   }
-  
+
   try {
     const res = await sendPhoneCode(resetForm.phone)
     const data = res.data || res
-    
-    // 开发模式：显示验证码
+
     if (data.devMode && data.devCode) {
       devCode.value = data.devCode
       ElMessage.success('验证码已生成（开发模式）')
@@ -180,13 +206,11 @@ async function sendCode() {
       devCode.value = ''
       ElMessage.success('验证码已发送')
     }
-    
+
     countdown.value = 60
     const timer = setInterval(() => {
       countdown.value--
-      if (countdown.value <= 0) {
-        clearInterval(timer)
-      }
+      if (countdown.value <= 0) clearInterval(timer)
     }, 1000)
   } catch (error) {
     console.error('发送验证码失败:', error)
@@ -198,13 +222,13 @@ async function handleResetPassword() {
     ElMessage.warning('请填写手机号和验证码')
     return
   }
-  
+
   try {
     const res = await resetPasswordByPhone(resetForm.phone, resetForm.code)
     const data = res.data || res
     ElMessage.success(`密码已重置为学号后6位，请登录后修改`)
     showResetDialog.value = false
-    devCode.value = ''  // 清空验证码
+    devCode.value = ''
   } catch (error) {
     console.error('重置密码失败:', error)
   }
@@ -215,7 +239,6 @@ function copyDevCode() {
     navigator.clipboard.writeText(devCode.value).then(() => {
       ElMessage.success('验证码已复制')
     }).catch(() => {
-      // 降级方案
       const input = document.createElement('input')
       input.value = devCode.value
       document.body.appendChild(input)
@@ -229,68 +252,211 @@ function copyDevCode() {
 </script>
 
 <style scoped lang="scss">
-.login-container {
-  min-height: 100vh;
+.login-page {
   display: flex;
-  justify-content: center;
+  min-height: 100vh;
+}
+
+// Left: Brand Panel
+.brand-panel {
+  flex: 1;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 40%, #3730a3 100%);
+  display: flex;
   align-items: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
 
-.login-card {
-  width: 420px;
-  padding: 40px;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-}
-
-.login-header {
-  text-align: center;
-  margin-bottom: 30px;
-  
-  .logo {
-    margin-bottom: 16px;
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -20%;
+    width: 600px;
+    height: 600px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.04);
+    pointer-events: none;
   }
-  
-  h1 {
-    font-size: 24px;
-    color: #303133;
+
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: -30%;
+    left: -10%;
+    width: 400px;
+    height: 400px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.03);
+    pointer-events: none;
+  }
+}
+
+.brand-content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  color: #fff;
+  padding: 40px;
+  max-width: 420px;
+}
+
+.brand-icon {
+  margin-bottom: 28px;
+  display: inline-block;
+}
+
+.brand-content h1 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 14px;
+  letter-spacing: 0.02em;
+  line-height: 1.3;
+}
+
+.brand-desc {
+  font-size: 15px;
+  opacity: 0.8;
+  line-height: 1.8;
+  margin-bottom: 36px;
+}
+
+.brand-features {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  font-size: 14px;
+  backdrop-filter: blur(4px);
+  min-width: 200px;
+  justify-content: center;
+  transition: background 0.2s;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .feature-icon {
+    font-size: 18px;
+  }
+}
+
+// Right: Form Panel
+.form-panel {
+  width: 480px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  padding: 40px;
+}
+
+.form-wrapper {
+  width: 100%;
+  max-width: 360px;
+}
+
+.form-header {
+  margin-bottom: 36px;
+
+  h2 {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--color-text-primary);
     margin-bottom: 8px;
   }
-  
+
   p {
-    font-size: 14px;
-    color: #909399;
+    color: var(--color-text-tertiary);
+    font-size: 15px;
   }
 }
 
 .login-form {
-  .login-btn {
-    width: 100%;
-    margin-top: 10px;
+  .custom-input {
+    :deep(.el-input__wrapper) {
+      padding: 4px 16px;
+      border-radius: 10px !important;
+      height: 48px;
+    }
+  }
+
+  .el-form-item {
+    margin-bottom: 20px;
   }
 }
 
-.login-footer {
-  text-align: center;
-  margin-top: 20px;
+.login-btn {
+  width: 100%;
+  height: 48px;
+  border-radius: 10px !important;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
 }
 
-.verify-code-input {
-  display: flex;
-  gap: 10px;
-  
-  .el-input {
-    flex: 1;
+.form-footer {
+  text-align: center;
+
+  .forgot-link {
+    color: var(--color-text-tertiary);
+    font-size: 14px;
+
+    &:hover {
+      color: var(--color-primary);
+    }
   }
 }
 
 .dev-code-tip {
   margin-top: 10px;
-  
-  :deep(.el-alert__title) {
-    cursor: pointer;
+  padding: 10px 12px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.2s;
+
+  &:hover {
+    background: #fef3c7;
+  }
+
+  .dev-label {
+    font-size: 12px;
+    color: #92400e;
+  }
+
+  .dev-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--color-primary);
+    letter-spacing: 4px;
+    margin: 0 4px;
+  }
+
+  .dev-hint {
+    font-size: 11px;
+    color: #a16207;
+  }
+}
+
+@media (max-width: 768px) {
+  .brand-panel {
+    display: none;
+  }
+  .form-panel {
+    width: 100%;
   }
 }
 </style>

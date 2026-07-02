@@ -1,189 +1,204 @@
 <template>
   <div class="learn-container">
-    <!-- 左栏：聊天区 -->
-    <div class="chat-panel" :style="{ width: leftWidth + 'px' }">
-      <div class="chat-header">
-        <div class="quick-questions">
-          <el-tag 
-            v-for="q in quickQuestions" 
+    <!-- Left: Chat Panel -->
+    <div class="chat-panel" :style="{ width: isVideoCollapsed ? '100%' : leftWidth + 'px' }">
+      <!-- Quick Questions Header -->
+      <div class="chat-topbar">
+        <div class="quick-chips">
+          <span
+            v-for="q in quickQuestions"
             :key="q"
-            class="quick-tag"
+            class="quick-chip"
             @click="askQuickQuestion(q)"
           >
             {{ q }}
-          </el-tag>
+          </span>
         </div>
       </div>
-      
+
+      <!-- Messages Area -->
       <div class="chat-messages" ref="messagesContainer">
         <div v-if="messages.length === 0" class="empty-state">
-          <el-icon :size="64" color="#c0c4cc"><ChatDotRound /></el-icon>
-          <h3>开始提问吧！</h3>
-          <p>我是基于西电《操作系统》教材的AI答疑助手</p>
-          <p v-if="!inClass" style="color: #e6a23c; font-size: 13px; margin-top: 8px">
-            ⚠️ 未进入班级，教师无法统计问答情况
-          </p>
-          <p v-else>点击上方标签快速提问，或直接输入您的问题</p>
+          <div class="empty-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+              <rect x="12" y="14" width="40" height="36" rx="6" stroke="#cbd5e1" stroke-width="2" fill="none"/>
+              <path d="M22 28h20M22 36h14" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="44" cy="38" r="8" fill="#eef2ff" stroke="#818cf8" stroke-width="1.5"/>
+              <path d="M42 38h4M44 36v4" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>开始提问吧</h3>
+          <p>我是基于西电《操作系统》教材的 AI 答疑助手</p>
+          <p v-if="!inClass" class="no-class-warn">⚠️ 未进入班级，教师无法统计问答情况</p>
+          <p v-else class="hint-text">点击上方标签快速提问，或直接输入您的问题</p>
         </div>
-        
-        <div 
-          v-for="(msg, index) in messages" 
+
+        <div
+          v-for="(msg, index) in messages"
           :key="index"
-          :class="['message-item', msg.role]"
+          :class="['message-row', msg.role]"
         >
           <div class="message-avatar">
-            <el-avatar v-if="msg.role === 'user'" :size="36" icon="User" />
-            <el-avatar v-else :size="36" style="background: #409eff">
-              <el-icon><Reading /></el-icon>
+            <el-avatar v-if="msg.role === 'user'" :size="34" icon="UserFilled" :style="{ background: '#e2e8f0', color: '#64748b' }" />
+            <el-avatar v-else :size="34" :style="{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M4 6h16M4 12h10M4 18h16" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
             </el-avatar>
           </div>
-          <div class="message-content">
-            <div class="message-header">
-              <span class="role-name">
-                {{ msg.role === 'user' ? '我' : 'AI助手' }}
-                <el-tag v-if="msg.videoContext" size="small" type="info" style="margin-left:4px">📺</el-tag>
+          <div class="message-body">
+            <div class="message-meta">
+              <span class="sender-name">
+                {{ msg.role === 'user' ? '我' : 'AI 助手' }}
+                <el-tag v-if="msg.videoContext" size="small" type="info" style="margin-left:4px">📺 视频相关</el-tag>
               </span>
-              <span class="time">{{ formatTime(msg.createTime) }}</span>
+              <span class="msg-time">{{ formatTime(msg.createTime) }}</span>
             </div>
-            <div class="message-body">
+            <div class="message-bubble" :class="msg.role">
               <div v-if="msg.role === 'assistant'" class="markdown-content" v-html="renderMarkdown(msg.content)"></div>
               <div v-else class="user-content">{{ msg.content }}</div>
             </div>
-            <div v-if="msg.citation" class="citation-card" :class="msg.sourceType === 'web' ? 'web-source' : ''">
-              <el-icon><Document /></el-icon>
-              <div class="citation-content" v-html="renderCitation(msg.citation)"></div>
+            <!-- Citation -->
+            <div v-if="msg.citation" class="citation-bar" :class="msg.sourceType === 'web' ? 'web' : 'textbook'">
+              <span class="citation-icon">{{ msg.sourceType === 'web' ? '🌐' : '📚' }}</span>
+              <div class="citation-text" v-html="renderCitation(msg.citation)"></div>
             </div>
           </div>
         </div>
-        
-        <div v-if="isTyping" class="message-item assistant">
+
+        <!-- Typing Indicator -->
+        <div v-if="isTyping" class="message-row assistant">
           <div class="message-avatar">
-            <el-avatar :size="36" style="background: #409eff">
-              <el-icon><Reading /></el-icon>
+            <el-avatar :size="34" :style="{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)' }">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M4 6h16M4 12h10M4 18h16" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
             </el-avatar>
           </div>
-          <div class="message-content">
-            <div class="message-header"><span class="role-name">AI助手</span></div>
-            <div class="message-body">
-              <div class="markdown-content" v-html="renderMarkdown(streamingContent)"></div>
-              <span class="typing-indicator"></span>
+          <div class="message-body">
+            <div class="message-meta"><span class="sender-name">AI 助手</span></div>
+            <div class="message-bubble assistant typing-bubble">
+              <span class="dot-pulse"></span>
             </div>
           </div>
         </div>
       </div>
-      
-      <div class="chat-input">
-        <div class="input-options">
-          <el-checkbox v-model="webSearchEnabled" label="联网搜索" />
-          <span class="search-tip">开启后将搜索网络资源获取答案</span>
+
+      <!-- Input Area -->
+      <div class="chat-input-area">
+        <div class="input-options-bar">
+          <label class="web-search-toggle" :class="{ active: webSearchEnabled }">
+            <input type="checkbox" v-model="webSearchEnabled" />
+            <span class="toggle-icon">🌐</span>
+            <span>联网搜索</span>
+          </label>
+          <span class="toggle-hint" v-if="!webSearchEnabled">开启后将搜索网络资源补充答案</span>
         </div>
-        <el-input
-          v-model="inputMessage"
-          type="textarea"
-          :rows="3"
-          :placeholder="currentVideoSection ? `正在观看：${currentVideoSection.title}，请输入问题...` : '请输入您的操作系统问题...'"
-          @keydown.enter.ctrl="sendMessage"
-          :disabled="isTyping"
-        />
-        <div class="input-actions">
-          <span class="tip">Ctrl + Enter 发送</span>
-          <el-button type="primary" :loading="isTyping" :disabled="!inputMessage.trim()" @click="sendMessage">
-            <el-icon><Promotion /></el-icon> 发送
+        <div class="input-row">
+          <el-input
+            v-model="inputMessage"
+            type="textarea"
+            :rows="2"
+            :placeholder="currentVideoSection ? `正在学习：${currentVideoSection.title}` : '输入您的问题...'"
+            @keydown.enter.ctrl="sendMessage"
+            :disabled="isTyping"
+            class="msg-input"
+          />
+          <el-button
+            type="primary"
+            :loading="isTyping"
+            :disabled="!inputMessage.trim()"
+            @click="sendMessage"
+            class="send-btn"
+          >
+            <el-icon><Promotion /></el-icon>
           </el-button>
         </div>
+        <div class="input-hint">Ctrl + Enter 发送</div>
       </div>
     </div>
 
-    <!-- 拖拽分隔条 -->
+    <!-- Resize Handle -->
     <div v-if="!isVideoCollapsed" class="resize-bar" @mousedown="startResize"></div>
 
-    <!-- 右栏：视频学习区 -->
+    <!-- Right: Video Panel -->
     <div class="video-panel" :class="{ collapsed: isVideoCollapsed }">
-      <!-- 收起/展开浮动箭头 -->
-      <div
-        class="collapse-toggle"
-        :class="{ 'at-edge': isVideoCollapsed }"
-        @click="toggleVideoPanel"
-        :title="isVideoCollapsed ? '显示视频' : '隐藏视频'"
-        tabindex="0"
-        @keydown.enter="toggleVideoPanel"
-        @keydown.space.prevent="toggleVideoPanel"
-      >
-        <el-icon :size="16">
+      <div class="collapse-toggle" :class="{ 'at-edge': isVideoCollapsed }" @click="toggleVideoPanel"
+        :title="isVideoCollapsed ? '展开视频' : '收起视频'">
+        <el-icon :size="14">
           <ArrowRight v-if="isVideoCollapsed" />
           <ArrowLeft v-else />
         </el-icon>
       </div>
 
-      <div class="video-panel-content">
-        <!-- 未进入班级：锁定视频区 -->
-        <div v-if="!inClass" class="no-class-notice">
-          <el-icon :size="48" color="#e6a23c"><Lock /></el-icon>
+      <div class="video-panel-inner">
+        <!-- Not in class -->
+        <div v-if="!inClass" class="video-placeholder">
+          <el-icon :size="48" color="#f59e0b"><Lock /></el-icon>
           <h3>请先进入班级</h3>
           <p>联系教师将你加入班级后即可观看视频</p>
         </div>
 
-        <!-- 已进入班级：正常显示 -->
         <template v-else>
-        <div class="video-header">
-        <span class="video-title">视频学习</span>
-        <el-tag v-if="currentVideoSection" type="success" size="small">
-          {{ currentVideoChapter?.title }} - {{ currentVideoSection.title }}
-        </el-tag>
-      </div>
+          <div class="video-topbar">
+            <span class="video-title">📺 视频学习</span>
+            <el-tag v-if="currentVideoSection" type="success" size="small">
+              {{ currentVideoChapter?.title }} · {{ currentVideoSection.title }}
+            </el-tag>
+          </div>
 
-      <!-- 章节选择器 -->
-      <div class="chapter-selector">
-        <el-collapse v-model="expandedChapters">
-          <el-collapse-item v-for="chapter in chapters" :key="chapter.id" :title="chapter.title" :name="chapter.id">
-            <div
-              v-for="section in chapter.sections"
-              :key="section.id"
-              :class="['section-option', { active: currentVideoSection?.id === section.id, disabled: !section.videoUrl }]"
-              @click="selectVideoSection(section, chapter)"
-            >
-              <span class="section-icon">{{ section.videoUrl ? '🎬' : '🚫' }}</span>
-              <span class="section-name">{{ section.title }}</span>
-              <el-tag v-if="isSectionCompleted(section.id)" size="small" type="success">已学</el-tag>
+          <!-- Chapter selector -->
+          <div class="chapter-selector">
+            <el-collapse v-model="expandedChapters">
+              <el-collapse-item v-for="chapter in chapters" :key="chapter.id" :title="chapter.title" :name="chapter.id">
+                <div
+                  v-for="section in chapter.sections"
+                  :key="section.id"
+                  :class="['section-row', { active: currentVideoSection?.id === section.id, disabled: !section.videoUrl }]"
+                  @click="selectVideoSection(section, chapter)"
+                >
+                  <span class="section-icon">{{ section.videoUrl ? '🎬' : '🚫' }}</span>
+                  <span class="section-name">{{ section.title }}</span>
+                  <el-tag v-if="isSectionCompleted(section.id)" size="small" type="success" class="done-tag">已学</el-tag>
+                </div>
+                <div v-if="!chapter.sections || chapter.sections.length === 0" class="empty-section">暂无内容</div>
+              </el-collapse-item>
+            </el-collapse>
+            <el-empty v-if="chapters.length === 0" description="暂无课程视频" :image-size="50" />
+          </div>
+
+          <!-- Video Player -->
+          <div class="player-area">
+            <div v-if="!currentVideoSection" class="video-placeholder">
+              <el-icon :size="40" color="#cbd5e1"><VideoCamera /></el-icon>
+              <p>从上方选择章节观看视频</p>
             </div>
-            <div v-if="!chapter.sections || chapter.sections.length === 0" class="empty-section">暂无内容</div>
-          </el-collapse-item>
-        </el-collapse>
-        <el-empty v-if="chapters.length === 0" description="暂无课程视频" :image-size="60" />
-      </div>
+            <div v-else-if="!currentVideoSection.videoUrl" class="video-placeholder">
+              <el-icon :size="40" color="#cbd5e1"><VideoCamera /></el-icon>
+              <p>该章节暂无视频</p>
+            </div>
+            <div v-else class="player-wrapper">
+              <video
+                ref="videoPlayer"
+                :src="currentVideoSection.videoUrl"
+                controls
+                @timeupdate="onVideoTimeUpdate"
+                @loadedmetadata="onVideoLoaded"
+                @ended="onVideoEnded"
+              ></video>
+              <el-button class="ask-video-btn" size="small" type="primary" @click="askAboutVideo">
+                <el-icon><ChatDotRound /></el-icon> 提问当前内容
+              </el-button>
+            </div>
+          </div>
 
-      <!-- 视频播放器 -->
-      <div class="video-player-area">
-        <div v-if="!currentVideoSection" class="no-video">
-          <el-icon :size="48" color="#c0c4cc"><VideoCamera /></el-icon>
-          <p>请从上方选择章节观看视频</p>
-        </div>
-        <div v-else-if="!currentVideoSection.videoUrl" class="no-video">
-          <el-icon :size="48" color="#c0c4cc"><VideoCamera /></el-icon>
-          <p>该章节暂无视频</p>
-        </div>
-        <div v-else class="player-wrapper">
-          <video
-            ref="videoPlayer"
-            :src="currentVideoSection.videoUrl"
-            controls
-            @timeupdate="onVideoTimeUpdate"
-            @loadedmetadata="onVideoLoaded"
-            @ended="onVideoEnded"
-          ></video>
-          <el-button class="ask-btn" size="small" type="primary" @click="askAboutVideo">
-            <el-icon><ChatDotRound /></el-icon> 提问
-          </el-button>
-        </div>
-      </div>
-
-      <!-- 学习进度 -->
-      <div class="progress-bar-area">
-        <span class="progress-text">学习进度：{{ completedCount }} / {{ totalSectionCount }} 节</span>
-        <el-progress :percentage="totalSectionCount > 0 ? Math.round(completedCount / totalSectionCount * 100) : 0" :stroke-width="8" />
-      </div>
+          <!-- Progress -->
+          <div class="progress-bar">
+            <div class="progress-label">学习进度：{{ completedCount }} / {{ totalSectionCount }} 节</div>
+            <el-progress
+              :percentage="totalSectionCount > 0 ? Math.round(completedCount / totalSectionCount * 100) : 0"
+              :stroke-width="6"
+              :show-text="false"
+            />
+          </div>
         </template>
-      </div><!-- end video-panel-content -->
+      </div>
     </div>
   </div>
 </template>
@@ -191,7 +206,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ChatDotRound, Reading, Document, Promotion, VideoCamera, ArrowLeft, ArrowRight, Lock } from '@element-plus/icons-vue'
+import { ChatDotRound, Promotion, VideoCamera, ArrowLeft, ArrowRight, Lock } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
@@ -217,38 +232,31 @@ const currentSessionId = computed(() => chatStore.currentSessionId)
 
 const quickQuestions = ref([])
 
-// ===== 视频相关 =====
+// Video state
 const chapters = ref([])
 const expandedChapters = ref([])
 const currentVideoSection = ref(null)
 const currentVideoChapter = ref(null)
-const videoProgressMap = ref({}) // sectionId -> { currentTime, completed }
+const videoProgressMap = ref({})
 let progressSaveTimer = null
 
-// ===== 班级状态 =====
-const myClass = ref(null) // null = 未进班
+// Class state
+const myClass = ref(null)
 const inClass = ref(false)
 
-// ===== 拖拽分隔 =====
+// Layout state
 const leftWidth = ref(0)
 const isResizing = ref(false)
-
-// ===== 视频区收起/展开 =====
 const isVideoCollapsed = ref(false)
-const savedVideoWidth = ref(0) // 收起前保存的视频区宽度
 
 function toggleVideoPanel() {
   if (isVideoCollapsed.value) {
-    // 展开：恢复之前的宽度
     isVideoCollapsed.value = false
-    const containerWidth = window.innerWidth
     const savedWidth = localStorage.getItem('chatPanelWidth')
-    leftWidth.value = savedWidth ? parseInt(savedWidth) : Math.floor(containerWidth * 0.5)
+    leftWidth.value = savedWidth ? parseInt(savedWidth) : Math.floor(window.innerWidth * 0.5)
     localStorage.setItem('isVideoCollapsed', 'false')
   } else {
-    // 收起：保存当前宽度，然后收起
     localStorage.setItem('chatPanelWidth', leftWidth.value.toString())
-    savedVideoWidth.value = leftWidth.value
     isVideoCollapsed.value = true
     leftWidth.value = window.innerWidth
     localStorage.setItem('isVideoCollapsed', 'true')
@@ -256,11 +264,10 @@ function toggleVideoPanel() {
 }
 
 onMounted(() => {
-  loadQuickPrompts()
+  loadQuickPromptsFn()
   scrollToBottom()
   loadClassAndVideoData()
 
-  // 恢复宽度和收起状态偏好
   const wasCollapsed = localStorage.getItem('isVideoCollapsed') === 'true'
   if (wasCollapsed) {
     isVideoCollapsed.value = true
@@ -273,14 +280,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   if (progressSaveTimer) clearInterval(progressSaveTimer)
-  // 仅在仍有有效token时保存进度
-  if (localStorage.getItem('token')) {
-    saveCurrentProgress()
-  }
+  if (localStorage.getItem('token')) saveCurrentProgress()
 })
 
-// ===== 快捷提示 =====
-async function loadQuickPrompts() {
+async function loadQuickPromptsFn() {
   try {
     const res = await getQuickPrompts()
     if (res?.data?.length > 0) {
@@ -293,10 +296,8 @@ async function loadQuickPrompts() {
   }
 }
 
-// ===== 视频数据 =====
 async function loadClassAndVideoData() {
   try {
-    // 先检查班级状态
     const classRes = await getMyClass()
     if (classRes.data) {
       myClass.value = classRes.data
@@ -306,7 +307,6 @@ async function loadClassAndVideoData() {
       inClass.value = false
     }
 
-    // 仅在班级中才加载视频数据
     if (inClass.value) {
       const [chaptersRes, progressRes] = await Promise.all([getChapters(), getVideoProgress()])
       chapters.value = chaptersRes.data || []
@@ -317,33 +317,23 @@ async function loadClassAndVideoData() {
       progressList.forEach(p => { map[p.sectionId] = p })
       videoProgressMap.value = map
 
-      // 恢复上次观看的视频
       const lastSectionId = localStorage.getItem('lastVideoSectionId')
       if (lastSectionId) {
         for (const ch of chapters.value) {
           const sec = ch.sections?.find(s => s.id === Number(lastSectionId))
-          if (sec && sec.videoUrl) {
-            selectVideoSection(sec, ch)
-            break
-          }
+          if (sec && sec.videoUrl) { selectVideoSection(sec, ch); break }
         }
       }
     }
-  } catch (e) {
-    console.error('加载班级/视频数据失败:', e)
-  }
+  } catch (e) { console.error('加载班级/视频数据失败:', e) }
 }
 
 function selectVideoSection(section, chapter) {
   if (!section.videoUrl) return
-  // 保存当前视频进度
   saveCurrentProgress()
-
   currentVideoSection.value = section
   currentVideoChapter.value = chapter
   localStorage.setItem('lastVideoSectionId', section.id)
-
-  // 恢复该节的播放进度
   nextTick(() => {
     const progress = videoProgressMap.value[section.id]
     if (videoPlayer.value && progress && progress.playTime > 0) {
@@ -372,7 +362,6 @@ function isSectionCompleted(sectionId) {
   return videoProgressMap.value[sectionId]?.completed === 1
 }
 
-// ===== 视频进度 =====
 function onVideoLoaded() {
   const progress = videoProgressMap.value[currentVideoSection.value?.id]
   if (progress && progress.playTime > 0 && videoPlayer.value) {
@@ -381,16 +370,11 @@ function onVideoLoaded() {
 }
 
 function onVideoTimeUpdate() {
-  // 每5秒自动保存
-  if (!progressSaveTimer) {
-    progressSaveTimer = setInterval(saveCurrentProgress, 5000)
-  }
+  if (!progressSaveTimer) progressSaveTimer = setInterval(saveCurrentProgress, 5000)
 }
 
 function onVideoEnded() {
-  if (currentVideoSection.value) {
-    saveCurrentProgress(true)
-  }
+  if (currentVideoSection.value) saveCurrentProgress(true)
 }
 
 async function saveCurrentProgress(completed = false) {
@@ -398,87 +382,62 @@ async function saveCurrentProgress(completed = false) {
   const sectionId = currentVideoSection.value.id
   const currentTime = videoPlayer.value.currentTime
   const duration = videoPlayer.value.duration || 0
-
-  // 播放超过90%视为完成
   const isCompleted = completed || (duration > 0 && currentTime / duration > 0.9)
-
   try {
     await saveVideoProgress(sectionId, currentTime, isCompleted)
-    videoProgressMap.value[sectionId] = {
-      ...videoProgressMap.value[sectionId],
-      sectionId,
-      playTime: currentTime,
-      completed: isCompleted ? 1 : 0
-    }
-  } catch (e) {
-    // 静默失败
-  }
+    videoProgressMap.value[sectionId] = { ...videoProgressMap.value[sectionId], sectionId, playTime: currentTime, completed: isCompleted ? 1 : 0 }
+  } catch (e) { /* silent */ }
 }
 
-// ===== 拖拽分隔 =====
+// Resize
 function startResize(e) {
   isResizing.value = true
   const startX = e.clientX
   const startWidth = leftWidth.value
-
   const onMouseMove = (e) => {
     const diff = e.clientX - startX
-    const newWidth = Math.max(300, Math.min(window.innerWidth - 300, startWidth + diff))
-    leftWidth.value = newWidth
+    leftWidth.value = Math.max(300, Math.min(window.innerWidth - 300, startWidth + diff))
   }
-
   const onMouseUp = () => {
     isResizing.value = false
     localStorage.setItem('chatPanelWidth', leftWidth.value.toString())
     document.removeEventListener('mousemove', onMouseMove)
     document.removeEventListener('mouseup', onMouseUp)
   }
-
   document.addEventListener('mousemove', onMouseMove)
   document.addEventListener('mouseup', onMouseUp)
 }
 
-// ===== 提问视频 =====
 function askAboutVideo() {
   if (currentVideoSection.value) {
     if (isVideoCollapsed.value) toggleVideoPanel()
     inputMessage.value = `请解释当前视频中的：`
     nextTick(() => {
-      const textarea = document.querySelector('.chat-input textarea')
+      const textarea = document.querySelector('.chat-input-area textarea')
       if (textarea) textarea.focus()
     })
   }
 }
 
-// ===== KaTeX公式渲染 =====
+// KaTeX
 function renderKatex(text) {
   if (!text) return ''
-  // 渲染块级公式 $$...$$ 或 \[...\]
   text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => {
-    try {
-      return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false })
-    } catch { return `$$${formula}$$` }
+    try { return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false }) } catch { return `$$${formula}$$` }
   })
   text = text.replace(/\\\[([\s\S]*?)\\\]/g, (_, formula) => {
-    try {
-      return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false })
-    } catch { return `\\[${formula}\\]` }
+    try { return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false }) } catch { return `\\[${formula}\\]` }
   })
-  // 渲染行内公式 $...$ 或 \(...\)
   text = text.replace(/\$([^\$\n]+?)\$/g, (_, formula) => {
-    try {
-      return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false })
-    } catch { return `$${formula}$` }
+    try { return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false }) } catch { return `$${formula}$` }
   })
   text = text.replace(/\\\(([\s\S]*?)\\\)/g, (_, formula) => {
-    try {
-      return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false })
-    } catch { return `\\(${formula}\\)` }
+    try { return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false }) } catch { return `\\(${formula}\\)` }
   })
   return text
 }
 
-// ===== Markdown渲染 =====
+// Markdown
 marked.setOptions({
   highlight: function(code, lang) {
     if (lang && hljs.getLanguage(lang)) return hljs.highlight(code, { language: lang }).value
@@ -490,7 +449,6 @@ marked.setOptions({
 
 function renderMarkdown(content) {
   if (!content) return ''
-  // 先渲染KaTeX公式，再渲染Markdown
   const katexRendered = renderKatex(content)
   const rawHtml = marked.parse(katexRendered)
   const sanitized = DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target'], ADD_TAGS: ['span', 'math'] })
@@ -525,54 +483,36 @@ function askQuickQuestion(question) {
 async function sendMessage() {
   const content = inputMessage.value.trim()
   if (!content || isTyping.value) return
-  
+
   if (!currentSessionId.value) await chatStore.createSession()
-  
+
   const hasVideoContext = !!currentVideoSection.value && !isVideoCollapsed.value
-  const userMessage = {
-    role: 'user',
-    content: content,
-    createTime: new Date().toISOString(),
-    videoContext: hasVideoContext
-  }
-  chatStore.addMessage(userMessage)
+  chatStore.addMessage({ role: 'user', content, createTime: new Date().toISOString(), videoContext: hasVideoContext })
   inputMessage.value = ''
-  
+
   isTyping.value = true
-  
-  const assistantMessage = {
-    role: 'assistant',
-    content: '',
-    createTime: new Date().toISOString(),
-    citation: null
-  }
-  chatStore.addMessage(assistantMessage)
-  
+  chatStore.addMessage({ role: 'assistant', content: '', createTime: new Date().toISOString(), citation: null })
+
   try {
     const token = localStorage.getItem('token')
     const body = { content, webSearch: webSearchEnabled.value }
-    // 附带视频上下文
     if (hasVideoContext) {
       body.videoContext = `${currentVideoChapter.value?.title} - ${currentVideoSection.value.title}`
       body.sectionId = currentVideoSection.value.id
     }
-    
+
     const response = await fetch(`/api/chat/sessions/${currentSessionId.value}/ask`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(body)
     })
-    
+
     if (!response.ok) {
       if (response.status === 429) throw new Error('请求过于频繁，请稍后再试')
       throw new Error(`请求失败: ${response.status}`)
     }
-    
+
     const res = await response.json()
-    
     if (res.code === 200 && res.data) {
       const lastMsg = chatStore.messages[chatStore.messages.length - 1]
       lastMsg.content = res.data.content || '暂无回答'
@@ -586,9 +526,7 @@ async function sendMessage() {
     console.error('发送消息失败:', error)
     ElMessage.error(error.message || '发送失败，请重试')
     const lastMsg = chatStore.messages[chatStore.messages.length - 1]
-    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) {
-      chatStore.messages.pop()
-    }
+    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) chatStore.messages.pop()
   } finally {
     isTyping.value = false
   }
@@ -599,7 +537,7 @@ async function sendMessage() {
 .learn-container {
   height: 100%;
   display: flex;
-  background: #f5f7fa;
+  background: var(--color-bg);
   overflow: hidden;
 }
 
@@ -611,42 +549,400 @@ async function sendMessage() {
   overflow: hidden;
 }
 
-.resize-bar {
-  width: 6px;
-  cursor: col-resize;
-  background: #e4e7ed;
-  transition: background 0.2s;
-  flex-shrink: 0;
+// Top bar
+.chat-topbar {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+  background: #fff;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.quick-chips {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.quick-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
 
   &:hover {
-    background: #409eff;
+    color: var(--color-primary);
+    border-color: var(--color-primary-light);
+    background: var(--color-primary-bg);
+  }
+
+  &:active {
+    transform: scale(0.97);
   }
 }
 
+// Messages
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 20px;
+  scroll-behavior: smooth;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+
+  .empty-icon { margin-bottom: 20px; }
+
+  h3 {
+    font-size: 20px;
+    color: var(--color-text-primary);
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  p { color: var(--color-text-tertiary); font-size: 14px; margin: 4px 0; }
+
+  .no-class-warn { color: #f59e0b; font-size: 13px; margin-top: 8px; }
+  .hint-text { font-size: 13px; }
+}
+
+.message-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+
+  &.user {
+    flex-direction: row-reverse;
+
+    .message-body { align-items: flex-end; }
+    .message-meta { flex-direction: row-reverse; }
+  }
+}
+
+.message-avatar {
+  flex-shrink: 0;
+}
+
+.message-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 75%;
+  min-width: 0;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .sender-name {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+  }
+
+  .msg-time {
+    font-size: 11px;
+    color: var(--color-text-tertiary);
+  }
+}
+
+.message-bubble {
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.7;
+
+  &.user {
+    background: var(--color-primary);
+    color: #fff;
+    border-bottom-right-radius: 6px;
+  }
+
+  &.assistant {
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border-bottom-left-radius: 6px;
+  }
+
+  &.typing-bubble {
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+.user-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.dot-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: dotPulse 1.4s infinite ease-in-out both;
+  position: relative;
+
+  &::before, &::after {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    position: absolute;
+    top: 0;
+    animation: dotPulse 1.4s infinite ease-in-out both;
+  }
+
+  &::before { left: -16px; animation-delay: -0.32s; }
+  &::after { left: 16px; animation-delay: 0.32s; }
+}
+
+@keyframes dotPulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.75); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+// Markdown in messages
+.markdown-content {
+  :deep(h1), :deep(h2), :deep(h3), :deep(h4) {
+    margin: 14px 0 8px;
+    color: var(--color-text-primary);
+    font-weight: 600;
+  }
+
+  :deep(h1) { font-size: 1.4em; }
+  :deep(h2) { font-size: 1.2em; }
+  :deep(h3) { font-size: 1.05em; }
+
+  :deep(p) { margin: 6px 0; }
+
+  :deep(code) {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+  }
+
+  :deep(pre) {
+    background: #1e293b;
+    padding: 14px 16px;
+    border-radius: 10px;
+    overflow-x: auto;
+    margin: 12px 0;
+
+    code {
+      background: transparent;
+      padding: 0;
+      color: #e2e8f0;
+    }
+  }
+
+  :deep(ul), :deep(ol) {
+    padding-left: 24px;
+    margin: 8px 0;
+  }
+
+  :deep(li) { margin: 3px 0; }
+
+  :deep(blockquote) {
+    border-left: 3px solid var(--color-primary);
+    padding: 4px 0 4px 14px;
+    margin: 10px 0;
+    color: var(--color-text-secondary);
+    background: var(--color-primary-bg);
+    border-radius: 0 6px 6px 0;
+  }
+
+  :deep(table) {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 12px 0;
+    font-size: 13px;
+
+    th, td {
+      border: 1px solid var(--color-border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    th {
+      background: var(--color-bg-secondary);
+      font-weight: 600;
+    }
+  }
+}
+
+// Citation
+.citation-bar {
+  margin-top: 4px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+
+  &.textbook {
+    background: #fefce8;
+    border: 1px solid #fef08a;
+    color: #a16207;
+  }
+
+  &.web {
+    background: #f0f9ff;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+  }
+
+  .citation-icon { flex-shrink: 0; font-size: 14px; }
+
+  .citation-text {
+    flex: 1;
+    :deep(a) { color: var(--color-primary); text-decoration: none; &:hover { text-decoration: underline; } }
+    :deep(p) { margin: 0; }
+  }
+}
+
+// Input area
+.chat-input-area {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--color-border-light);
+  background: #fff;
+}
+
+.input-options-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.web-search-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  transition: all 0.15s ease;
+  user-select: none;
+
+  input[type="checkbox"] { display: none; }
+
+  &:hover {
+    border-color: var(--color-primary-light);
+  }
+
+  &.active {
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary-light);
+    color: var(--color-primary);
+    font-weight: 500;
+  }
+}
+
+.toggle-hint {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+
+.input-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.msg-input {
+  flex: 1;
+  :deep(.el-textarea__inner) {
+    border-radius: 12px;
+    resize: none;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 10px 14px;
+    border-color: var(--color-border);
+    transition: border-color 0.2s;
+    &:focus { border-color: var(--color-primary-light); }
+  }
+}
+
+.send-btn {
+  height: 44px;
+  width: 44px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.input-hint {
+  text-align: right;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 6px;
+}
+
+// Resize
+.resize-bar {
+  width: 5px;
+  cursor: col-resize;
+  background: var(--color-border-light);
+  transition: background 0.2s;
+  flex-shrink: 0;
+
+  &:hover { background: var(--color-primary-light); }
+}
+
+// Video panel
 .video-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 300px;
   background: #fff;
-  border-left: 1px solid #e4e7ed;
+  border-left: 1px solid var(--color-border);
   position: relative;
   transition: min-width 0.25s ease-out, flex 0.25s ease-out;
 
   &.collapsed {
     min-width: 0;
-    flex: 0 0 0px;
+    flex: 0 0 0;
     overflow: hidden;
     border-left: none;
   }
+}
 
-  .video-panel-content {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    min-width: 300px;
-  }
+.video-panel-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 300px;
 }
 
 .collapse-toggle {
@@ -654,86 +950,72 @@ async function sendMessage() {
   top: 50%;
   left: 0;
   transform: translateY(-50%);
-  width: 24px;
-  height: 48px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 0 4px 4px 0;
+  width: 22px;
+  height: 40px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 0 6px 6px 0;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 100;
-  transition: background 0.2s, transform 0.2s;
+  z-index: 10;
+  transition: background 0.2s;
   color: #fff;
 
-  &:hover {
-    background: rgba(0, 0, 0, 0.7);
-  }
-
-  &:focus {
-    outline: 2px solid #409eff;
-    outline-offset: 2px;
-  }
+  &:hover { background: rgba(0,0,0,0.6); }
 
   &.at-edge {
     position: fixed;
     right: 0;
     left: auto;
-    border-radius: 4px 0 0 4px;
+    border-radius: 6px 0 0 6px;
   }
 }
 
-@media (max-width: 600px) {
-  .collapse-toggle {
-    display: none;
-  }
-}
-
-.video-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #e4e7ed;
+.video-topbar {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--color-border-light);
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fafafa;
+  background: var(--color-bg-secondary);
 
   .video-title {
     font-weight: 600;
-    font-size: 15px;
-    color: #303133;
+    font-size: 14px;
+    color: var(--color-text-primary);
   }
 }
 
 .chapter-selector {
   max-height: 200px;
   overflow-y: auto;
-  border-bottom: 1px solid #e4e7ed;
+  border-bottom: 1px solid var(--color-border-light);
 
-  .section-option {
+  .section-row {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 8px 16px 8px 32px;
     cursor: pointer;
-    transition: background 0.2s;
-    font-size: 14px;
+    transition: background 0.15s;
+    font-size: 13px;
 
-    &:hover { background: #f5f7fa; }
-    &.active { background: #ecf5ff; color: #409eff; }
-    &.disabled { color: #c0c4cc; cursor: not-allowed; }
+    &:hover { background: var(--color-bg); }
+    &.active { background: var(--color-primary-bg); color: var(--color-primary); font-weight: 500; }
+    &.disabled { color: var(--color-text-tertiary); cursor: not-allowed; }
 
-    .section-icon { font-size: 14px; }
     .section-name { flex: 1; }
   }
 
   .empty-section {
     padding: 8px 32px;
-    color: #c0c4cc;
-    font-size: 13px;
+    color: var(--color-text-tertiary);
+    font-size: 12px;
   }
 }
 
-.video-player-area {
+.player-area {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -741,32 +1023,15 @@ async function sendMessage() {
   justify-content: center;
   background: #000;
   position: relative;
+  min-height: 0;
 
-  .no-video {
+  .video-placeholder {
     display: flex;
     flex-direction: column;
     align-items: center;
-    color: #909399;
-    p { margin-top: 12px; }
-  }
-
-  .no-class-notice {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #909399;
-    text-align: center;
-
-    h3 {
-      margin-top: 16px;
-      color: #e6a23c;
-    }
-    p {
-      margin-top: 8px;
-      font-size: 14px;
-    }
+    color: #94a3b8;
+    p { margin-top: 10px; font-size: 14px; }
+    h3 { margin-top: 12px; color: #f59e0b; font-size: 16px; }
   }
 
   .player-wrapper {
@@ -774,166 +1039,34 @@ async function sendMessage() {
     height: 100%;
     display: flex;
     flex-direction: column;
+    position: relative;
 
     video {
       flex: 1;
       width: 100%;
       object-fit: contain;
+      min-height: 0;
     }
 
-    .ask-btn {
+    .ask-video-btn {
       position: absolute;
-      bottom: 50px;
-      right: 16px;
-      z-index: 10;
+      bottom: 12px;
+      right: 12px;
+      z-index: 5;
+      border-radius: 8px;
     }
   }
 }
 
-.progress-bar-area {
+.progress-bar {
   padding: 10px 16px;
-  border-top: 1px solid #e4e7ed;
-  background: #fafafa;
+  border-top: 1px solid var(--color-border-light);
+  background: var(--color-bg-secondary);
 
-  .progress-text {
+  .progress-label {
     font-size: 12px;
-    color: #909399;
+    color: var(--color-text-tertiary);
     margin-bottom: 4px;
-    display: block;
-  }
-}
-
-.chat-header {
-  padding: 12px 20px;
-  border-bottom: 1px solid #e4e7ed;
-  background: #fafafa;
-  
-  .quick-questions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    
-    .quick-tag {
-      cursor: pointer;
-      transition: all 0.2s;
-      &:hover { background: #409eff; color: #fff; }
-    }
-  }
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
-    color: #909399;
-    h3 { margin: 16px 0 8px; color: #606266; }
-    p { margin: 4px 0; font-size: 14px; }
-  }
-}
-
-.message-item {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-  
-  &.user .message-content { background: #ecf5ff; }
-  &.assistant .message-content { background: #f5f7fa; }
-}
-
-.message-avatar { flex-shrink: 0; }
-
-.message-content {
-  flex: 1;
-  max-width: 80%;
-  border-radius: 8px;
-  padding: 12px 16px;
-  
-  .message-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-    .role-name { font-weight: 600; color: #303133; }
-    .time { font-size: 12px; color: #909399; }
-  }
-  
-  .message-body .user-content { color: #303133; line-height: 1.6; white-space: pre-wrap; }
-}
-
-.markdown-content {
-  line-height: 1.8;
-  color: #303133;
-  
-  :deep(h1), :deep(h2), :deep(h3), :deep(h4) { margin: 16px 0 8px; color: #303133; }
-  :deep(p) { margin: 8px 0; }
-  :deep(code) { background: #282c34; color: #abb2bf; padding: 2px 6px; border-radius: 4px; font-family: 'Fira Code', monospace; }
-  :deep(pre) { background: #282c34; padding: 16px; border-radius: 8px; overflow-x: auto; margin: 12px 0; code { background: transparent; padding: 0; } }
-  :deep(ul), :deep(ol) { padding-left: 24px; margin: 8px 0; }
-  :deep(blockquote) { border-left: 4px solid #409eff; padding-left: 16px; margin: 12px 0; color: #606266; }
-  :deep(table) { border-collapse: collapse; width: 100%; margin: 12px 0; th, td { border: 1px solid #dcdfe6; padding: 8px 12px; } th { background: #f5f7fa; } }
-}
-
-.citation-card {
-  margin-top: 12px;
-  padding: 10px 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  background: #fdf6ec;
-  color: #e6a23c;
-  
-  .citation-content {
-    flex: 1;
-    line-height: 1.8;
-    :deep(a) { color: #409eff; text-decoration: none; &:hover { text-decoration: underline; } }
-    :deep(p) { margin: 0; }
-  }
-
-  &.web-source { background: #ecf5ff; color: #409eff; border: 1px solid #d9ecff; }
-}
-
-.typing-indicator {
-  display: inline-block;
-  width: 8px; height: 8px;
-  background: #409eff;
-  border-radius: 50%;
-  animation: typing 1s infinite;
-  margin-left: 4px;
-}
-
-@keyframes typing {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 1; }
-}
-
-.chat-input {
-  padding: 16px 20px;
-  border-top: 1px solid #e4e7ed;
-  background: #fff;
-
-  .input-options {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-    .search-tip { font-size: 12px; color: #909399; }
-  }
-
-  .input-actions {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 12px;
-    .tip { font-size: 12px; color: #909399; }
   }
 }
 </style>

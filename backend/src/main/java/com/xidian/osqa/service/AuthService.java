@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class AuthService {
@@ -23,6 +24,9 @@ public class AuthService {
 
     @Value("${sms.dev-mode:true}")
     private boolean smsDevMode;
+
+    // tokenVersion: userId -> 当前有效版本号（密码重置时递增，旧token即刻失效）
+    private final Map<Long, Long> tokenVersions = new ConcurrentHashMap<>();
 
     private final Map<String, String> codeStore = new ConcurrentHashMap<>();
     private final Map<String, Long> codeExpiry = new ConcurrentHashMap<>();
@@ -50,7 +54,8 @@ public class AuthService {
             return Result.error(401, "密码错误");
         }
 
-        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
+        long tokenVersion = tokenVersions.getOrDefault(user.getId(), 0L);
+        String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole(), tokenVersion);
 
         Map<String, Object> result = new HashMap<>();
         result.put("token", token);
@@ -95,6 +100,9 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
+
+        // 密码修改后立即使所有旧token失效
+        tokenVersions.merge(userId, 1L, Long::sum);
 
         return Result.success();
     }
@@ -192,7 +200,7 @@ public class AuthService {
             return Result.error(404, "该手机号未绑定任何账号");
         }
 
-        String code = String.valueOf((int) ((Math.random() * 9 + 1) * 100000));
+        String code = String.valueOf(100000 + ThreadLocalRandom.current().nextInt(900000));
         codeStore.put(phone, code);
         codeExpiry.put(phone, System.currentTimeMillis() + 5 * 60 * 1000);
 
@@ -241,12 +249,23 @@ public class AuthService {
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
 
+        // 密码重置后立即使所有旧token失效
+        tokenVersions.merge(user.getId(), 1L, Long::sum);
+
         codeStore.remove(phone);
         codeExpiry.remove(phone);
 
         Map<String, Object> result = new HashMap<>();
         result.put("newPassword", newPassword);
         return Result.success(result);
+    }
+
+    /**
+     * 检查token是否仍有效（token version需匹配）
+     */
+    public boolean isTokenVersionValid(Long userId, long tokenVersion) {
+        long currentVersion = tokenVersions.getOrDefault(userId, 0L);
+        return tokenVersion >= currentVersion;
     }
 
     private void logCode(String phone, String code) {

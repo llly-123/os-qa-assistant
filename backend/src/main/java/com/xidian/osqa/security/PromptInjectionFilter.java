@@ -19,17 +19,15 @@ public class PromptInjectionFilter {
 
     // 常见注入关键词（忽略大小写匹配）
     private static final List<Pattern> INJECTION_PATTERNS = Arrays.asList(
-            // 角色覆盖攻击
+            // 角色覆盖攻击（加长匹配，减少误杀）
             Pattern.compile("(?i)(ignore\\s+(your|previous|above|all)\\s*(instructions|prompts|rules|directives))"),
             Pattern.compile("(?i)(forget\\s+(your|previous|above|all)\\s*(instructions|prompts|rules|role))"),
-            Pattern.compile("(?i)(you\\s+are\\s+now\\s+a)"),
-            Pattern.compile("(?i)(pretend\\s+(you\\s+are|to\\s+be))"),
-            Pattern.compile("(?i)(act\\s+as\\s+(a|an))"),
-            Pattern.compile("(?i)(new\\s+instructions?)"),
+            Pattern.compile("(?i)(you\\s+are\\s+now\\s+(a|an)\\s+(assistant|helper|teacher))"),
+            Pattern.compile("(?i)(pretend\\s+(you\\s+are|to\\s+be)\\s+(a|an))"),
             Pattern.compile("(?i)(override\\s+(previous|all|your)\\s*(instructions|rules|prompt))"),
 
             // 系统提示词窃取
-            Pattern.compile("(?i)(reveal|show|display|tell|print|output)\\s+(your|the|my)\\s*(system\\s*)?prompt"),
+            Pattern.compile("(?i)(reveal|show|display|tell|print|output)\\s+(your|the)\\s*(system\\s*)?prompt"),
             Pattern.compile("(?i)(what\\s+(is|are)\\s+your\\s+(system|initial|original)\\s*(prompt|instructions?))"),
             Pattern.compile("(?i)(repeat\\s+(your|the|all)\\s*(previous|above|system)\\s*(words|instructions|prompt|text))"),
 
@@ -44,7 +42,7 @@ public class PromptInjectionFilter {
 
             // 输出操控
             Pattern.compile("(?i)(do\\s+not\\s+(say|use|include|mention|add)\\s+(any|a|the)\\s*(disclaimer|warning|note|citation))"),
-            Pattern.compile("(?i)(respond\\s+only\\s+with|output\\s+only|just\\s+say|only\\s+reply)")
+            Pattern.compile("(?i)(respond\\s+only\\s+with|output\\s+only|just\\s+say)")
     );
 
     // 严格禁止的模式（直接拒绝）
