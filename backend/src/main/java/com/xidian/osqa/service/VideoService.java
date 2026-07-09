@@ -25,8 +25,13 @@ public class VideoService {
 
     // ========== Chapter CRUD ==========
 
-    public Result<?> getChapters() {
+    public Result<?> getChapters(Long videoSetId) {
         LambdaQueryWrapper<Chapter> wrapper = new LambdaQueryWrapper<>();
+        if (videoSetId != null) {
+            wrapper.eq(Chapter::getVideoSetId, videoSetId);
+        } else {
+            wrapper.isNotNull(Chapter::getVideoSetId);
+        }
         wrapper.orderByAsc(Chapter::getSortOrder);
         List<Chapter> chapters = chapterMapper.selectList(wrapper);
 
@@ -40,13 +45,16 @@ public class VideoService {
         return Result.success(chapters);
     }
 
-    public Result<?> addChapter(String title) {
+    public Result<?> addChapter(Long videoSetId, String title) {
         if (title == null || title.trim().isEmpty()) {
             return Result.error(400, "章标题不能为空");
         }
 
-        Long maxOrder = chapterMapper.selectCount(null);
+        LambdaQueryWrapper<Chapter> countWrapper = new LambdaQueryWrapper<>();
+        countWrapper.eq(Chapter::getVideoSetId, videoSetId);
+        Long maxOrder = chapterMapper.selectCount(countWrapper);
         Chapter chapter = new Chapter();
+        chapter.setVideoSetId(videoSetId);
         chapter.setTitle(title.trim());
         chapter.setSortOrder(maxOrder.intValue());
         chapter.setCreateTime(LocalDateTime.now());
@@ -84,6 +92,7 @@ public class VideoService {
         }
 
         LambdaQueryWrapper<Chapter> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Chapter::getVideoSetId, chapter.getVideoSetId());
         wrapper.orderByAsc(Chapter::getSortOrder);
         List<Chapter> all = chapterMapper.selectList(wrapper);
 

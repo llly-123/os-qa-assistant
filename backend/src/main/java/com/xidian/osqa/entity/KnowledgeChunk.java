@@ -9,6 +9,8 @@ public class KnowledgeChunk {
     private Long id;
     @TableField("knowledge_id")
     private Long knowledgeId;
+    @TableField("kb_id")
+    private Long kbId;
     private String content;
     @TableField("chunk_index")
     private Integer chunkIndex;
@@ -23,6 +25,8 @@ public class KnowledgeChunk {
     public void setId(Long id) { this.id = id; }
     public Long getKnowledgeId() { return knowledgeId; }
     public void setKnowledgeId(Long knowledgeId) { this.knowledgeId = knowledgeId; }
+    public Long getKbId() { return kbId; }
+    public void setKbId(Long kbId) { this.kbId = kbId; }
     public String getContent() { return content; }
     public void setContent(String content) { this.content = content; }
     public Integer getChunkIndex() { return chunkIndex; }

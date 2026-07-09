@@ -1,9 +1,10 @@
 import request from './request'
 
-export function getChatSessions() {
+export function getChatSessions(classId) {
   return request({
     url: '/chat/sessions',
-    method: 'get'
+    method: 'get',
+    params: classId != null ? { classId } : {}
   })
 }
 
@@ -14,11 +15,11 @@ export function getChatMessages(sessionId) {
   })
 }
 
-export function createChatSession(title) {
+export function createChatSession(title, classId) {
   return request({
     url: '/chat/sessions',
     method: 'post',
-    data: { title }
+    data: { title, classId }
   })
 }
 
@@ -69,18 +70,19 @@ export function sendMessage(sessionId, content, onMessage, onError, onComplete) 
   })
 }
 
-export function getMyStats() {
+export function getMyStats(classId) {
   return request({
     url: '/chat/my-stats',
-    method: 'get'
+    method: 'get',
+    params: classId != null ? { classId } : {}
   })
 }
 
-export function getQuickPrompts() {
+export function getQuickPrompts(classId) {
   return request({
     url: '/chat/quick-prompts',
     method: 'get',
-    params: { _t: Date.now() }
+    params: { _t: Date.now(), ...(classId != null ? { classId } : {}) }
   })
 }
 

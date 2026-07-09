@@ -11,8 +11,8 @@
             <circle cx="36" cy="24" r="1.5" fill="white"/>
           </svg>
         </div>
-        <h1>操作系统 AI 答疑助手</h1>
-        <p class="brand-desc">基于西安电子科技大学《操作系统》教材<br/>智能检索 · 精准回答 · 高效学习</p>
+        <h1>{{ userStore.siteName }}</h1>
+        <p class="brand-desc">基于{{ userStore.schoolName ? userStore.schoolName + '·' : '' }}《{{ userStore.courseName }}》课程资料<br/>智能检索 · 精准回答 · 高效学习</p>
         <div class="brand-features">
           <div class="feature-item">
             <span class="feature-icon">📚</span>

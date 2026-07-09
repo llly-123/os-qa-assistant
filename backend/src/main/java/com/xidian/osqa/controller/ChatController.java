@@ -31,28 +31,27 @@ public class ChatController {
     private final ChatService chatService;
     private final PromptInjectionFilter promptInjectionFilter;
     private final RateLimiter rateLimiter;
-    private final com.xidian.osqa.service.ClazzService clazzService;
     private final ExecutorService executorService = Executors.newFixedThreadPool(10);
 
-    public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter, com.xidian.osqa.service.ClazzService clazzService) {
+    public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter) {
         this.chatService = chatService;
         this.promptInjectionFilter = promptInjectionFilter;
         this.rateLimiter = rateLimiter;
-        this.clazzService = clazzService;
     }
 
     @GetMapping("/sessions")
-    public Result<?> getSessions(HttpServletRequest request) {
+    public Result<?> getSessions(HttpServletRequest request, @RequestParam(required = false) Long classId) {
         Long userId = (Long) request.getAttribute("userId");
-        List<ChatSession> sessions = chatService.getUserSessions(userId);
+        List<ChatSession> sessions = chatService.getUserSessions(userId, classId);
         return Result.success(sessions);
     }
 
     @PostMapping("/sessions")
-    public Result<?> createSession(HttpServletRequest request, @RequestBody Map<String, String> body) {
+    public Result<?> createSession(HttpServletRequest request, @RequestBody Map<String, Object> body) {
         Long userId = (Long) request.getAttribute("userId");
-        String title = body.getOrDefault("title", "新对话");
-        ChatSession session = chatService.createSession(userId, title);
+        String title = body.get("title") == null ? "新对话" : body.get("title").toString();
+        Long classId = body.get("classId") == null ? null : Long.valueOf(body.get("classId").toString());
+        ChatSession session = chatService.createSession(userId, title, classId);
         return Result.success(session);
     }
 
@@ -134,9 +133,8 @@ public class ChatController {
         Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
         String videoContext = (String) body.get("videoContext");
 
-        // 检查是否在班级中
-        var clazz = clazzService.getStudentActiveClass(userId);
-        final boolean inClass = (clazz != null);
+        // 检查会话是否绑定到班级
+        final boolean inClass = chatService.sessionHasClass(sessionId);
 
         // 如果有视频上下文，附加到问题中
         final String effectiveContent;
@@ -231,9 +229,8 @@ public class ChatController {
         Boolean webSearch = (Boolean) body.getOrDefault("webSearch", false);
         String videoContext = (String) body.get("videoContext");
 
-        // 检查是否在班级中
-        var clazz = clazzService.getStudentActiveClass(userId);
-        final boolean inClass = (clazz != null);
+        // 检查会话是否绑定到班级
+        final boolean inClass = chatService.sessionHasClass(sessionId);
 
         // 如果有视频上下文，附加到问题中
         final String effectiveContent;
@@ -265,19 +262,19 @@ public class ChatController {
     }
 
     @GetMapping("/my-stats")
-    public Result<?> getMyStats(HttpServletRequest request) {
+    public Result<?> getMyStats(HttpServletRequest request, @RequestParam(required = false) Long classId) {
         Long userId = (Long) request.getAttribute("userId");
         Map<String, Object> stats = new HashMap<>();
-        stats.put("totalQuestions", chatService.getUserQuestionCount(userId));
-        stats.put("citationRate", chatService.getUserCitationRate(userId));
-        stats.put("keywords", chatService.getUserKeywords(userId, 20));
+        stats.put("totalQuestions", chatService.getUserQuestionCount(userId, classId));
+        stats.put("citationRate", chatService.getUserCitationRate(userId, classId));
+        stats.put("keywords", chatService.getUserKeywords(userId, classId, 20));
         return Result.success(stats);
     }
 
     @GetMapping("/quick-prompts")
-    public Result<?> getQuickPrompts(HttpServletRequest request) {
+    public Result<?> getQuickPrompts(HttpServletRequest request, @RequestParam(required = false) Long classId) {
         Long userId = (Long) request.getAttribute("userId");
-        List<String> prompts = chatService.getQuickPrompts(userId);
+        List<String> prompts = chatService.getQuickPrompts(userId, classId);
         return Result.success(prompts);
     }
 

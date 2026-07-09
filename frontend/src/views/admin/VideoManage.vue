@@ -1,14 +1,34 @@
 <template>
   <div class="video-manage">
     <div class="page-header">
-      <h2>视频管理</h2>
-      <el-button type="primary" @click="handleAddChapter">
-        <el-icon><Plus /></el-icon>
-        添加章
-      </el-button>
+      <div class="header-top">
+        <h2>视频管理</h2>
+        <el-button type="primary" :disabled="!currentSetId" @click="handleAddChapter">
+          <el-icon><Plus /></el-icon>
+          添加章
+        </el-button>
+      </div>
+      <div class="set-bar">
+        <span class="set-label">视频集：</span>
+        <el-select
+          v-model="currentSetId"
+          placeholder="请选择视频集"
+          style="width: 260px"
+          @change="onSetChange"
+        >
+          <el-option v-for="s in videoSets" :key="s.id" :label="s.name + (s.chapterCount != null ? ` (${s.chapterCount}章)` : '')" :value="s.id" />
+        </el-select>
+        <el-button @click="handleCreateSet">新建视频集</el-button>
+        <el-button :disabled="!currentSetId" @click="handleRenameSet">重命名</el-button>
+        <el-button :disabled="!currentSetId" type="danger" plain @click="handleDeleteSet">删除</el-button>
+      </div>
     </div>
 
-    <div class="content-layout">
+    <div v-if="!currentSetId" class="empty-set-tip">
+      <el-empty description="请先新建或选择一个视频集，再管理章节" />
+    </div>
+
+    <div v-else class="content-layout">
       <!-- 左侧：章节树 -->
       <div class="chapter-tree">
         <el-empty v-if="chapters.length === 0" description="暂无章节，请添加" />
@@ -98,7 +118,7 @@
           <!-- 已有视频 -->
           <div v-if="selectedSection.videoUrl" class="video-preview">
             <video
-              :src="selectedSection.videoUrl"
+              :src="videoSrc(selectedSection.videoUrl)"
               controls
               class="preview-player"
             ></video>
@@ -145,9 +165,19 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getChapters, addChapter, updateChapter, deleteChapter, moveChapter,
   addSection, updateSection, deleteSection, moveSection,
-  uploadVideo, deleteVideo
+  uploadVideo, deleteVideo,
+  getVideoSets, createVideoSet, updateVideoSet, deleteVideoSet
 } from '@/api/video'
 
+// <video> 标签无法携带 Authorization 头，视频走 ?token= 查询参数鉴权
+function videoSrc(url) {
+  if (!url) return ''
+  const token = localStorage.getItem('token')
+  return token ? url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token) : url
+}
+
+const videoSets = ref([])
+const currentSetId = ref(null)
 const chapters = ref([])
 const selectedSection = ref(null)
 const selectedChapter = ref(null)
@@ -157,13 +187,67 @@ const editingTitle = ref('')
 const uploading = ref(false)
 const uploadPercent = ref(0)
 
-onMounted(() => {
-  fetchChapters()
+onMounted(async () => {
+  await fetchVideoSets()
 })
 
+async function fetchVideoSets() {
+  const res = await getVideoSets()
+  videoSets.value = res.data || []
+  if (videoSets.value.length > 0) {
+    currentSetId.value = videoSets.value[0].id
+    await fetchChapters()
+  } else {
+    currentSetId.value = null
+    chapters.value = []
+  }
+}
+
+async function onSetChange() {
+  selectedSection.value = null
+  selectedChapter.value = null
+  await fetchChapters()
+}
+
 async function fetchChapters() {
-  const res = await getChapters()
+  if (!currentSetId.value) { chapters.value = []; return }
+  const res = await getChapters(currentSetId.value)
   chapters.value = res.data || []
+}
+
+async function handleCreateSet() {
+  const { value } = await ElMessageBox.prompt('请输入视频集名称', '新建视频集', {
+    confirmButtonText: '确定', cancelButtonText: '取消',
+    inputPattern: /\S+/, inputErrorMessage: '名称不能为空'
+  }).catch(() => ({ value: null }))
+  if (!value) return
+  await createVideoSet({ name: value.trim() })
+  ElMessage.success('创建成功')
+  await fetchVideoSets()
+  // 选中新创建的
+  currentSetId.value = videoSets.value[0].id
+  await fetchChapters()
+}
+
+async function handleRenameSet() {
+  const cur = videoSets.value.find(s => s.id === currentSetId.value)
+  const { value } = await ElMessageBox.prompt('请输入新的视频集名称', '重命名', {
+    confirmButtonText: '确定', cancelButtonText: '取消',
+    inputValue: cur?.name || '', inputPattern: /\S+/, inputErrorMessage: '名称不能为空'
+  }).catch(() => ({ value: null }))
+  if (!value) return
+  await updateVideoSet(currentSetId.value, { name: value.trim() })
+  ElMessage.success('重命名成功')
+  await fetchVideoSets()
+}
+
+async function handleDeleteSet() {
+  await ElMessageBox.confirm('删除视频集将同时删除其下所有章/节与视频，确定删除？', '警告', { type: 'warning' })
+  await deleteVideoSet(currentSetId.value)
+  ElMessage.success('删除成功')
+  selectedSection.value = null
+  selectedChapter.value = null
+  await fetchVideoSets()
 }
 
 function selectSection(section, chapter) {
@@ -180,7 +264,7 @@ async function handleAddChapter() {
     inputErrorMessage: '标题不能为空'
   }).catch(() => ({ value: null }))
   if (!value) return
-  await addChapter(value.trim())
+  await addChapter(value.trim(), currentSetId.value)
   ElMessage.success('添加成功')
   fetchChapters()
 }
@@ -326,17 +410,47 @@ function formatSize(bytes) {
 }
 
 .page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 
-  h2 {
-    margin: 0;
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--color-text-primary);
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+
+    h2 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--color-text-primary);
+    }
   }
+
+  .set-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid #e4e7ed;
+    border-radius: 8px;
+
+    .set-label {
+      font-size: 13px;
+      color: var(--color-text-secondary);
+      white-space: nowrap;
+    }
+  }
+}
+
+.empty-set-tip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
 }
 
 .content-layout {

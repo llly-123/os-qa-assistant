@@ -1,15 +1,21 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth'
+import { getPublicSettings } from '@/api/setting'
 
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
   const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || 'null'))
-  
+  const settings = ref(JSON.parse(localStorage.getItem('appSettings') || 'null') || {})
+
   const isLoggedIn = computed(() => !!token.value)
   const role = computed(() => userInfo.value?.role || '')
   const username = computed(() => userInfo.value?.username || '')
   const userId = computed(() => userInfo.value?.id || '')
+
+  const siteName = computed(() => settings.value?.site_name || '智能答疑助手')
+  const courseName = computed(() => settings.value?.course_name || '本课程')
+  const schoolName = computed(() => settings.value?.school_name || '')
 
   async function login(username, password) {
     const res = await loginApi(username, password)
@@ -37,15 +43,35 @@ export const useUserStore = defineStore('user', () => {
     return res
   }
 
+  // 拉取公开品牌化设置（站点名/课程名/学校名），登录页等未登录场景也可调用
+  async function fetchPublicSettings() {
+    try {
+      const res = await getPublicSettings()
+      const data = res.data || res
+      if (data) {
+        settings.value = data
+        localStorage.setItem('appSettings', JSON.stringify(data))
+      }
+      return data
+    } catch (e) {
+      return null
+    }
+  }
+
   return {
     token,
     userInfo,
+    settings,
     isLoggedIn,
     role,
     username,
     userId,
+    siteName,
+    courseName,
+    schoolName,
     login,
     logout,
-    fetchUserInfo
+    fetchUserInfo,
+    fetchPublicSettings
   }
 })

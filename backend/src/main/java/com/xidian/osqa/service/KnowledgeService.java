@@ -35,16 +35,28 @@ public class KnowledgeService {
         this.embeddingService = embeddingService;
     }
 
-    public List<Knowledge> getKnowledgeList() {
+    public List<Knowledge> getKnowledgeList(Long kbId) {
         LambdaQueryWrapper<Knowledge> wrapper = new LambdaQueryWrapper<>();
+        if (kbId != null) {
+            wrapper.eq(Knowledge::getKbId, kbId);
+        } else {
+            // 不传 kbId 时只返回已归入知识库的文档（过滤掉历史孤儿数据）
+            wrapper.isNotNull(Knowledge::getKbId);
+        }
         wrapper.orderByDesc(Knowledge::getCreateTime);
         return knowledgeMapper.selectList(wrapper);
     }
 
-    public Map<String, Object> getKnowledgeStatus() {
+    public Map<String, Object> getKnowledgeStatus(Long kbId) {
         Map<String, Object> status = new HashMap<>();
         try {
-            List<Knowledge> all = knowledgeMapper.selectList(null);
+            LambdaQueryWrapper<Knowledge> w = new LambdaQueryWrapper<>();
+            if (kbId != null) {
+                w.eq(Knowledge::getKbId, kbId);
+            } else {
+                w.isNotNull(Knowledge::getKbId);
+            }
+            List<Knowledge> all = knowledgeMapper.selectList(w);
             status.put("documentCount", all.size());
             status.put("chunkCount", embeddingService.getChunkCount());
             status.put("embeddingDimension", 1024);
@@ -56,7 +68,7 @@ public class KnowledgeService {
         return status;
     }
 
-    public Knowledge uploadKnowledge(MultipartFile file) throws IOException {
+    public Knowledge uploadKnowledge(Long kbId, MultipartFile file) throws IOException {
         log.info("========== uploadKnowledge 开始 ==========");
         log.info("收到文件: name={}, size={}", file.getOriginalFilename(), file.getSize());
 
@@ -74,6 +86,7 @@ public class KnowledgeService {
         log.info("文件保存成功: path={}, size={}", filePath.toAbsolutePath(), fileSize);
 
         Knowledge knowledge = new Knowledge();
+        knowledge.setKbId(kbId);
         knowledge.setFileName(fileName);
         knowledge.setFilePath(filePath.toAbsolutePath().toString());
         knowledge.setFileSize(fileSize);
@@ -81,7 +94,7 @@ public class KnowledgeService {
         knowledge.setStatus(0);
         knowledge.setCreateTime(LocalDateTime.now());
         knowledgeMapper.insert(knowledge);
-        log.info("知识记录已插入: id={}", knowledge.getId());
+        log.info("知识记录已插入: id={}, kbId={}", knowledge.getId(), kbId);
 
         Long kid = knowledge.getId();
         String absPath = filePath.toAbsolutePath().toString();
@@ -137,10 +150,11 @@ public class KnowledgeService {
         return knowledge;
     }
 
-    public Knowledge importText(String title, String content) {
-        log.info("========== importText 开始: title={}, 内容长度={} ==========", title, content.length());
+    public Knowledge importText(Long kbId, String title, String content) {
+        log.info("========== importText 开始: title={}, 内容长度={}, kbId={} ==========", title, content.length(), kbId);
 
         Knowledge knowledge = new Knowledge();
+        knowledge.setKbId(kbId);
         knowledge.setFileName(title + ".txt");
         knowledge.setFilePath("text-import");
         knowledge.setFileSize((long) content.getBytes().length);

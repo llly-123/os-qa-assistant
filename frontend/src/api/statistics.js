@@ -32,11 +32,11 @@ export function getRecentQuestions(params) {
   })
 }
 
-export function getUserQuestions(userId, limit = 20) {
+export function getUserQuestions(userId, limit = 20, classId) {
   return request({
     url: `/admin/statistics/user/${userId}/questions`,
     method: 'get',
-    params: { limit }
+    params: { limit, classId }
   })
 }
 

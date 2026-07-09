@@ -1,0 +1,25 @@
+package com.xidian.osqa.entity;
+
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import java.time.LocalDateTime;
+
+@TableName("system_setting")
+public class SystemSetting {
+    @TableId(type = IdType.INPUT)
+    @TableField("setting_key")
+    private String settingKey;
+    @TableField("setting_value")
+    private String settingValue;
+    @TableField("update_time")
+    private LocalDateTime updateTime;
+
+    public String getSettingKey() { return settingKey; }
+    public void setSettingKey(String settingKey) { this.settingKey = settingKey; }
+    public String getSettingValue() { return settingValue; }
+    public void setSettingValue(String settingValue) { this.settingValue = settingValue; }
+    public LocalDateTime getUpdateTime() { return updateTime; }
+    public void setUpdateTime(LocalDateTime updateTime) { this.updateTime = updateTime; }
+}

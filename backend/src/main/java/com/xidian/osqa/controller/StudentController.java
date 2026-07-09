@@ -38,8 +38,7 @@ public class StudentController {
         String college = body.get("college");
         String major = body.get("major");
         String grade = body.get("grade");
-        User user = studentService.createStudent(studentId, name, phone, college, major, grade);
-        return Result.success(user);
+        return studentService.createStudent(studentId, name, phone, college, major, grade);
     }
 
     @PostMapping("/import")

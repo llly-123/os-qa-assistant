@@ -1,21 +1,51 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { 
-  getChatSessions, 
-  getChatMessages, 
-  createChatSession, 
+import {
+  getChatSessions,
+  getChatMessages,
+  createChatSession,
   deleteChatSession,
   updateChatSessionTitle
 } from '@/api/chat'
+import { getMyClasses } from '@/api/clazz'
 
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref([])
   const currentSessionId = ref(null)
   const messages = ref([])
   const loading = ref(false)
+  // AI 是否正在思考回答。放 store 而非组件局部，避免切换路由组件卸载后状态丢失
+  // （否则切回来 isTyping=false，思考提示消失、输入框解锁，可连问导致“先问N个再答N个”）
+  const isTyping = ref(false)
+
+  // 学生所在班级列表 + 当前选中的班级
+  const classes = ref([])
+  const currentClassId = ref(null)
+
+  async function fetchClasses() {
+    const res = await getMyClasses()
+    classes.value = res.data || []
+    // 默认选中第一个班级
+    if (classes.value.length > 0 && !classes.value.find(c => c.id === currentClassId.value)) {
+      await setCurrentClass(classes.value[0].id)
+    } else if (classes.value.length === 0) {
+      currentClassId.value = null
+      sessions.value = []
+      currentSessionId.value = null
+      messages.value = []
+    }
+    return classes.value
+  }
+
+  async function setCurrentClass(classId) {
+    currentClassId.value = classId
+    currentSessionId.value = null
+    messages.value = []
+    await fetchSessions()
+  }
 
   async function fetchSessions() {
-    const res = await getChatSessions()
+    const res = await getChatSessions(currentClassId.value)
     sessions.value = res.data || []
     return sessions.value
   }
@@ -33,7 +63,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function createSession(title = '新对话') {
-    const res = await createChatSession(title)
+    const res = await createChatSession(title, currentClassId.value)
     const newSession = res.data
     sessions.value.unshift(newSession)
     currentSessionId.value = newSession.id
@@ -76,6 +106,11 @@ export const useChatStore = defineStore('chat', () => {
     currentSessionId,
     messages,
     loading,
+    isTyping,
+    classes,
+    currentClassId,
+    fetchClasses,
+    setCurrentClass,
     fetchSessions,
     fetchMessages,
     createSession,

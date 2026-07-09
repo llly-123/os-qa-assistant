@@ -11,6 +11,10 @@ public class Clazz {
     private String name;
     @TableField("teacher_id")
     private Long teacherId;
+    @TableField("video_set_id")
+    private Long videoSetId;
+    @TableField("kb_id")
+    private Long kbId;
     @TableField("start_time")
     private LocalDateTime startTime;
     @TableField("end_time")
@@ -29,12 +33,22 @@ public class Clazz {
     @TableField(exist = false)
     private Integer studentCount;
 
+    @TableField(exist = false)
+    private String videoSetName;
+
+    @TableField(exist = false)
+    private String kbName;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public Long getTeacherId() { return teacherId; }
     public void setTeacherId(Long teacherId) { this.teacherId = teacherId; }
+    public Long getVideoSetId() { return videoSetId; }
+    public void setVideoSetId(Long videoSetId) { this.videoSetId = videoSetId; }
+    public Long getKbId() { return kbId; }
+    public void setKbId(Long kbId) { this.kbId = kbId; }
     public LocalDateTime getStartTime() { return startTime; }
     public void setStartTime(LocalDateTime startTime) { this.startTime = startTime; }
     public LocalDateTime getEndTime() { return endTime; }
@@ -51,4 +65,8 @@ public class Clazz {
     public void setStudents(List<User> students) { this.students = students; }
     public Integer getStudentCount() { return studentCount; }
     public void setStudentCount(Integer studentCount) { this.studentCount = studentCount; }
+    public String getVideoSetName() { return videoSetName; }
+    public void setVideoSetName(String videoSetName) { this.videoSetName = videoSetName; }
+    public String getKbName() { return kbName; }
+    public void setKbName(String kbName) { this.kbName = kbName; }
 }

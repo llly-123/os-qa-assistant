@@ -5,9 +5,14 @@ export function getClasses() {
   return request({ url: '/admin/classes', method: 'get' })
 }
 
-// 教师端：创建班级
-export function createClass(name, startTime, endTime) {
-  return request({ url: '/admin/classes', method: 'post', data: { name, startTime, endTime } })
+// 教师端：创建班级（挂载视频集与知识库）
+export function createClass(name, startTime, endTime, videoSetId, kbId) {
+  return request({ url: '/admin/classes', method: 'post', data: { name, startTime, endTime, videoSetId, kbId } })
+}
+
+// 教师端：为已存在班级挂载/修改/取消挂载视频集与知识库
+export function updateClassResources(classId, videoSetId, kbId) {
+  return request({ url: `/admin/classes/${classId}/resources`, method: 'put', data: { videoSetId, kbId } })
 }
 
 // 教师端：删除班级
@@ -57,7 +62,12 @@ export function importStudentsInClass(classId, file) {
   })
 }
 
-// 学生端：查询自己的班级
+// 学生端：查询自己的班级（单个，向后兼容）
 export function getMyClass() {
   return request({ url: '/students/my-class', method: 'get' })
+}
+
+// 学生端：查询自己加入的所有活跃班级
+export function getMyClasses() {
+  return request({ url: '/students/my-classes', method: 'get' })
 }

@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
 CREATE TABLE IF NOT EXISTS `chat_session` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `user_id` BIGINT NOT NULL,
+    `class_id` BIGINT DEFAULT NULL,
     `title` VARCHAR(200) NOT NULL DEFAULT '新对话',
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -36,8 +37,12 @@ CREATE TABLE IF NOT EXISTS `chat_message` (
     PRIMARY KEY (`id`)
 );
 
+-- AI 提取的知识点关键词（JSON 数组字符串，如 ["晶体管","负反馈"]），用于热词统计
+ALTER TABLE `chat_message` ADD COLUMN IF NOT EXISTS `keywords` VARCHAR(1000) DEFAULT NULL;
+
 CREATE TABLE IF NOT EXISTS `knowledge` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `kb_id` BIGINT DEFAULT NULL,
     `file_name` VARCHAR(200) NOT NULL,
     `file_path` VARCHAR(500) NOT NULL,
     `file_size` BIGINT DEFAULT 0,
@@ -51,6 +56,7 @@ CREATE TABLE IF NOT EXISTS `knowledge` (
 CREATE TABLE IF NOT EXISTS `knowledge_chunk` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `knowledge_id` BIGINT NOT NULL,
+    `kb_id` BIGINT DEFAULT NULL,
     `content` CLOB NOT NULL,
     `chunk_index` INT NOT NULL,
     `source_file` VARCHAR(200) DEFAULT NULL,
@@ -70,6 +76,7 @@ CREATE TABLE IF NOT EXISTS `sys_option` (
 
 CREATE TABLE IF NOT EXISTS `chapter` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `video_set_id` BIGINT DEFAULT NULL,
     `title` VARCHAR(200) NOT NULL,
     `sort_order` INT NOT NULL DEFAULT 0,
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -108,6 +115,8 @@ CREATE TABLE IF NOT EXISTS `clazz` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(100) NOT NULL,
     `teacher_id` BIGINT NOT NULL,
+    `video_set_id` BIGINT DEFAULT NULL,
+    `kb_id` BIGINT DEFAULT NULL,
     `start_time` TIMESTAMP NOT NULL,
     `end_time` TIMESTAMP NOT NULL,
     `status` INT NOT NULL DEFAULT 1,
@@ -125,6 +134,46 @@ CREATE TABLE IF NOT EXISTS `class_student` (
     PRIMARY KEY (`id`),
     CONSTRAINT `uk_class_student` UNIQUE (`class_id`, `student_id`)
 );
+
+-- ========== 知识库（教师可配置若干套）==========
+CREATE TABLE IF NOT EXISTS `knowledge_base` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `teacher_id` BIGINT NOT NULL,
+    `description` VARCHAR(500) DEFAULT NULL,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `deleted` INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`)
+);
+
+-- ========== 视频集（教师可配置若干套）==========
+CREATE TABLE IF NOT EXISTS `video_set` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(100) NOT NULL,
+    `teacher_id` BIGINT NOT NULL,
+    `description` VARCHAR(500) DEFAULT NULL,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `deleted` INT NOT NULL DEFAULT 0,
+    PRIMARY KEY (`id`)
+);
+
+-- ========== 系统设置（站点名/课程名/学校名等，用于品牌化）==========
+CREATE TABLE IF NOT EXISTS `system_setting` (
+    `setting_key` VARCHAR(64) NOT NULL,
+    `setting_value` VARCHAR(500) DEFAULT NULL,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`setting_key`)
+);
+
+-- ========== 已有库的列迁移（H2 2.x 支持 ADD COLUMN IF NOT EXISTS，幂等）==========
+ALTER TABLE `chat_session` ADD COLUMN IF NOT EXISTS `class_id` BIGINT DEFAULT NULL;
+ALTER TABLE `knowledge` ADD COLUMN IF NOT EXISTS `kb_id` BIGINT DEFAULT NULL;
+ALTER TABLE `knowledge_chunk` ADD COLUMN IF NOT EXISTS `kb_id` BIGINT DEFAULT NULL;
+ALTER TABLE `chapter` ADD COLUMN IF NOT EXISTS `video_set_id` BIGINT DEFAULT NULL;
+ALTER TABLE `clazz` ADD COLUMN IF NOT EXISTS `video_set_id` BIGINT DEFAULT NULL;
+ALTER TABLE `clazz` ADD COLUMN IF NOT EXISTS `kb_id` BIGINT DEFAULT NULL;
 
 -- 初始化默认用户（仅当表为空时插入，不覆盖已有数据）
 INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `phone`, `college`, `major`, `grade`, `role`, `status`) SELECT 1, 'teacher', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '教师', NULL, NULL, NULL, NULL, 'TEACHER', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `id` = 1);
@@ -145,3 +194,8 @@ INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT
 INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 13, 'grade', '2023', 2 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 13);
 INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 14, 'grade', '2024', 3 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 14);
 INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 15, 'grade', '2025', 4 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 15);
+
+-- 系统设置默认值（仅当对应键不存在时插入）
+MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('site_name', '智能答疑助手');
+MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('course_name', '本课程');
+MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('school_name', '');

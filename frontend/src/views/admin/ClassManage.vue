@@ -22,6 +22,7 @@
               </div>
               <div class="card-actions">
                 <el-button size="small" type="primary" @click="enterClass(cls)">进入管理</el-button>
+                <el-button size="small" :type="(!cls.videoSetId && !cls.kbId) ? 'primary' : 'default'" @click="openResourceDialog(cls)">配置资源</el-button>
                 <el-button v-if="cls.status === 1" size="small" type="warning" @click="handleDissolve(cls)">解散</el-button>
                 <el-button size="small" type="danger" @click="handleDeleteClass(cls)">删除</el-button>
               </div>
@@ -30,6 +31,12 @@
           <div class="class-time">
             <div><el-icon><Calendar /></el-icon> 开班：{{ formatTime(cls.startTime) }}</div>
             <div><el-icon><Calendar /></el-icon> 结班：{{ formatTime(cls.endTime) }}</div>
+          </div>
+          <div class="class-mounts">
+            <el-tag v-if="cls.videoSetName" type="primary" size="small" effect="plain">🎬 {{ cls.videoSetName }}</el-tag>
+            <el-tag v-else type="info" size="small" effect="plain">🎬 未挂载视频集</el-tag>
+            <el-tag v-if="cls.kbName" type="success" size="small" effect="plain">📚 {{ cls.kbName }}</el-tag>
+            <el-tag v-else type="info" size="small" effect="plain">📚 未挂载知识库</el-tag>
           </div>
         </el-card>
 
@@ -275,7 +282,8 @@
             </el-table-column>
             <el-table-column label="来源" width="100">
               <template #default="{ row }">
-                <el-tag v-if="row.source_type === 'web'" type="primary" size="small">网络</el-tag>
+                <el-tag v-if="(row.sourceType || row.SOURCE_TYPE || row.source_type) === 'web'" type="primary" size="small">网络</el-tag>
+                <el-tag v-else-if="(row.sourceType || row.SOURCE_TYPE || row.source_type) === 'no_class'" type="warning" size="small">未进班级</el-tag>
                 <el-tag v-else type="success" size="small">教材</el-tag>
               </template>
             </el-table-column>
@@ -291,7 +299,17 @@
     <el-dialog v-model="showCreateDialog" title="创建班级" width="460px">
       <el-form :model="createForm" label-width="80px">
         <el-form-item label="班级名称">
-          <el-input v-model="createForm.name" placeholder="如：2025春季OS班" />
+          <el-input v-model="createForm.name" placeholder="如：2025春季班" />
+        </el-form-item>
+        <el-form-item label="视频集">
+          <el-select v-model="createForm.videoSetId" placeholder="选择视频集（可空）" clearable style="width: 100%">
+            <el-option v-for="vs in videoSets" :key="vs.id" :label="vs.name" :value="vs.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="知识库">
+          <el-select v-model="createForm.kbId" placeholder="选择知识库（可空）" clearable style="width: 100%">
+            <el-option v-for="kb in knowledgeBases" :key="kb.id" :label="kb.name" :value="kb.id" />
+          </el-select>
         </el-form-item>
         <el-form-item label="开班时间">
           <el-date-picker
@@ -313,10 +331,32 @@
             style="width: 100%"
           />
         </el-form-item>
+        <div class="create-tip">提示：视频集与知识库可在“视频管理”“知识库管理”中预先配置。</div>
       </el-form>
       <template #footer>
         <el-button @click="showCreateDialog = false">取消</el-button>
         <el-button type="primary" :loading="creating" @click="handleCreate">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 配置资源（挂载/修改/取消挂载视频集与知识库） -->
+    <el-dialog v-model="showResourceDialog" :title="'配置资源 - ' + (resourceTarget?.name || '')" width="460px">
+      <el-form :model="resourceForm" label-width="80px">
+        <el-form-item label="视频集">
+          <el-select v-model="resourceForm.videoSetId" placeholder="选择视频集（可空）" clearable style="width: 100%">
+            <el-option v-for="vs in videoSets" :key="vs.id" :label="vs.name" :value="vs.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="知识库">
+          <el-select v-model="resourceForm.kbId" placeholder="选择知识库（可空）" clearable style="width: 100%">
+            <el-option v-for="kb in knowledgeBases" :key="kb.id" :label="kb.name" :value="kb.id" />
+          </el-select>
+        </el-form-item>
+        <div class="create-tip">提示：清空选择即取消挂载；视频集与知识库可在“视频管理”“知识库管理”中预先配置。</div>
+      </el-form>
+      <template #footer>
+        <el-button @click="showResourceDialog = false">取消</el-button>
+        <el-button type="primary" :loading="savingResource" @click="handleSaveResource">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -327,17 +367,29 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Calendar, ArrowLeft, Search, Upload, Setting, Download, ArrowDown, Document, UploadFilled, Loading } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
-import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass } from '@/api/clazz'
+import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources } from '@/api/clazz'
 import { updateStudent, deleteStudent, resetStudentPassword, toggleStudentStatus } from '@/api/student'
 import { getOptionsByCategory, addOption, deleteOption } from '@/api/option'
 import { getUserQuestions } from '@/api/statistics'
+import { getVideoSets } from '@/api/video'
+import { getKnowledgeBases } from '@/api/knowledge'
 
 // 班级列表
 const classes = ref([])
 const selectedClass = ref(null)
 const showCreateDialog = ref(false)
 const creating = ref(false)
-const createForm = reactive({ name: '', startTime: '', endTime: '' })
+const createForm = reactive({ name: '', startTime: '', endTime: '', videoSetId: null, kbId: null })
+
+// 配置资源对话框
+const showResourceDialog = ref(false)
+const savingResource = ref(false)
+const resourceTarget = ref(null)
+const resourceForm = reactive({ videoSetId: null, kbId: null })
+
+// 可挂载的视频集 / 知识库
+const videoSets = ref([])
+const knowledgeBases = ref([])
 
 // 学生列表
 const loading = ref(false)
@@ -381,7 +433,23 @@ const currentStudentName = ref('')
 onMounted(() => {
   fetchClasses()
   fetchOptions()
+  fetchVideoSets()
+  fetchKnowledgeBases()
 })
+
+async function fetchVideoSets() {
+  try {
+    const res = await getVideoSets()
+    videoSets.value = res.data || []
+  } catch (e) { console.error('获取视频集失败:', e) }
+}
+
+async function fetchKnowledgeBases() {
+  try {
+    const res = await getKnowledgeBases()
+    knowledgeBases.value = res.data || []
+  } catch (e) { console.error('获取知识库失败:', e) }
+}
 
 // ===== 班级列表 =====
 async function fetchClasses() {
@@ -398,17 +466,42 @@ async function handleCreate() {
   if (!createForm.startTime || !createForm.endTime) { ElMessage.warning('请选择起止时间'); return }
   creating.value = true
   try {
-    await createClass(createForm.name, createForm.startTime, createForm.endTime)
+    await createClass(createForm.name, createForm.startTime, createForm.endTime, createForm.videoSetId, createForm.kbId)
     ElMessage.success('创建成功')
     showCreateDialog.value = false
     createForm.name = ''
     createForm.startTime = ''
     createForm.endTime = ''
+    createForm.videoSetId = null
+    createForm.kbId = null
     fetchClasses()
   } catch (e) {
     console.error('创建失败:', e)
   } finally {
     creating.value = false
+  }
+}
+
+// ===== 配置资源（挂载/修改/取消挂载视频集与知识库）=====
+function openResourceDialog(cls) {
+  resourceTarget.value = cls
+  resourceForm.videoSetId = cls.videoSetId ?? null
+  resourceForm.kbId = cls.kbId ?? null
+  showResourceDialog.value = true
+}
+
+async function handleSaveResource() {
+  if (!resourceTarget.value) return
+  savingResource.value = true
+  try {
+    await updateClassResources(resourceTarget.value.id, resourceForm.videoSetId, resourceForm.kbId)
+    ElMessage.success('资源配置已保存')
+    showResourceDialog.value = false
+    fetchClasses()
+  } catch (e) {
+    console.error('资源配置失败:', e)
+  } finally {
+    savingResource.value = false
   }
 }
 
@@ -576,7 +669,7 @@ async function handleViewRecords(row) {
   recordsLoading.value = true
   questionRecords.value = []
   try {
-    const res = await getUserQuestions(row.id, 20)
+    const res = await getUserQuestions(row.id, 20, selectedClass.value.id)
     questionRecords.value = res.data || []
   } catch (e) {
     console.error('获取提问记录失败:', e)
@@ -731,6 +824,20 @@ function formatTime(time) {
   color: #606266;
   font-size: 14px;
   div { display: flex; align-items: center; gap: 4px; }
+}
+
+.class-mounts {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.create-tip {
+  font-size: 12px;
+  color: var(--color-text-tertiary, #909399);
+  margin-top: -4px;
+  margin-bottom: 8px;
 }
 
 .search-bar {

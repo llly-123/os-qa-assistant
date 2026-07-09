@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 public class Knowledge {
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("kb_id")
+    private Long kbId;
     @TableField("file_name")
     private String fileName;
     @TableField("file_path")
@@ -23,6 +25,8 @@ public class Knowledge {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getKbId() { return kbId; }
+    public void setKbId(Long kbId) { this.kbId = kbId; }
     public String getFileName() { return fileName; }
     public void setFileName(String fileName) { this.fileName = fileName; }
     public String getFilePath() { return filePath; }

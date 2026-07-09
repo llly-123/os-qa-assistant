@@ -20,21 +20,22 @@ public class KnowledgeController {
     }
 
     @GetMapping
-    public Result<?> getKnowledgeList() {
-        List<Knowledge> list = knowledgeService.getKnowledgeList();
+    public Result<?> getKnowledgeList(@RequestParam(required = false) Long kbId) {
+        List<Knowledge> list = knowledgeService.getKnowledgeList(kbId);
         return Result.success(list);
     }
 
     @GetMapping("/status")
-    public Result<?> getKnowledgeStatus() {
-        Map<String, Object> status = knowledgeService.getKnowledgeStatus();
+    public Result<?> getKnowledgeStatus(@RequestParam(required = false) Long kbId) {
+        Map<String, Object> status = knowledgeService.getKnowledgeStatus(kbId);
         return Result.success(status);
     }
 
     @PostMapping("/upload")
-    public Result<?> uploadKnowledge(@RequestParam("file") MultipartFile file) {
+    public Result<?> uploadKnowledge(@RequestParam("file") MultipartFile file,
+                                     @RequestParam("kbId") Long kbId) {
         try {
-            Knowledge knowledge = knowledgeService.uploadKnowledge(file);
+            Knowledge knowledge = knowledgeService.uploadKnowledge(kbId, file);
             return Result.success(knowledge);
         } catch (Exception e) {
             return Result.error("上传失败：" + e.getMessage());
@@ -42,14 +43,16 @@ public class KnowledgeController {
     }
 
     @PostMapping("/import-text")
-    public Result<?> importText(@RequestBody Map<String, String> body) {
+    public Result<?> importText(@RequestBody Map<String, Object> body) {
         try {
-            String title = body.getOrDefault("title", "教材文本导入");
-            String content = body.get("content");
+            String title = body.getOrDefault("title", "教材文本导入").toString();
+            String content = body.get("content") == null ? null : body.get("content").toString();
             if (content == null || content.isBlank()) {
                 return Result.error("内容不能为空");
             }
-            Knowledge knowledge = knowledgeService.importText(title, content);
+            Object kbIdObj = body.get("kbId");
+            Long kbId = kbIdObj == null ? null : Long.valueOf(kbIdObj.toString());
+            Knowledge knowledge = knowledgeService.importText(kbId, title, content);
             return Result.success(knowledge);
         } catch (Exception e) {
             return Result.error("导入失败：" + e.getMessage());

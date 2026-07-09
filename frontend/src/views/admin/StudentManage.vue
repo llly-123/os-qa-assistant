@@ -277,7 +277,8 @@
           </el-table-column>
           <el-table-column label="来源" width="100">
             <template #default="{ row }">
-              <el-tag v-if="row.source_type === 'web'" type="primary" size="small">网络</el-tag>
+              <el-tag v-if="(row.sourceType || row.SOURCE_TYPE || row.source_type) === 'web'" type="primary" size="small">网络</el-tag>
+              <el-tag v-else-if="(row.sourceType || row.SOURCE_TYPE || row.source_type) === 'no_class'" type="warning" size="small">未进班级</el-tag>
               <el-tag v-else type="success" size="small">教材</el-tag>
             </template>
           </el-table-column>

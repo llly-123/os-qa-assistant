@@ -5,6 +5,7 @@ import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.read.listener.ReadListener;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.User;
 import com.xidian.osqa.entity.SysOption;
 import com.xidian.osqa.mapper.UserMapper;
@@ -89,9 +90,18 @@ public class StudentService {
         return result;
     }
 
-    public User createStudent(String studentId, String name, String phone, String college, String major, String grade) {
+    public Result<?> createStudent(String studentId, String name, String phone, String college, String major, String grade) {
+        if (studentId == null || studentId.isBlank()) {
+            return Result.error(400, "学号不能为空");
+        }
+        // 学号唯一校验，避免重复创建学生账号
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getUsername, studentId.trim());
+        if (userMapper.selectCount(wrapper) > 0) {
+            return Result.error(400, "学号已存在");
+        }
         User user = new User();
-        user.setUsername(studentId);
+        user.setUsername(studentId.trim());
         String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : studentId;
         user.setPassword(passwordEncoder.encode(defaultPassword));
         user.setRealName(name);
@@ -104,7 +114,7 @@ public class StudentService {
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.insert(user);
-        return user;
+        return Result.success(user);
     }
 
     public Map<String, Object> resetPassword(Long studentId) {

@@ -1,11 +1,12 @@
 package com.xidian.osqa.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.xidian.osqa.common.OsConstants;
 import com.xidian.osqa.entity.ChatMessage;
 import com.xidian.osqa.entity.ChatSession;
+import com.xidian.osqa.entity.Clazz;
 import com.xidian.osqa.mapper.ChatMessageMapper;
 import com.xidian.osqa.mapper.ChatSessionMapper;
+import com.xidian.osqa.mapper.ClazzMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,28 +23,48 @@ public class ChatService {
     private final ChatSessionMapper sessionMapper;
     private final ChatMessageMapper messageMapper;
     private final RagService ragService;
+    private final ClazzMapper clazzMapper;
+    private final KeywordAiService keywordAiService;
 
-    public ChatService(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper, RagService ragService) {
+    public ChatService(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper, RagService ragService, ClazzMapper clazzMapper, KeywordAiService keywordAiService) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.ragService = ragService;
+        this.clazzMapper = clazzMapper;
+        this.keywordAiService = keywordAiService;
     }
 
     public List<ChatSession> getUserSessions(Long userId) {
+        return getUserSessions(userId, null);
+    }
+
+    public List<ChatSession> getUserSessions(Long userId, Long classId) {
         LambdaQueryWrapper<ChatSession> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(ChatSession::getUserId, userId)
-               .orderByDesc(ChatSession::getUpdateTime);
+        wrapper.eq(ChatSession::getUserId, userId);
+        if (classId != null) {
+            wrapper.eq(ChatSession::getClassId, classId);
+        }
+        wrapper.orderByDesc(ChatSession::getUpdateTime);
         return sessionMapper.selectList(wrapper);
     }
 
-    public ChatSession createSession(Long userId, String title) {
+    public ChatSession createSession(Long userId, String title, Long classId) {
         ChatSession session = new ChatSession();
         session.setUserId(userId);
+        session.setClassId(classId);
         session.setTitle(title != null ? title : "新对话");
         session.setCreateTime(LocalDateTime.now());
         session.setUpdateTime(LocalDateTime.now());
         sessionMapper.insert(session);
         return session;
+    }
+
+    /** 解析会话所属班级对应的知识库ID，用于RAG检索作用域 */
+    private Long resolveKbId(Long sessionId) {
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null || session.getClassId() == null) return null;
+        Clazz clazz = clazzMapper.selectById(session.getClassId());
+        return clazz != null ? clazz.getKbId() : null;
     }
 
     public List<ChatMessage> getSessionMessages(Long sessionId) {
@@ -62,6 +83,10 @@ public class ChatService {
         message.setSourceType(sourceType);
         message.setCreateTime(LocalDateTime.now());
         messageMapper.insert(message);
+        // 学生提问异步提取知识点关键词回填 keywords 字段，供热词统计聚合
+        if ("user".equals(role)) {
+            keywordAiService.extractAndSaveAsync(message.getId(), content);
+        }
         return message;
     }
 
@@ -77,6 +102,12 @@ public class ChatService {
     public boolean isSessionOwner(Long sessionId, Long userId) {
         ChatSession session = sessionMapper.selectById(sessionId);
         return session != null && session.getUserId().equals(userId);
+    }
+
+    /** 会话是否绑定到某个班级（用于统计归属判断） */
+    public boolean sessionHasClass(Long sessionId) {
+        ChatSession session = sessionMapper.selectById(sessionId);
+        return session != null && session.getClassId() != null;
     }
 
     public void deleteSession(Long sessionId) {
@@ -100,51 +131,53 @@ public class ChatService {
     }
 
     public String askQuestion(Long sessionId, String question, boolean webSearch) {
-        return ragService.answer(question, webSearch);
+        return ragService.answer(question, webSearch, resolveKbId(sessionId));
     }
 
     public String getCitation(Long sessionId, String question, boolean webSearch) {
-        return ragService.getCitation(question, webSearch);
+        return ragService.getCitation(question, webSearch, resolveKbId(sessionId));
     }
 
     public int getUserQuestionCount(Long userId) {
-        return messageMapper.countUserQuestions(userId);
+        return getUserQuestionCount(userId, null);
+    }
+
+    public int getUserQuestionCount(Long userId, Long classId) {
+        return classId != null
+                ? messageMapper.countUserQuestionsByClass(userId, classId)
+                : messageMapper.countUserQuestions(userId);
     }
 
     public int getUserCitationRate(Long userId) {
-        int total = messageMapper.countUserTotalAnswers(userId);
-        int cited = messageMapper.countUserCitedAnswers(userId);
-        return total > 0 ? Math.round(cited * 100 / total) : 0;
+        return getUserCitationRate(userId, null);
     }
 
-    // 默认快捷提示（新用户或无历史时使用）
+    public int getUserCitationRate(Long userId, Long classId) {
+        int total = classId != null
+                ? messageMapper.countUserTotalAnswersByClass(userId, classId)
+                : messageMapper.countUserTotalAnswers(userId);
+        int cited = classId != null
+                ? messageMapper.countUserCitedAnswersByClass(userId, classId)
+                : messageMapper.countUserCitedAnswers(userId);
+        return total > 0 ? Math.round(cited * 100f / total) : 0;
+    }
+
+    // 默认快捷提示（课程无关的通用学习提问模板）
     private static final List<String> DEFAULT_PROMPTS = Arrays.asList(
-            "什么是进程死锁？", "死锁的四个必要条件", "LRU算法原理",
-            "页面置换算法", "信号量与P/V操作", "进程调度算法"
+            "请解释这个知识点的核心概念", "举例说明它的应用场景", "常见误区有哪些",
+            "与相关概念的区别是什么", "总结这一章的要点", "这个知识点通常如何考查"
     );
 
-    // 操作系统核心知识点，用于生成动态提示
-    private static final String[] OS_TOPICS = {
-            "进程与线程的区别", "死锁的四个必要条件", "LRU算法原理",
-            "页面置换算法有哪些", "信号量与P/V操作", "进程调度算法",
-            "银行家算法", "生产者消费者问题", "虚拟内存管理",
-            "文件系统结构", "磁盘调度算法", "进程同步与互斥",
-            "内存分配方式", "分段与分页的区别", "中断处理过程",
-            "I/O控制方式", "SPOOLing技术", "管道通信",
-            "读者写者问题", "哲学家就餐问题", "作业调度算法",
-            "死锁避免与预防", "抖动现象", "多级页表",
-            "位图与空闲链表", "FAT文件系统", "RAID技术",
-            "DMA与中断", "用户态与内核态", "系统调用过程"
-    };
-
     public List<String> getQuickPrompts(Long userId) {
+        return getQuickPrompts(userId, null);
+    }
+
+    public List<String> getQuickPrompts(Long userId, Long classId) {
         try {
             // 获取用户高频关键词（最多2个）
-            List<Map<String, Object>> keywords = getUserKeywords(userId, 2);
+            List<Map<String, Object>> keywords = getUserKeywords(userId, classId, 2);
 
             List<String> prompts = new ArrayList<>();
-
-            // 基于用户高频关键词生成个性化提示（最多2个）
             Set<String> usedKeywords = new HashSet<>();
             for (Map<String, Object> kw : keywords) {
                 String word = (String) kw.get("word");
@@ -152,12 +185,11 @@ public class ChatService {
                 usedKeywords.add(word);
             }
 
-            // 从题库中随机补充到6个
-            List<String> remaining = new ArrayList<>(Arrays.asList(OS_TOPICS));
+            // 用通用模板补充到6个
+            List<String> remaining = new ArrayList<>(DEFAULT_PROMPTS);
             Collections.shuffle(remaining, ThreadLocalRandom.current());
             for (String topic : remaining) {
                 if (prompts.size() >= 6) break;
-                // 避免与关键词提示的主题重叠
                 boolean overlap = false;
                 for (String kw : usedKeywords) {
                     if (topic.contains(kw)) {
@@ -170,7 +202,7 @@ public class ChatService {
                 }
             }
 
-            log.info("生成快捷提示: userId={}, prompts={}", userId, prompts);
+            log.info("生成快捷提示: userId={}, classId={}, prompts={}", userId, classId, prompts);
             return prompts;
         } catch (Exception e) {
             log.warn("生成快捷提示失败: {}", e.getMessage());
@@ -179,33 +211,17 @@ public class ChatService {
     }
 
     public List<Map<String, Object>> getUserKeywords(Long userId, int limit) {
-        List<Map<String, Object>> keywords = new ArrayList<>();
+        return getUserKeywords(userId, null, limit);
+    }
+
+    public List<Map<String, Object>> getUserKeywords(Long userId, Long classId, int limit) {
         try {
-            List<String> questions = messageMapper.findUserQuestionContents(userId, limit * 3);
-            Map<String, Integer> wordCount = new HashMap<>();
-            String[] osKeywords = OsConstants.OS_KEYWORDS;
-
-            for (String question : questions) {
-                if (question == null) continue;
-                for (String keyword : osKeywords) {
-                    if (question.contains(keyword)) {
-                        wordCount.merge(keyword, 1, Integer::sum);
-                    }
-                }
-            }
-
-            wordCount.entrySet().stream()
-                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                    .limit(limit)
-                    .forEach(entry -> {
-                        Map<String, Object> kw = new HashMap<>();
-                        kw.put("word", entry.getKey());
-                        kw.put("count", entry.getValue());
-                        keywords.add(kw);
-                    });
+            List<String> kwJson = classId != null
+                    ? messageMapper.findUserQuestionKeywordsByClass(userId, classId, limit * 3)
+                    : messageMapper.findUserQuestionKeywords(userId, limit * 3);
+            return keywordAiService.aggregate(kwJson, limit);
         } catch (Exception e) {
-            // return empty list
+            return new ArrayList<>();
         }
-        return keywords;
     }
 }

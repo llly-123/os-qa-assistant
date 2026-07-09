@@ -1,6 +1,6 @@
 package com.xidian.osqa.service;
 
-import com.xidian.osqa.common.OsConstants;
+import com.xidian.osqa.common.KeywordExtractor;
 import com.xidian.osqa.mapper.ChatMessageMapper;
 import com.xidian.osqa.mapper.ChatSessionMapper;
 import com.xidian.osqa.mapper.UserMapper;
@@ -18,27 +18,29 @@ public class StatisticsService {
     private final ChatMessageMapper messageMapper;
     private final ChatSessionMapper sessionMapper;
     private final UserMapper userMapper;
+    private final KeywordAiService keywordAiService;
 
-    public StatisticsService(ChatMessageMapper messageMapper, ChatSessionMapper sessionMapper, UserMapper userMapper) {
+    public StatisticsService(ChatMessageMapper messageMapper, ChatSessionMapper sessionMapper, UserMapper userMapper, KeywordAiService keywordAiService) {
         this.messageMapper = messageMapper;
         this.sessionMapper = sessionMapper;
         this.userMapper = userMapper;
+        this.keywordAiService = keywordAiService;
     }
 
-    public Map<String, Object> getOverview(String startDate, String endDate) {
+    public Map<String, Object> getOverview(Long teacherId, String startDate, String endDate) {
         Map<String, Object> overview = new HashMap<>();
         try {
             if (startDate != null && endDate != null) {
-                overview.put("totalQuestions", messageMapper.countTotalQuestionsByDate(startDate, endDate));
-                overview.put("activeUsers", messageMapper.countActiveSessionsByDate(startDate, endDate));
-                int totalAnswers = messageMapper.countTotalAnswersByDate(startDate, endDate);
-                int citedAnswers = messageMapper.countCitedAnswersByDate(startDate, endDate);
+                overview.put("totalQuestions", messageMapper.countTotalQuestionsByDate(teacherId, startDate, endDate));
+                overview.put("activeUsers", messageMapper.countActiveSessionsByDate(teacherId, startDate, endDate));
+                int totalAnswers = messageMapper.countTotalAnswersByDate(teacherId, startDate, endDate);
+                int citedAnswers = messageMapper.countCitedAnswersByDate(teacherId, startDate, endDate);
                 overview.put("citationRate", totalAnswers > 0 ? Math.round(citedAnswers * 100.0 / totalAnswers) : 0);
             } else {
-                overview.put("totalQuestions", messageMapper.countTotalQuestions());
-                overview.put("activeUsers", messageMapper.countActiveSessions());
-                int totalAnswers = messageMapper.countTotalAnswers();
-                int citedAnswers = messageMapper.countCitedAnswers();
+                overview.put("totalQuestions", messageMapper.countTotalQuestions(teacherId));
+                overview.put("activeUsers", messageMapper.countActiveSessions(teacherId));
+                int totalAnswers = messageMapper.countTotalAnswers(teacherId);
+                int citedAnswers = messageMapper.countCitedAnswers(teacherId);
                 overview.put("citationRate", totalAnswers > 0 ? Math.round(citedAnswers * 100.0 / totalAnswers) : 0);
             }
             overview.put("avgResponseTime", 1.2);
@@ -51,41 +53,18 @@ public class StatisticsService {
         return overview;
     }
 
-    public List<Map<String, Object>> getHotKeywords(String startDate, String endDate, int limit) {
-        List<Map<String, Object>> keywords = new ArrayList<>();
+    public List<Map<String, Object>> getHotKeywords(Long teacherId, String startDate, String endDate, int limit) {
         try {
-            List<String> questions;
+            List<String> kwJson;
             if (startDate != null && endDate != null) {
-                questions = messageMapper.findQuestionContentsByDate(startDate, endDate, limit * 3);
+                kwJson = messageMapper.findQuestionKeywordsByDate(teacherId, startDate, endDate, limit * 3);
             } else {
-                questions = messageMapper.findRecentQuestionContents(limit * 3);
+                kwJson = messageMapper.findRecentQuestionKeywords(teacherId, limit * 3);
             }
-
-            Map<String, Integer> wordCount = new HashMap<>();
-            String[] osKeywords = OsConstants.OS_KEYWORDS;
-
-            for (String question : questions) {
-                if (question == null) continue;
-                for (String keyword : osKeywords) {
-                    if (question.contains(keyword)) {
-                        wordCount.merge(keyword, 1, Integer::sum);
-                    }
-                }
-            }
-
-            wordCount.entrySet().stream()
-                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                    .limit(limit)
-                    .forEach(entry -> {
-                        Map<String, Object> kw = new HashMap<>();
-                        kw.put("word", entry.getKey());
-                        kw.put("count", entry.getValue());
-                        keywords.add(kw);
-                    });
+            return keywordAiService.aggregate(kwJson, limit);
         } catch (Exception e) {
-            // return empty list
+            return new ArrayList<>();
         }
-        return keywords;
     }
 
     public Map<String, Object> getClassOverview(Long classId, String startDate, String endDate) {
@@ -117,45 +96,23 @@ public class StatisticsService {
     }
 
     public List<Map<String, Object>> getClassHotKeywords(Long classId, String startDate, String endDate, int limit) {
-        List<Map<String, Object>> keywords = new ArrayList<>();
         try {
-            List<String> questions;
+            List<String> kwJson;
             if (startDate != null && endDate != null) {
-                questions = messageMapper.findClassQuestionContentsByDate(classId, startDate, endDate, limit * 3);
+                kwJson = messageMapper.findClassQuestionKeywordsByDate(classId, startDate, endDate, limit * 3);
             } else {
-                questions = messageMapper.findClassQuestionContents(classId, limit * 3);
+                kwJson = messageMapper.findClassQuestionKeywords(classId, limit * 3);
             }
-
-            Map<String, Integer> wordCount = new HashMap<>();
-            String[] osKeywords = OsConstants.OS_KEYWORDS;
-
-            for (String question : questions) {
-                if (question == null) continue;
-                for (String keyword : osKeywords) {
-                    if (question.contains(keyword)) {
-                        wordCount.merge(keyword, 1, Integer::sum);
-                    }
-                }
-            }
-
-            wordCount.entrySet().stream()
-                    .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                    .limit(limit)
-                    .forEach(entry -> {
-                        Map<String, Object> kw = new HashMap<>();
-                        kw.put("word", entry.getKey());
-                        kw.put("count", entry.getValue());
-                        keywords.add(kw);
-                    });
+            return keywordAiService.aggregate(kwJson, limit);
         } catch (Exception e) {
             log.error("获取班级关键词失败, classId={}", classId, e);
+            return new ArrayList<>();
         }
-        return keywords;
     }
 
-    public List<Map<String, Object>> getClassList() {
+    public List<Map<String, Object>> getClassList(Long teacherId) {
         try {
-            List<Map<String, Object>> list = messageMapper.findClassList();
+            List<Map<String, Object>> list = messageMapper.findClassList(teacherId);
             // H2数据库返回大写列名，统一转为驼峰命名
             Map<String, String> keyMap = new HashMap<>();
             keyMap.put("ID", "id");
@@ -163,6 +120,8 @@ public class StatisticsService {
             keyMap.put("STATUS", "status");
             keyMap.put("STARTTIME", "startTime");
             keyMap.put("ENDTIME", "endTime");
+            keyMap.put("VIDEOSETID", "videoSetId");
+            keyMap.put("KBID", "kbId");
             keyMap.put("STUDENTCOUNT", "studentCount");
             for (Map<String, Object> row : list) {
                 Map<String, Object> normalized = new LinkedHashMap<>();
@@ -180,13 +139,13 @@ public class StatisticsService {
         }
     }
 
-    public List<Map<String, Object>> getRecentQuestions(String startDate, String endDate, int limit) {
+    public List<Map<String, Object>> getRecentQuestions(Long teacherId, String startDate, String endDate, int limit) {
         try {
             List<Map<String, Object>> raw;
             if (startDate != null && endDate != null) {
-                raw = messageMapper.findRecentQuestionsByDate(startDate, endDate, limit);
+                raw = messageMapper.findRecentQuestionsByDate(teacherId, startDate, endDate, limit);
             } else {
-                raw = messageMapper.findRecentQuestions(limit);
+                raw = messageMapper.findRecentQuestions(teacherId, limit);
             }
             // 转换CLOB为String
             for (Map<String, Object> row : raw) {
@@ -206,10 +165,9 @@ public class StatisticsService {
         }
     }
 
-    public List<Map<String, Object>> getUserRecentQuestions(Long userId, int limit) {
+    public List<Map<String, Object>> getUserRecentQuestions(Long userId, Long teacherId, Long classId, int limit) {
         try {
-            List<Map<String, Object>> raw = messageMapper.findUserRecentQuestions(userId, limit);
-            // 转换所有CLOB为String
+            List<Map<String, Object>> raw = messageMapper.findUserRecentQuestions(userId, teacherId, classId, limit);
             for (Map<String, Object> row : raw) {
                 Map<String, Object> newRow = new LinkedHashMap<>();
                 for (Map.Entry<String, Object> entry : row.entrySet()) {
@@ -224,7 +182,6 @@ public class StatisticsService {
                     newRow.put(entry.getKey(), value);
                 }
 
-                // 处理问题内容
                 String questionText = null;
                 Object q = newRow.get("question");
                 if (q == null) q = newRow.get("QUESTION");
@@ -237,19 +194,11 @@ public class StatisticsService {
                 newRow.put("question", questionText != null ? questionText : "[无内容]");
                 newRow.put("QUESTION", questionText != null ? questionText : "[无内容]");
 
-                // 判断是否与教材相关
-                boolean isRelated = false;
-                if (questionText != null) {
-                    String lowerText = questionText.toLowerCase();
-                    isRelated = lowerText.contains("进程") || lowerText.contains("线程") ||
-                            lowerText.contains("内存") || lowerText.contains("文件") ||
-                            lowerText.contains("死锁") || lowerText.contains("调度") ||
-                            lowerText.contains("虚拟") || lowerText.contains("页面") ||
-                            lowerText.contains("磁盘") || lowerText.contains("io") ||
-                            lowerText.contains("操作系统") || lowerText.contains("os") ||
-                            lowerText.contains("算法") || lowerText.contains("同步") ||
-                            lowerText.contains("信号量") || lowerText.contains("管程");
-                }
+                // 是否与课程相关：按来源类型判断（textbook/web=相关，no_class=无关）。
+                // 注意 user 消息的 citation 恒为空（citation 属于 assistant 回答），不能用它判断。
+                Object sourceType = newRow.get("sourceType");
+                if (sourceType == null) sourceType = newRow.get("SOURCE_TYPE");
+                boolean isRelated = sourceType != null && !"no_class".equals(sourceType.toString());
                 newRow.put("isRelated", isRelated);
 
                 row.clear();
@@ -262,7 +211,6 @@ public class StatisticsService {
         }
     }
 
-    // H2数据库返回大写列名，兼容大小写读取Map中的Number值
     private int getMapInt(Map<String, Object> map, String key) {
         if (map == null) return 0;
         Object val = map.get(key);

@@ -33,6 +33,12 @@ public class KnowledgeEmbeddingService {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeEmbeddingService.class);
 
+    static {
+        // 放宽 POI zip 炸弹保护：教师上传的 .pptx 常含高压缩比 WMF 图片，
+        // 误触 MIN_INFLATE_RATIO 导致解析失败。信任上传源，关闭该校验。
+        org.apache.poi.openxml4j.util.ZipSecureFile.setMinInflateRatio(0.0);
+    }
+
     private static final Set<String> STOP_WORDS = Set.of(
             "的", "了", "在", "是", "我", "有", "和", "就", "不", "人", "都", "一", "一个",
             "上", "也", "很", "到", "说", "要", "去", "你", "会", "着", "没有", "看", "好",
@@ -152,10 +158,14 @@ public class KnowledgeEmbeddingService {
         List<String> chunks = splitText(text);
         log.info("文档切分为 {} 个知识块", chunks.size());
 
+        Knowledge knowledge0 = knowledgeMapper.selectById(knowledgeId);
+        Long kbId = knowledge0 != null ? knowledge0.getKbId() : null;
+
         List<KnowledgeChunk> savedChunks = new ArrayList<>();
         for (int i = 0; i < chunks.size(); i++) {
             KnowledgeChunk chunk = new KnowledgeChunk();
             chunk.setKnowledgeId(knowledgeId);
+            chunk.setKbId(kbId);
             chunk.setContent(chunks.get(i));
             chunk.setChunkIndex(i);
             chunk.setSourceFile(file.getName());
@@ -187,10 +197,14 @@ public class KnowledgeEmbeddingService {
         List<String> chunks = splitText(content);
         log.info("文本切分为 {} 个知识块", chunks.size());
 
+        Knowledge knowledge0 = knowledgeMapper.selectById(knowledgeId);
+        Long kbId = knowledge0 != null ? knowledge0.getKbId() : null;
+
         List<KnowledgeChunk> savedChunks = new ArrayList<>();
         for (int i = 0; i < chunks.size(); i++) {
             KnowledgeChunk chunk = new KnowledgeChunk();
             chunk.setKnowledgeId(knowledgeId);
+            chunk.setKbId(kbId);
             chunk.setContent(chunks.get(i));
             chunk.setChunkIndex(i);
             chunk.setSourceFile(title);
@@ -216,7 +230,8 @@ public class KnowledgeEmbeddingService {
             String ext = filePath.substring(filePath.lastIndexOf('.') + 1).toLowerCase();
             return switch (ext) {
                 case "pdf" -> parsePdf(filePath);
-                case "pptx", "ppt" -> parsePptx(filePath);
+                case "pptx" -> parsePptx(filePath);
+                case "ppt" -> parsePpt(filePath);
                 case "docx", "doc" -> parseDocx(filePath);
                 case "txt" -> parseTxt(filePath);
                 default -> {
@@ -364,6 +379,27 @@ public class KnowledgeEmbeddingService {
         return sb.toString();
     }
 
+    private String parsePpt(String filePath) throws Exception {
+        // 旧版二进制 .ppt（OLE2）需用 HSLF，XMLSlideShow 只能读 .pptx
+        StringBuilder sb = new StringBuilder();
+        try (FileInputStream fis = new FileInputStream(filePath);
+             org.apache.poi.poifs.filesystem.POIFSFileSystem fs = new org.apache.poi.poifs.filesystem.POIFSFileSystem(fis);
+             org.apache.poi.hslf.usermodel.HSLFSlideShow ppt = new org.apache.poi.hslf.usermodel.HSLFSlideShow(fs)) {
+            for (org.apache.poi.hslf.usermodel.HSLFSlide slide : ppt.getSlides()) {
+                for (org.apache.poi.hslf.usermodel.HSLFShape shape : slide.getShapes()) {
+                    if (shape instanceof org.apache.poi.hslf.usermodel.HSLFTextShape textShape) {
+                        String text = textShape.getText();
+                        if (text != null && !text.isBlank()) {
+                            sb.append(text).append("\n");
+                        }
+                    }
+                }
+                sb.append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
     private String parseDocx(String filePath) throws Exception {
         StringBuilder sb = new StringBuilder();
         try (FileInputStream fis = new FileInputStream(filePath);
@@ -454,20 +490,44 @@ public class KnowledgeEmbeddingService {
     }
 
     public List<String> retrieve(String query, int maxResults) {
+        return retrieve(query, maxResults, null);
+    }
+
+    /**
+     * 在指定知识库（kbId）范围内检索相关片段；kbId 为 null 时检索全部（向后兼容/教师全局）。
+     */
+    public List<String> retrieve(String query, int maxResults, Long kbId) {
         List<KnowledgeChunk> allChunks = this.cachedChunks;
         if (allChunks.isEmpty()) {
             log.info("知识库为空，无检索结果");
             return Collections.emptyList();
         }
 
+        // 按知识库过滤
+        List<KnowledgeChunk> scopeChunks;
+        if (kbId != null) {
+            scopeChunks = new ArrayList<>();
+            for (KnowledgeChunk c : allChunks) {
+                if (kbId.equals(c.getKbId())) {
+                    scopeChunks.add(c);
+                }
+            }
+            if (scopeChunks.isEmpty()) {
+                log.info("知识库 kbId={} 中暂无知识块", kbId);
+                return Collections.emptyList();
+            }
+        } else {
+            scopeChunks = allChunks;
+        }
+
         List<String> queryTokens = tokenize(query);
-        log.info("查询分词结果: query='{}', tokens={}", query, queryTokens);
+        log.info("查询分词结果: query='{}', tokens={}, kbId={}, scopeSize={}", query, queryTokens, kbId, scopeChunks.size());
         if (queryTokens.isEmpty()) {
             return Collections.emptyList();
         }
 
         List<Map.Entry<KnowledgeChunk, Double>> scored = new ArrayList<>();
-        for (KnowledgeChunk chunk : allChunks) {
+        for (KnowledgeChunk chunk : scopeChunks) {
             double kwScore = keywordScore(queryTokens, chunk.getContent());
             log.debug("知识块 {} 关键词得分: {}", chunk.getId(), kwScore);
 

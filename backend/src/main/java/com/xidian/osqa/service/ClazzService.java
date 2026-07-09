@@ -1,6 +1,7 @@
 package com.xidian.osqa.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.ClassStudent;
 import com.xidian.osqa.entity.Clazz;
@@ -21,6 +22,11 @@ import com.alibaba.excel.EasyExcel;
 import com.alibaba.excel.context.AnalysisContext;
 import com.alibaba.excel.read.listener.ReadListener;
 
+import com.xidian.osqa.entity.KnowledgeBase;
+import com.xidian.osqa.entity.VideoSet;
+import com.xidian.osqa.mapper.KnowledgeBaseMapper;
+import com.xidian.osqa.mapper.VideoSetMapper;
+
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.net.URLEncoder;
@@ -39,13 +45,17 @@ public class ClazzService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final SysOptionMapper sysOptionMapper;
+    private final VideoSetMapper videoSetMapper;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
 
-    public ClazzService(ClazzMapper clazzMapper, ClassStudentMapper classStudentMapper, UserMapper userMapper, PasswordEncoder passwordEncoder, SysOptionMapper sysOptionMapper) {
+    public ClazzService(ClazzMapper clazzMapper, ClassStudentMapper classStudentMapper, UserMapper userMapper, PasswordEncoder passwordEncoder, SysOptionMapper sysOptionMapper, VideoSetMapper videoSetMapper, KnowledgeBaseMapper knowledgeBaseMapper) {
         this.clazzMapper = clazzMapper;
         this.classStudentMapper = classStudentMapper;
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.sysOptionMapper = sysOptionMapper;
+        this.videoSetMapper = videoSetMapper;
+        this.knowledgeBaseMapper = knowledgeBaseMapper;
     }
 
     // ========== 教师端：班级CRUD ==========
@@ -59,14 +69,26 @@ public class ClazzService {
         for (Clazz clazz : classes) {
             LambdaQueryWrapper<ClassStudent> csWrapper = new LambdaQueryWrapper<>();
             csWrapper.eq(ClassStudent::getClassId, clazz.getId());
-            Long count = classStudentMapper.selectCount(csWrapper);
-            clazz.setStudentCount(count.intValue());
+            List<ClassStudent> csList = classStudentMapper.selectList(csWrapper);
+            List<Long> studentIds = csList.stream().map(ClassStudent::getStudentId).collect(Collectors.toList());
+            // 与 getClassStudents 一致：只统计未被逻辑删除的有效学生，避免“列表显示N人、点进去N-1人”
+            int count = studentIds.isEmpty() ? 0 : userMapper.selectBatchIds(studentIds).size();
+            clazz.setStudentCount(count);
+
+            if (clazz.getVideoSetId() != null) {
+                VideoSet vs = videoSetMapper.selectById(clazz.getVideoSetId());
+                clazz.setVideoSetName(vs != null ? vs.getName() : null);
+            }
+            if (clazz.getKbId() != null) {
+                KnowledgeBase kb = knowledgeBaseMapper.selectById(clazz.getKbId());
+                clazz.setKbName(kb != null ? kb.getName() : null);
+            }
         }
 
         return Result.success(classes);
     }
 
-    public Result<?> createClass(Long teacherId, String name, String startTime, String endTime) {
+    public Result<?> createClass(Long teacherId, String name, String startTime, String endTime, Long videoSetId, Long kbId) {
         if (name == null || name.trim().isEmpty()) {
             return Result.error(400, "班级名称不能为空");
         }
@@ -74,9 +96,25 @@ public class ClazzService {
             return Result.error(400, "请设置班级起止时间");
         }
 
+        // 校验视频集/知识库归属
+        if (videoSetId != null) {
+            VideoSet vs = videoSetMapper.selectById(videoSetId);
+            if (vs == null || !vs.getTeacherId().equals(teacherId)) {
+                return Result.error(403, "视频集不存在或无权使用");
+            }
+        }
+        if (kbId != null) {
+            KnowledgeBase kb = knowledgeBaseMapper.selectById(kbId);
+            if (kb == null || !kb.getTeacherId().equals(teacherId)) {
+                return Result.error(403, "知识库不存在或无权使用");
+            }
+        }
+
         Clazz clazz = new Clazz();
         clazz.setName(name.trim());
         clazz.setTeacherId(teacherId);
+        clazz.setVideoSetId(videoSetId);
+        clazz.setKbId(kbId);
         clazz.setStartTime(LocalDateTime.parse(startTime.replace(" ", "T")));
         clazz.setEndTime(LocalDateTime.parse(endTime.replace(" ", "T")));
         clazz.setStatus(1);
@@ -84,6 +122,58 @@ public class ClazzService {
         clazz.setUpdateTime(LocalDateTime.now());
         clazzMapper.insert(clazz);
 
+        return Result.success(clazz);
+    }
+
+    /**
+     * 为已存在班级挂载/修改/取消挂载视频集与知识库。
+     * 默认 updateById 不写 null，故用 LambdaUpdateWrapper.set 显式落库以支持取消挂载。
+     */
+    public Result<?> updateClassResources(Long classId, Long teacherId, Long videoSetId, Long kbId) {
+        Clazz clazz = clazzMapper.selectById(classId);
+        if (clazz == null) {
+            return Result.error(404, "班级不存在");
+        }
+        if (!clazz.getTeacherId().equals(teacherId)) {
+            return Result.error(403, "无权操作此班级");
+        }
+
+        // 校验视频集/知识库归属
+        if (videoSetId != null) {
+            VideoSet vs = videoSetMapper.selectById(videoSetId);
+            if (vs == null || !vs.getTeacherId().equals(teacherId)) {
+                return Result.error(403, "视频集不存在或无权使用");
+            }
+        }
+        if (kbId != null) {
+            KnowledgeBase kb = knowledgeBaseMapper.selectById(kbId);
+            if (kb == null || !kb.getTeacherId().equals(teacherId)) {
+                return Result.error(403, "知识库不存在或无权使用");
+            }
+        }
+
+        LambdaUpdateWrapper<Clazz> uw = new LambdaUpdateWrapper<>();
+        uw.eq(Clazz::getId, classId)
+                .set(Clazz::getVideoSetId, videoSetId)
+                .set(Clazz::getKbId, kbId)
+                .set(Clazz::getUpdateTime, LocalDateTime.now());
+        clazzMapper.update(null, uw);
+
+        // 回填名称给前端展示
+        clazz.setVideoSetId(videoSetId);
+        clazz.setKbId(kbId);
+        if (videoSetId != null) {
+            VideoSet vs = videoSetMapper.selectById(videoSetId);
+            clazz.setVideoSetName(vs != null ? vs.getName() : null);
+        } else {
+            clazz.setVideoSetName(null);
+        }
+        if (kbId != null) {
+            KnowledgeBase kb = knowledgeBaseMapper.selectById(kbId);
+            clazz.setKbName(kb != null ? kb.getName() : null);
+        } else {
+            clazz.setKbName(null);
+        }
         return Result.success(clazz);
     }
 
@@ -222,27 +312,60 @@ public class ClazzService {
     // ========== 学生端：查询所在班级 ==========
 
     /**
-     * 查询学生当前所在的活跃班级
+     * 查询学生所在的所有活跃且未过期班级（学生可同时加入多个班级）
      */
-    public Clazz getStudentActiveClass(Long studentId) {
+    public List<Clazz> getStudentClasses(Long studentId) {
         LambdaQueryWrapper<ClassStudent> csWrapper = new LambdaQueryWrapper<>();
         csWrapper.eq(ClassStudent::getStudentId, studentId);
         List<ClassStudent> csList = classStudentMapper.selectList(csWrapper);
 
-        if (csList.isEmpty()) {
-            return null;
-        }
-
+        List<Clazz> result = new ArrayList<>();
         for (ClassStudent cs : csList) {
             Clazz clazz = clazzMapper.selectById(cs.getClassId());
-            if (clazz != null && clazz.getStatus() == 1) {
-                // 检查是否过期
-                if (clazz.getEndTime().isAfter(LocalDateTime.now())) {
-                    return clazz;
-                }
+            if (clazz == null || clazz.getStatus() != 1) continue;
+            if (clazz.getEndTime() == null || !clazz.getEndTime().isAfter(LocalDateTime.now())) continue;
+            if (clazz.getVideoSetId() != null) {
+                VideoSet vs = videoSetMapper.selectById(clazz.getVideoSetId());
+                clazz.setVideoSetName(vs != null ? vs.getName() : null);
             }
+            if (clazz.getKbId() != null) {
+                KnowledgeBase kb = knowledgeBaseMapper.selectById(clazz.getKbId());
+                clazz.setKbName(kb != null ? kb.getName() : null);
+            }
+            result.add(clazz);
         }
-        return null;
+        return result;
+    }
+
+    /**
+     * 校验学生是否在某班级中，返回该班级（含挂载的视频集/知识库信息），否则 null
+     */
+    public Clazz getClazzForStudent(Long classId, Long studentId) {
+        LambdaQueryWrapper<ClassStudent> csWrapper = new LambdaQueryWrapper<>();
+        csWrapper.eq(ClassStudent::getClassId, classId);
+        csWrapper.eq(ClassStudent::getStudentId, studentId);
+        if (classStudentMapper.selectCount(csWrapper) == 0) {
+            return null;
+        }
+        Clazz clazz = clazzMapper.selectById(classId);
+        if (clazz == null) return null;
+        if (clazz.getVideoSetId() != null) {
+            VideoSet vs = videoSetMapper.selectById(clazz.getVideoSetId());
+            clazz.setVideoSetName(vs != null ? vs.getName() : null);
+        }
+        if (clazz.getKbId() != null) {
+            KnowledgeBase kb = knowledgeBaseMapper.selectById(clazz.getKbId());
+            clazz.setKbName(kb != null ? kb.getName() : null);
+        }
+        return clazz;
+    }
+
+    /**
+     * 查询学生当前所在的活跃班级（返回首个，向后兼容）
+     */
+    public Clazz getStudentActiveClass(Long studentId) {
+        List<Clazz> classes = getStudentClasses(studentId);
+        return classes.isEmpty() ? null : classes.get(0);
     }
 
     /**
@@ -281,28 +404,41 @@ public class ClazzService {
             return Result.error(400, "学号和姓名不能为空");
         }
 
-        // 检查学号是否已存在
+        // 先查是否已有该学号账号：有则直接加入班级（支持一个学生进多个班级），无则新建
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getUsername, studentId.trim());
-        if (userMapper.selectCount(wrapper) > 0) {
-            return Result.error(400, "学号已存在");
-        }
+        User existing = userMapper.selectOne(wrapper);
 
-        // 创建用户
-        User user = new User();
-        user.setUsername(studentId.trim());
-        String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : studentId;
-        user.setPassword(passwordEncoder.encode(defaultPassword));
-        user.setRealName(name.trim());
-        user.setPhone(body.get("phone"));
-        user.setCollege(body.get("college"));
-        user.setMajor(body.get("major"));
-        user.setGrade(body.get("grade"));
-        user.setRole("STUDENT");
-        user.setStatus(1);
-        user.setCreateTime(LocalDateTime.now());
-        user.setUpdateTime(LocalDateTime.now());
-        userMapper.insert(user);
+        User user;
+        if (existing != null) {
+            if (!"STUDENT".equals(existing.getRole())) {
+                return Result.error(400, "该学号不是学生账号，无法加入班级");
+            }
+            // 检查是否已在本班级
+            LambdaQueryWrapper<ClassStudent> csCheck = new LambdaQueryWrapper<>();
+            csCheck.eq(ClassStudent::getClassId, classId);
+            csCheck.eq(ClassStudent::getStudentId, existing.getId());
+            if (classStudentMapper.selectCount(csCheck) > 0) {
+                return Result.error(400, "该学生已在班级中");
+            }
+            user = existing;
+        } else {
+            // 新建学生账号
+            user = new User();
+            user.setUsername(studentId.trim());
+            String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : studentId;
+            user.setPassword(passwordEncoder.encode(defaultPassword));
+            user.setRealName(name.trim());
+            user.setPhone(body.get("phone"));
+            user.setCollege(body.get("college"));
+            user.setMajor(body.get("major"));
+            user.setGrade(body.get("grade"));
+            user.setRole("STUDENT");
+            user.setStatus(1);
+            user.setCreateTime(LocalDateTime.now());
+            user.setUpdateTime(LocalDateTime.now());
+            userMapper.insert(user);
+        }
 
         // 加入班级
         ClassStudent cs = new ClassStudent();

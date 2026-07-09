@@ -107,6 +107,20 @@
             <artifactId>tess4j</artifactId>
             <version>5.11.0</version>
         </dependency>
+
+        <!-- HSLF：解析旧版二进制 .ppt（XMLSlideShow 只能读 .pptx） -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-scratchpad</artifactId>
+            <version>4.1.2</version>
+        </dependency>
+
+        <!-- jieba 中文分词：关键词统计用它做准确切词，替代原先 n-gram 滑窗的碎片化实现 -->
+        <dependency>
+            <groupId>com.huaban</groupId>
+            <artifactId>jieba-analysis</artifactId>
+            <version>1.0.2</version>
+        </dependency>
     </dependencies>
 
     <build>

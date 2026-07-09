@@ -1,19 +1,46 @@
 import request from './request'
 
-// 获取章节列表（公共）
-export function getChapters() {
+// ========== 视频集（套）管理 ==========
+export function getVideoSets() {
+  return request({ url: '/admin/video-sets', method: 'get' })
+}
+
+export function createVideoSet(data) {
+  return request({ url: '/admin/video-sets', method: 'post', data })
+}
+
+export function updateVideoSet(id, data) {
+  return request({ url: `/admin/video-sets/${id}`, method: 'put', data })
+}
+
+export function deleteVideoSet(id) {
+  return request({ url: `/admin/video-sets/${id}`, method: 'delete' })
+}
+
+// 获取某视频集下的章节（教师端）
+export function getVideoSetChapters(setId) {
+  return request({ url: `/admin/video-sets/${setId}/chapters`, method: 'get' })
+}
+
+// 学生端：获取某班级的视频章节
+export function getClassChapters(classId) {
+  return request({ url: `/students/classes/${classId}/chapters`, method: 'get' })
+}
+
+// ========== 章节管理（教师端）==========
+export function getChapters(videoSetId) {
   return request({
     url: '/courses/chapters',
-    method: 'get'
+    method: 'get',
+    params: videoSetId != null ? { videoSetId } : {}
   })
 }
 
-// 教师端：章管理
-export function addChapter(title) {
+export function addChapter(title, videoSetId) {
   return request({
     url: '/admin/chapters',
     method: 'post',
-    data: { title }
+    data: { title, videoSetId }
   })
 }
 
@@ -40,7 +67,7 @@ export function moveChapter(id, direction) {
   })
 }
 
-// 教师端：节管理
+// ========== 节管理（教师端）==========
 export function addSection(chapterId, title) {
   return request({
     url: `/admin/chapters/${chapterId}/sections`,
@@ -72,7 +99,7 @@ export function moveSection(id, direction) {
   })
 }
 
-// 教师端：视频上传
+// ========== 视频上传 ==========
 export function uploadVideo(sectionId, file, onProgress) {
   const formData = new FormData()
   formData.append('file', file)
@@ -92,12 +119,12 @@ export function deleteVideo(sectionId) {
   })
 }
 
-// 学生端：视频进度
-export function saveVideoProgress(sectionId, currentTime, completed) {
+// ========== 学生端：视频进度 ==========
+export function saveVideoProgress(sectionId, currentTime, completed, classId) {
   return request({
     url: '/students/video-progress',
     method: 'post',
-    data: { sectionId, currentTime, completed }
+    data: { sectionId, currentTime, completed, classId }
   })
 }
 

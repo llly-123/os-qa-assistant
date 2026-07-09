@@ -1,5 +1,23 @@
 import request from './request'
 
+// ========== 知识库（套）管理 ==========
+export function getKnowledgeBases() {
+  return request({ url: '/admin/knowledge-bases', method: 'get' })
+}
+
+export function createKnowledgeBase(data) {
+  return request({ url: '/admin/knowledge-bases', method: 'post', data })
+}
+
+export function updateKnowledgeBase(id, data) {
+  return request({ url: `/admin/knowledge-bases/${id}`, method: 'put', data })
+}
+
+export function deleteKnowledgeBase(id) {
+  return request({ url: `/admin/knowledge-bases/${id}`, method: 'delete' })
+}
+
+// ========== 知识库内文档管理 ==========
 export function getKnowledgeList(params) {
   return request({
     url: '/admin/knowledge',
@@ -8,9 +26,10 @@ export function getKnowledgeList(params) {
   })
 }
 
-export function uploadKnowledge(file, onProgress) {
+export function uploadKnowledge(file, kbId, onProgress) {
   const formData = new FormData()
   formData.append('file', file)
+  formData.append('kbId', kbId)
   return request({
     url: '/admin/knowledge/upload',
     method: 'post',
@@ -36,17 +55,18 @@ export function rebuildKnowledgeIndex() {
   })
 }
 
-export function getKnowledgeStatus() {
+export function getKnowledgeStatus(params) {
   return request({
     url: '/admin/knowledge/status',
-    method: 'get'
+    method: 'get',
+    params
   })
 }
 
-export function importKnowledgeText(title, content) {
+export function importKnowledgeText(title, content, kbId) {
   return request({
     url: '/admin/knowledge/import-text',
     method: 'post',
-    data: { title, content }
+    data: { title, content, kbId }
   })
 }

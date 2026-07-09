@@ -13,16 +13,33 @@
             </svg>
           </div>
           <transition name="fade">
-            <span v-if="!sidebarCollapsed" class="logo-text">OS AI 助手</span>
+            <span v-if="!sidebarCollapsed" class="logo-text">{{ userStore.siteName }}</span>
           </transition>
         </div>
 
         <!-- Student Navigation -->
         <div v-if="role === 'STUDENT'" class="sidebar-content">
+          <div v-if="!sidebarCollapsed" class="nav-section">
+            <div class="section-label">我的班级</div>
+            <el-select
+              :model-value="chatStore.currentClassId"
+              placeholder="选择班级"
+              size="default"
+              style="width: 100%"
+              @change="onClassChange"
+            >
+              <el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" />
+            </el-select>
+            <div v-if="classes.length === 0" class="empty-sessions" style="padding: 8px 4px">
+              未加入任何班级
+            </div>
+          </div>
+
           <div class="nav-section">
             <div class="new-chat-btn-wrap">
               <el-button
                 type="primary"
+                :disabled="classes.length === 0"
                 @click="createNewSession"
                 :class="['new-chat-btn', { collapsed: sidebarCollapsed }]"
               >
@@ -121,6 +138,14 @@
             >
               <el-icon><School /></el-icon>
               <span v-if="!sidebarCollapsed">班级管理</span>
+            </div>
+            <div
+              :class="['nav-item', { active: currentRoute === '/admin/settings' }]"
+              @click="router.push('/admin/settings')"
+              :title="sidebarCollapsed ? '系统设置' : ''"
+            >
+              <el-icon><Setting /></el-icon>
+              <span v-if="!sidebarCollapsed">系统设置</span>
             </div>
           </div>
         </div>
@@ -290,6 +315,7 @@ const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPasswor
 
 const sessions = computed(() => chatStore.sessions)
 const currentSessionId = computed(() => chatStore.currentSessionId)
+const classes = computed(() => chatStore.classes)
 const role = computed(() => userStore.role)
 const username = computed(() => userStore.username)
 const currentRoute = computed(() => route.path)
@@ -301,9 +327,14 @@ const maskedPhone = computed(() => {
 
 onMounted(async () => {
   if (role.value === 'STUDENT') {
-    await chatStore.fetchSessions()
+    await chatStore.fetchClasses()
   }
 })
+
+async function onClassChange(classId) {
+  await chatStore.setCurrentClass(classId)
+  // 切换班级后若当前在统计页等也无需特殊处理；会话列表已刷新
+}
 
 async function createNewSession() {
   await chatStore.createSession()

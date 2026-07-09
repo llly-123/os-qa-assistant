@@ -73,6 +73,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
-        return null;
+        // <video>/<img> 等媒体标签无法携带 Authorization 头，支持通过 query 参数传 token
+        String queryToken = request.getParameter("token");
+        return StringUtils.hasText(queryToken) ? queryToken : null;
     }
 }

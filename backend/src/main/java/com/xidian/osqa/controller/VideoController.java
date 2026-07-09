@@ -1,6 +1,7 @@
 package com.xidian.osqa.controller;
 
 import com.xidian.osqa.common.Result;
+import com.xidian.osqa.entity.Clazz;
 import com.xidian.osqa.entity.VideoProgress;
 import com.xidian.osqa.mapper.VideoProgressMapper;
 import com.xidian.osqa.service.VideoService;
@@ -47,15 +48,17 @@ public class VideoController {
     // ========== 公共：获取章节列表 ==========
 
     @GetMapping("/courses/chapters")
-    public Result<?> getChapters() {
-        return videoService.getChapters();
+    public Result<?> getChapters(@RequestParam(required = false) Long videoSetId) {
+        return videoService.getChapters(videoSetId);
     }
 
     // ========== 教师端：章管理 ==========
 
     @PostMapping("/admin/chapters")
-    public Result<?> addChapter(@RequestBody Map<String, String> body) {
-        return videoService.addChapter(body.get("title"));
+    public Result<?> addChapter(@RequestBody Map<String, Object> body) {
+        Object vsId = body.get("videoSetId");
+        Long videoSetId = vsId == null ? null : Long.valueOf(vsId.toString());
+        return videoService.addChapter(videoSetId, (String) body.get("title"));
     }
 
     @PutMapping("/admin/chapters/{id}")
@@ -188,6 +191,18 @@ public class VideoController {
         }
     }
 
+    // ========== 学生端：章节（按班级）==========
+
+    @GetMapping("/students/classes/{classId}/chapters")
+    public Result<?> getClassChapters(HttpServletRequest request, @PathVariable Long classId) {
+        Long userId = (Long) request.getAttribute("userId");
+        Clazz clazz = clazzService.getClazzForStudent(classId, userId);
+        if (clazz == null) {
+            return Result.error(403, "未加入该班级或班级已失效");
+        }
+        return videoService.getChapters(clazz.getVideoSetId());
+    }
+
     // ========== 学生端：视频进度 ==========
 
     @PostMapping("/students/video-progress")
@@ -198,8 +213,16 @@ public class VideoController {
                 return Result.error(401, "未登录");
             }
 
-            // 检查是否在班级中
-            var clazz = clazzService.getStudentActiveClass(userId);
+            // 按班级校验成员关系
+            Object classIdObj = body.get("classId");
+            Clazz clazz = null;
+            if (classIdObj != null) {
+                Long classId = Long.valueOf(classIdObj.toString());
+                clazz = clazzService.getClazzForStudent(classId, userId);
+            }
+            if (clazz == null) {
+                clazz = clazzService.getStudentActiveClass(userId);
+            }
             if (clazz == null) {
                 return Result.error(403, "请先进入班级");
             }

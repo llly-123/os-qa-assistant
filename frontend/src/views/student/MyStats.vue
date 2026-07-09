@@ -2,6 +2,7 @@
   <div class="my-stats">
     <div class="page-header">
       <h2>我的学习统计</h2>
+      <p v-if="currentClassName" class="page-sub">当前班级：{{ currentClassName }}</p>
     </div>
 
     <div class="stat-grid">
@@ -20,7 +21,7 @@
         </div>
         <div class="stat-body">
           <span class="stat-value">{{ stats.citationRate || 0 }}%</span>
-          <span class="stat-label">引用教材率</span>
+          <span class="stat-label">引用资料率</span>
         </div>
       </div>
     </div>
@@ -44,15 +45,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { getMyStats } from '@/api/chat'
+import { useChatStore } from '@/stores/chat'
 
+const chatStore = useChatStore()
 const stats = ref({})
 const keywords = ref([])
+const currentClassName = computed(() => {
+  const c = chatStore.classes.find(c => c.id === chatStore.currentClassId)
+  return c ? c.name : ''
+})
 
-onMounted(async () => {
+async function loadStats() {
   try {
-    const res = await getMyStats()
+    const res = await getMyStats(chatStore.currentClassId)
     if (res.data) {
       stats.value = {
         totalQuestions: res.data.totalQuestions || 0,
@@ -63,7 +70,15 @@ onMounted(async () => {
   } catch (error) {
     console.error('获取统计失败:', error)
   }
+}
+
+onMounted(async () => {
+  if (!chatStore.classes.length) await chatStore.fetchClasses()
+  await loadStats()
 })
+
+// 切换班级后刷新统计
+watch(() => chatStore.currentClassId, loadStats)
 
 function getTagSize(count) {
   if (count >= 5) return 'large'
@@ -89,10 +104,16 @@ function getTagType(count) {
   margin-bottom: 28px;
 
   h2 {
-    margin: 0;
+    margin: 0 0 4px;
     font-size: 22px;
     font-weight: 700;
     color: var(--color-text-primary);
+  }
+
+  .page-sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-text-tertiary);
   }
 }
 

@@ -16,6 +16,8 @@ public class ChatMessage {
     private String sourceType;
     @TableField("create_time")
     private LocalDateTime createTime;
+    @TableField("keywords")
+    private String keywords;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -31,4 +33,6 @@ public class ChatMessage {
     public void setSourceType(String sourceType) { this.sourceType = sourceType; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
+    public String getKeywords() { return keywords; }
+    public void setKeywords(String keywords) { this.keywords = keywords; }
 }

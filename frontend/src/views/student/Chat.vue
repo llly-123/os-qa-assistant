@@ -28,13 +28,13 @@
             </svg>
           </div>
           <h3>开始提问吧</h3>
-          <p>我是基于西电《操作系统》教材的 AI 答疑助手</p>
-          <p v-if="!inClass" class="no-class-warn">⚠️ 未进入班级，教师无法统计问答情况</p>
+          <p>我是《{{ userStore.courseName }}》课程的 AI 答疑助手</p>
+          <p v-if="!inClass" class="no-class-warn">⚠️ 未加入班级，请先在左侧选择班级后再提问</p>
           <p v-else class="hint-text">点击上方标签快速提问，或直接输入您的问题</p>
         </div>
 
         <div
-          v-for="(msg, index) in messages"
+          v-for="(msg, index) in visibleMessages"
           :key="index"
           :class="['message-row', msg.role]"
         >
@@ -131,8 +131,8 @@
         <!-- Not in class -->
         <div v-if="!inClass" class="video-placeholder">
           <el-icon :size="48" color="#f59e0b"><Lock /></el-icon>
-          <h3>请先进入班级</h3>
-          <p>联系教师将你加入班级后即可观看视频</p>
+          <h3>请先选择班级</h3>
+          <p>在左侧选择已加入的班级后即可观看视频</p>
         </div>
 
         <template v-else>
@@ -176,7 +176,7 @@
             <div v-else class="player-wrapper">
               <video
                 ref="videoPlayer"
-                :src="currentVideoSection.videoUrl"
+                :src="videoSrc(currentVideoSection.videoUrl)"
                 controls
                 @timeupdate="onVideoTimeUpdate"
                 @loadedmetadata="onVideoLoaded"
@@ -214,21 +214,31 @@ import 'highlight.js/styles/github-dark.css'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { useChatStore } from '@/stores/chat'
+import { useUserStore } from '@/stores/user'
 import { getQuickPrompts } from '@/api/chat'
-import { getChapters, getVideoProgress, saveVideoProgress } from '@/api/video'
-import { getMyClass } from '@/api/clazz'
+import { getClassChapters, getVideoProgress, saveVideoProgress } from '@/api/video'
+
+// <video> 标签无法携带 Authorization 头，视频走 ?token= 查询参数鉴权
+function videoSrc(url) {
+  if (!url) return ''
+  const token = localStorage.getItem('token')
+  return token ? url + (url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(token) : url
+}
 
 const chatStore = useChatStore()
+const userStore = useUserStore()
 
 const messagesContainer = ref(null)
 const inputMessage = ref('')
-const isTyping = ref(false)
+const isTyping = computed(() => chatStore.isTyping)
 const streamingContent = ref('')
 const webSearchEnabled = ref(false)
 const videoPlayer = ref(null)
 
 const messages = computed(() => chatStore.messages)
 const currentSessionId = computed(() => chatStore.currentSessionId)
+// 展示用：过滤掉思考中的空 assistant 占位（靠 typing 指示器代替），回答回来后占位被填充自然显示
+const visibleMessages = computed(() => chatStore.messages.filter(m => !(m.role === 'assistant' && !m.content)))
 
 const quickQuestions = ref([])
 
@@ -240,9 +250,9 @@ const currentVideoChapter = ref(null)
 const videoProgressMap = ref({})
 let progressSaveTimer = null
 
-// Class state
-const myClass = ref(null)
-const inClass = ref(false)
+// Class state：取自 chatStore（学生可同时加入多个班级，在侧边栏切换）
+const inClass = computed(() => !!chatStore.currentClassId)
+const currentClassId = computed(() => chatStore.currentClassId)
 
 // Layout state
 const leftWidth = ref(0)
@@ -263,10 +273,14 @@ function toggleVideoPanel() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadQuickPromptsFn()
   scrollToBottom()
-  loadClassAndVideoData()
+  // 确保学生班级已加载（侧边栏也会加载，这里兜底）
+  if (!chatStore.classes.length) {
+    await chatStore.fetchClasses()
+  }
+  await loadChaptersAndProgress()
 
   const wasCollapsed = localStorage.getItem('isVideoCollapsed') === 'true'
   if (wasCollapsed) {
@@ -278,6 +292,11 @@ onMounted(() => {
   }
 })
 
+// 切换班级时重新加载该班级的视频章节
+watch(() => chatStore.currentClassId, () => {
+  loadChaptersAndProgress()
+})
+
 onBeforeUnmount(() => {
   if (progressSaveTimer) clearInterval(progressSaveTimer)
   if (localStorage.getItem('token')) saveCurrentProgress()
@@ -285,47 +304,40 @@ onBeforeUnmount(() => {
 
 async function loadQuickPromptsFn() {
   try {
-    const res = await getQuickPrompts()
+    const res = await getQuickPrompts(currentClassId.value)
     if (res?.data?.length > 0) {
       quickQuestions.value = res.data
     } else {
-      quickQuestions.value = ['什么是进程死锁？', '死锁的四个必要条件', 'LRU算法原理', '页面置换算法', '信号量与P/V操作', '进程调度算法']
+      quickQuestions.value = ['请解释这个知识点的核心概念', '举例说明它的应用场景', '常见误区有哪些', '与相关概念的区别', '总结这一章的要点', '这个知识点如何考查']
     }
   } catch (e) {
-    quickQuestions.value = ['什么是进程死锁？', '死锁的四个必要条件', 'LRU算法原理', '页面置换算法', '信号量与P/V操作', '进程调度算法']
+    quickQuestions.value = ['请解释这个知识点的核心概念', '举例说明它的应用场景', '常见误区有哪些', '与相关概念的区别', '总结这一章的要点', '这个知识点如何考查']
   }
 }
 
-async function loadClassAndVideoData() {
+async function loadChaptersAndProgress() {
   try {
-    const classRes = await getMyClass()
-    if (classRes.data) {
-      myClass.value = classRes.data
-      inClass.value = true
-    } else {
-      myClass.value = null
-      inClass.value = false
+    if (!currentClassId.value) {
+      chapters.value = []
+      return
     }
+    const [chaptersRes, progressRes] = await Promise.all([getClassChapters(currentClassId.value), getVideoProgress()])
+    chapters.value = chaptersRes.data || []
+    expandedChapters.value = chapters.value.map(c => c.id)
 
-    if (inClass.value) {
-      const [chaptersRes, progressRes] = await Promise.all([getChapters(), getVideoProgress()])
-      chapters.value = chaptersRes.data || []
-      expandedChapters.value = chapters.value.map(c => c.id)
+    const progressList = progressRes.data || []
+    const map = {}
+    progressList.forEach(p => { map[p.sectionId] = p })
+    videoProgressMap.value = map
 
-      const progressList = progressRes.data || []
-      const map = {}
-      progressList.forEach(p => { map[p.sectionId] = p })
-      videoProgressMap.value = map
-
-      const lastSectionId = localStorage.getItem('lastVideoSectionId')
-      if (lastSectionId) {
-        for (const ch of chapters.value) {
-          const sec = ch.sections?.find(s => s.id === Number(lastSectionId))
-          if (sec && sec.videoUrl) { selectVideoSection(sec, ch); break }
-        }
+    const lastSectionId = localStorage.getItem('lastVideoSectionId')
+    if (lastSectionId) {
+      for (const ch of chapters.value) {
+        const sec = ch.sections?.find(s => s.id === Number(lastSectionId))
+        if (sec && sec.videoUrl) { selectVideoSection(sec, ch); break }
       }
     }
-  } catch (e) { console.error('加载班级/视频数据失败:', e) }
+  } catch (e) { console.error('加载视频数据失败:', e) }
 }
 
 function selectVideoSection(section, chapter) {
@@ -384,7 +396,7 @@ async function saveCurrentProgress(completed = false) {
   const duration = videoPlayer.value.duration || 0
   const isCompleted = completed || (duration > 0 && currentTime / duration > 0.9)
   try {
-    await saveVideoProgress(sectionId, currentTime, isCompleted)
+    await saveVideoProgress(sectionId, currentTime, isCompleted, currentClassId.value)
     videoProgressMap.value[sectionId] = { ...videoProgressMap.value[sectionId], sectionId, playTime: currentTime, completed: isCompleted ? 1 : 0 }
   } catch (e) { /* silent */ }
 }
@@ -473,7 +485,7 @@ function scrollToBottom() {
   })
 }
 
-watch(messages, () => scrollToBottom(), { deep: true })
+watch(visibleMessages, () => scrollToBottom(), { deep: true })
 
 function askQuickQuestion(question) {
   inputMessage.value = question
@@ -485,13 +497,19 @@ async function sendMessage() {
   if (!content || isTyping.value) return
 
   if (!currentSessionId.value) await chatStore.createSession()
+  const sessionId = currentSessionId.value
 
   const hasVideoContext = !!currentVideoSection.value && !isVideoCollapsed.value
   chatStore.addMessage({ role: 'user', content, createTime: new Date().toISOString(), videoContext: hasVideoContext })
   inputMessage.value = ''
 
-  isTyping.value = true
-  chatStore.addMessage({ role: 'assistant', content: '', createTime: new Date().toISOString(), citation: null })
+  chatStore.isTyping = true
+  // 保存占位引用：回答返回后直接填充该对象，而非盲取 messages 末尾——
+  // 否则若期间重新加载过会话（如切换路由后点了侧边栏会话触发 fetchMessages），
+  // 末尾可能已变成 user 提问，会把 AI 回答错误塞进 user 消息，
+  // 导致“提问不见了，变成我的气泡作出的回答”。
+  const assistantMsg = { role: 'assistant', content: '', createTime: new Date().toISOString(), citation: null }
+  chatStore.addMessage(assistantMsg)
 
   try {
     const token = localStorage.getItem('token')
@@ -501,7 +519,7 @@ async function sendMessage() {
       body.sectionId = currentVideoSection.value.id
     }
 
-    const response = await fetch(`/api/chat/sessions/${currentSessionId.value}/ask`, {
+    const response = await fetch(`/api/chat/sessions/${sessionId}/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify(body)
@@ -514,10 +532,17 @@ async function sendMessage() {
 
     const res = await response.json()
     if (res.code === 200 && res.data) {
-      const lastMsg = chatStore.messages[chatStore.messages.length - 1]
-      lastMsg.content = res.data.content || '暂无回答'
-      lastMsg.citation = res.data.citation || null
-      lastMsg.sourceType = webSearchEnabled.value ? 'web' : 'textbook'
+      if (chatStore.currentSessionId !== sessionId) {
+        // 用户已切到别的会话，不打扰当前展示
+      } else if (chatStore.messages.indexOf(assistantMsg) !== -1) {
+        // 占位仍在，直接填充
+        assistantMsg.content = res.data.content || '暂无回答'
+        assistantMsg.citation = res.data.citation || null
+        assistantMsg.sourceType = webSearchEnabled.value ? 'web' : 'textbook'
+      } else {
+        // 占位已被重新加载覆盖（期间点过会话等）；此时 DB 已含 assistant，以 DB 为准同步
+        await chatStore.fetchMessages(sessionId)
+      }
       chatStore.fetchSessions()
     } else {
       throw new Error(res.message || '请求失败')
@@ -525,10 +550,10 @@ async function sendMessage() {
   } catch (error) {
     console.error('发送消息失败:', error)
     ElMessage.error(error.message || '发送失败，请重试')
-    const lastMsg = chatStore.messages[chatStore.messages.length - 1]
-    if (lastMsg && lastMsg.role === 'assistant' && !lastMsg.content) chatStore.messages.pop()
+    const idx = chatStore.messages.indexOf(assistantMsg)
+    if (idx !== -1 && !assistantMsg.content) chatStore.messages.splice(idx, 1)
   } finally {
-    isTyping.value = false
+    chatStore.isTyping = false
   }
 }
 </script>

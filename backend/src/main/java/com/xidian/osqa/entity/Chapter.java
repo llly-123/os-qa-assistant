@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 public class Chapter {
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("video_set_id")
+    private Long videoSetId;
     private String title;
     @TableField("sort_order")
     private Integer sortOrder;
@@ -22,6 +24,8 @@ public class Chapter {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+    public Long getVideoSetId() { return videoSetId; }
+    public void setVideoSetId(Long videoSetId) { this.videoSetId = videoSetId; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
     public Integer getSortOrder() { return sortOrder; }
