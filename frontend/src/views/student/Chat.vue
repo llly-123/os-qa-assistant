@@ -1,21 +1,7 @@
 <template>
-  <div class="learn-container">
+  <div class="learn-container" v-if="inClass">
     <!-- Left: Chat Panel -->
     <div class="chat-panel" :style="{ width: isVideoCollapsed ? '100%' : leftWidth + 'px' }">
-      <!-- Quick Questions Header -->
-      <div class="chat-topbar">
-        <div class="quick-chips">
-          <span
-            v-for="q in quickQuestions"
-            :key="q"
-            class="quick-chip"
-            @click="askQuickQuestion(q)"
-          >
-            {{ q }}
-          </span>
-        </div>
-      </div>
-
       <!-- Messages Area -->
       <div class="chat-messages" ref="messagesContainer">
         <div v-if="messages.length === 0" class="empty-state">
@@ -29,8 +15,7 @@
           </div>
           <h3>开始提问吧</h3>
           <p>我是《{{ userStore.courseName }}》课程的 AI 答疑助手</p>
-          <p v-if="!inClass" class="no-class-warn">⚠️ 未加入班级，请先在左侧选择班级后再提问</p>
-          <p v-else class="hint-text">点击上方标签快速提问，或直接输入您的问题</p>
+          <p class="hint-text">直接输入您的问题开始提问</p>
         </div>
 
         <div
@@ -128,76 +113,67 @@
       </div>
 
       <div class="video-panel-inner">
-        <!-- Not in class -->
-        <div v-if="!inClass" class="video-placeholder">
-          <el-icon :size="48" color="#f59e0b"><Lock /></el-icon>
-          <h3>请先选择班级</h3>
-          <p>在左侧选择已加入的班级后即可观看视频</p>
+        <div class="video-topbar">
+          <span class="video-title">📺 视频学习</span>
+          <el-tag v-if="currentVideoSection" type="success" size="small">
+            {{ currentVideoChapter?.title }} · {{ currentVideoSection.title }}
+          </el-tag>
         </div>
 
-        <template v-else>
-          <div class="video-topbar">
-            <span class="video-title">📺 视频学习</span>
-            <el-tag v-if="currentVideoSection" type="success" size="small">
-              {{ currentVideoChapter?.title }} · {{ currentVideoSection.title }}
-            </el-tag>
-          </div>
+        <!-- Chapter selector -->
+        <div class="chapter-selector">
+          <el-collapse v-model="expandedChapters">
+            <el-collapse-item v-for="chapter in chapters" :key="chapter.id" :title="chapter.title" :name="chapter.id">
+              <div
+                v-for="section in chapter.sections"
+                :key="section.id"
+                :class="['section-row', { active: currentVideoSection?.id === section.id, disabled: !section.videoUrl }]"
+                @click="selectVideoSection(section, chapter)"
+              >
+                <span class="section-icon">{{ section.videoUrl ? '🎬' : '🚫' }}</span>
+                <span class="section-name">{{ section.title }}</span>
+                <el-tag v-if="isSectionCompleted(section.id)" size="small" type="success" class="done-tag">已学</el-tag>
+              </div>
+              <div v-if="!chapter.sections || chapter.sections.length === 0" class="empty-section">暂无内容</div>
+            </el-collapse-item>
+          </el-collapse>
+          <el-empty v-if="chapters.length === 0" description="暂无课程视频" :image-size="50" />
+        </div>
 
-          <!-- Chapter selector -->
-          <div class="chapter-selector">
-            <el-collapse v-model="expandedChapters">
-              <el-collapse-item v-for="chapter in chapters" :key="chapter.id" :title="chapter.title" :name="chapter.id">
-                <div
-                  v-for="section in chapter.sections"
-                  :key="section.id"
-                  :class="['section-row', { active: currentVideoSection?.id === section.id, disabled: !section.videoUrl }]"
-                  @click="selectVideoSection(section, chapter)"
-                >
-                  <span class="section-icon">{{ section.videoUrl ? '🎬' : '🚫' }}</span>
-                  <span class="section-name">{{ section.title }}</span>
-                  <el-tag v-if="isSectionCompleted(section.id)" size="small" type="success" class="done-tag">已学</el-tag>
-                </div>
-                <div v-if="!chapter.sections || chapter.sections.length === 0" class="empty-section">暂无内容</div>
-              </el-collapse-item>
-            </el-collapse>
-            <el-empty v-if="chapters.length === 0" description="暂无课程视频" :image-size="50" />
+        <!-- Video Player -->
+        <div class="player-area">
+          <div v-if="!currentVideoSection" class="video-placeholder">
+            <el-icon :size="40" color="#cbd5e1"><VideoCamera /></el-icon>
+            <p>从上方选择章节观看视频</p>
           </div>
+          <div v-else-if="!currentVideoSection.videoUrl" class="video-placeholder">
+            <el-icon :size="40" color="#cbd5e1"><VideoCamera /></el-icon>
+            <p>该章节暂无视频</p>
+          </div>
+          <div v-else class="player-wrapper">
+            <video
+              ref="videoPlayer"
+              :src="videoSrc(currentVideoSection.videoUrl)"
+              controls
+              @timeupdate="onVideoTimeUpdate"
+              @loadedmetadata="onVideoLoaded"
+              @ended="onVideoEnded"
+            ></video>
+            <el-button class="ask-video-btn" size="small" type="primary" @click="askAboutVideo">
+              <el-icon><ChatDotRound /></el-icon> 提问当前内容
+            </el-button>
+          </div>
+        </div>
 
-          <!-- Video Player -->
-          <div class="player-area">
-            <div v-if="!currentVideoSection" class="video-placeholder">
-              <el-icon :size="40" color="#cbd5e1"><VideoCamera /></el-icon>
-              <p>从上方选择章节观看视频</p>
-            </div>
-            <div v-else-if="!currentVideoSection.videoUrl" class="video-placeholder">
-              <el-icon :size="40" color="#cbd5e1"><VideoCamera /></el-icon>
-              <p>该章节暂无视频</p>
-            </div>
-            <div v-else class="player-wrapper">
-              <video
-                ref="videoPlayer"
-                :src="videoSrc(currentVideoSection.videoUrl)"
-                controls
-                @timeupdate="onVideoTimeUpdate"
-                @loadedmetadata="onVideoLoaded"
-                @ended="onVideoEnded"
-              ></video>
-              <el-button class="ask-video-btn" size="small" type="primary" @click="askAboutVideo">
-                <el-icon><ChatDotRound /></el-icon> 提问当前内容
-              </el-button>
-            </div>
-          </div>
-
-          <!-- Progress -->
-          <div class="progress-bar">
-            <div class="progress-label">学习进度：{{ completedCount }} / {{ totalSectionCount }} 节</div>
-            <el-progress
-              :percentage="totalSectionCount > 0 ? Math.round(completedCount / totalSectionCount * 100) : 0"
-              :stroke-width="6"
-              :show-text="false"
-            />
-          </div>
-        </template>
+        <!-- Progress -->
+        <div class="progress-bar">
+          <div class="progress-label">学习进度：{{ completedCount }} / {{ totalSectionCount }} 节</div>
+          <el-progress
+            :percentage="totalSectionCount > 0 ? Math.round(completedCount / totalSectionCount * 100) : 0"
+            :stroke-width="6"
+            :show-text="false"
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -206,7 +182,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ChatDotRound, Promotion, VideoCamera, ArrowLeft, ArrowRight, Lock } from '@element-plus/icons-vue'
+import { ChatDotRound, Promotion, VideoCamera, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
@@ -215,7 +191,6 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
-import { getQuickPrompts } from '@/api/chat'
 import { getClassChapters, getVideoProgress, saveVideoProgress } from '@/api/video'
 
 // <video> 标签无法携带 Authorization 头，视频走 ?token= 查询参数鉴权
@@ -239,8 +214,6 @@ const messages = computed(() => chatStore.messages)
 const currentSessionId = computed(() => chatStore.currentSessionId)
 // 展示用：过滤掉思考中的空 assistant 占位（靠 typing 指示器代替），回答回来后占位被填充自然显示
 const visibleMessages = computed(() => chatStore.messages.filter(m => !(m.role === 'assistant' && !m.content)))
-
-const quickQuestions = ref([])
 
 // Video state
 const chapters = ref([])
@@ -274,11 +247,13 @@ function toggleVideoPanel() {
 }
 
 onMounted(async () => {
-  loadQuickPromptsFn()
-  scrollToBottom()
   // 确保学生班级已加载（侧边栏也会加载，这里兜底）
   if (!chatStore.classes.length) {
     await chatStore.fetchClasses()
+  }
+  // 重新挂载时同步当前会话消息（回答可能已在后端但前端占位为空）
+  if (chatStore.currentSessionId) {
+    await chatStore.fetchMessages(chatStore.currentSessionId)
   }
   await loadChaptersAndProgress()
 
@@ -301,19 +276,6 @@ onBeforeUnmount(() => {
   if (progressSaveTimer) clearInterval(progressSaveTimer)
   if (localStorage.getItem('token')) saveCurrentProgress()
 })
-
-async function loadQuickPromptsFn() {
-  try {
-    const res = await getQuickPrompts(currentClassId.value)
-    if (res?.data?.length > 0) {
-      quickQuestions.value = res.data
-    } else {
-      quickQuestions.value = ['请解释这个知识点的核心概念', '举例说明它的应用场景', '常见误区有哪些', '与相关概念的区别', '总结这一章的要点', '这个知识点如何考查']
-    }
-  } catch (e) {
-    quickQuestions.value = ['请解释这个知识点的核心概念', '举例说明它的应用场景', '常见误区有哪些', '与相关概念的区别', '总结这一章的要点', '这个知识点如何考查']
-  }
-}
 
 async function loadChaptersAndProgress() {
   try {
@@ -487,11 +449,6 @@ function scrollToBottom() {
 
 watch(visibleMessages, () => scrollToBottom(), { deep: true })
 
-function askQuickQuestion(question) {
-  inputMessage.value = question
-  sendMessage()
-}
-
 async function sendMessage() {
   const content = inputMessage.value.trim()
   if (!content || isTyping.value) return
@@ -507,7 +464,7 @@ async function sendMessage() {
   // 保存占位引用：回答返回后直接填充该对象，而非盲取 messages 末尾——
   // 否则若期间重新加载过会话（如切换路由后点了侧边栏会话触发 fetchMessages），
   // 末尾可能已变成 user 提问，会把 AI 回答错误塞进 user 消息，
-  // 导致“提问不见了，变成我的气泡作出的回答”。
+  // 导致"提问不见了，变成我的气泡作出的回答"。
   const assistantMsg = { role: 'assistant', content: '', createTime: new Date().toISOString(), citation: null }
   chatStore.addMessage(assistantMsg)
 
@@ -574,47 +531,6 @@ async function sendMessage() {
   overflow: hidden;
 }
 
-// Top bar
-.chat-topbar {
-  padding: 10px 20px;
-  border-bottom: 1px solid var(--color-border-light);
-  background: #fff;
-  overflow-x: auto;
-  white-space: nowrap;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
-}
-
-.quick-chips {
-  display: inline-flex;
-  gap: 8px;
-}
-
-.quick-chip {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 14px;
-  border-radius: 20px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  background: var(--color-bg);
-  border: 1px solid var(--color-border);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.15s ease;
-  user-select: none;
-
-  &:hover {
-    color: var(--color-primary);
-    border-color: var(--color-primary-light);
-    background: var(--color-primary-bg);
-  }
-
-  &:active {
-    transform: scale(0.97);
-  }
-}
-
 // Messages
 .chat-messages {
   flex: 1;
@@ -642,7 +558,6 @@ async function sendMessage() {
 
   p { color: var(--color-text-tertiary); font-size: 14px; margin: 4px 0; }
 
-  .no-class-warn { color: #f59e0b; font-size: 13px; margin-top: 8px; }
   .hint-text { font-size: 13px; }
 }
 

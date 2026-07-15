@@ -12,9 +12,15 @@ const routes = [
     path: '/',
     name: 'Layout',
     component: () => import('@/layout/MainLayout.vue'),
-    redirect: '/chat',
+    redirect: '/home',
     meta: { requiresAuth: true },
     children: [
+      {
+        path: 'home',
+        name: 'StudentHome',
+        component: () => import('@/views/student/StudentHome.vue'),
+        meta: { requiresAuth: true, role: 'STUDENT' }
+      },
       {
         path: 'chat',
         name: 'Chat',
@@ -88,7 +94,7 @@ router.beforeEach((to, from, next) => {
     next('/login')
   } else if (to.meta.role && to.meta.role !== userStore.role) {
     if (userStore.role === 'STUDENT') {
-      next('/chat')
+      next('/home')
     } else if (userStore.role === 'TEACHER') {
       next('/admin/classes')
     } else {

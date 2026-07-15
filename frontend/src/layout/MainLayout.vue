@@ -35,64 +35,65 @@
             </div>
           </div>
 
-          <div class="nav-section">
-            <div class="new-chat-btn-wrap">
-              <el-button
-                type="primary"
-                :disabled="classes.length === 0"
-                @click="createNewSession"
-                :class="['new-chat-btn', { collapsed: sidebarCollapsed }]"
-              >
-                <el-icon><Plus /></el-icon>
-                <span v-if="!sidebarCollapsed">新建对话</span>
-              </el-button>
+          <template v-if="chatStore.currentClassId">
+            <div class="nav-section">
+              <div class="new-chat-btn-wrap">
+                <el-button
+                  type="primary"
+                  @click="createNewSession"
+                  :class="['new-chat-btn', { collapsed: sidebarCollapsed }]"
+                >
+                  <el-icon><Plus /></el-icon>
+                  <span v-if="!sidebarCollapsed">新建对话</span>
+                </el-button>
+              </div>
             </div>
-          </div>
 
-          <div class="nav-section">
-            <div
-              :class="['nav-item', { active: currentRoute === '/my-stats' }]"
-              @click="router.push('/my-stats')"
-              :title="sidebarCollapsed ? '学习统计' : ''"
-            >
-              <el-icon><DataAnalysis /></el-icon>
-              <span v-if="!sidebarCollapsed">学习统计</span>
-            </div>
-          </div>
-
-          <div v-if="!sidebarCollapsed" class="nav-section">
-            <div class="section-label">对话历史</div>
-            <div class="session-list">
+            <div class="nav-section">
               <div
-                v-for="session in sessions"
-                :key="session.id"
-                :class="['session-item', { active: currentSessionId === session.id }]"
-                @click="selectSession(session.id)"
+                :class="['nav-item', { active: currentRoute === '/my-stats' }]"
+                @click="router.push('/my-stats')"
+                :title="sidebarCollapsed ? '学习统计' : ''"
               >
-                <el-icon><ChatDotRound /></el-icon>
-                <div class="session-info">
-                  <span class="session-title">{{ session.title }}</span>
-                  <span class="session-time">{{ formatSessionTime(session.updateTime || session.createTime) }}</span>
-                </div>
-                <el-dropdown trigger="click" @command="handleSessionCommand($event, session)">
-                  <el-icon class="more-icon"><MoreFilled /></el-icon>
-                  <template #dropdown>
-                    <el-dropdown-menu>
-                      <el-dropdown-item command="rename">
-                        <el-icon><Edit /></el-icon> 重命名
-                      </el-dropdown-item>
-                      <el-dropdown-item command="delete" divided>
-                        <el-icon><Delete /></el-icon> 删除
-                      </el-dropdown-item>
-                    </el-dropdown-menu>
-                  </template>
-                </el-dropdown>
-              </div>
-              <div v-if="sessions.length === 0" class="empty-sessions">
-                暂无对话记录
+                <el-icon><DataAnalysis /></el-icon>
+                <span v-if="!sidebarCollapsed">学习统计</span>
               </div>
             </div>
-          </div>
+
+            <div v-if="!sidebarCollapsed" class="nav-section">
+              <div class="section-label">对话历史</div>
+              <div class="session-list">
+                <div
+                  v-for="session in sessions"
+                  :key="session.id"
+                  :class="['session-item', { active: currentSessionId === session.id }]"
+                  @click="selectSession(session.id)"
+                >
+                  <el-icon><ChatDotRound /></el-icon>
+                  <div class="session-info">
+                    <span class="session-title">{{ session.title }}</span>
+                    <span class="session-time">{{ formatSessionTime(session.updateTime || session.createTime) }}</span>
+                  </div>
+                  <el-dropdown trigger="click" @command="handleSessionCommand($event, session)">
+                    <el-icon class="more-icon"><MoreFilled /></el-icon>
+                    <template #dropdown>
+                      <el-dropdown-menu>
+                        <el-dropdown-item command="rename">
+                          <el-icon><Edit /></el-icon> 重命名
+                        </el-dropdown-item>
+                        <el-dropdown-item command="delete" divided>
+                          <el-icon><Delete /></el-icon> 删除
+                        </el-dropdown-item>
+                      </el-dropdown-menu>
+                    </template>
+                  </el-dropdown>
+                </div>
+                <div v-if="sessions.length === 0" class="empty-sessions">
+                  暂无对话记录
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
 
         <!-- Teacher Navigation -->
@@ -333,16 +334,18 @@ onMounted(async () => {
 
 async function onClassChange(classId) {
   await chatStore.setCurrentClass(classId)
-  // 切换班级后若当前在统计页等也无需特殊处理；会话列表已刷新
+  // 切换班级后跳转到首页（首页根据 currentClassId 展示聊天界面）
+  if (currentRoute.value !== '/home') router.push('/home')
 }
 
 async function createNewSession() {
   await chatStore.createSession()
+  if (currentRoute.value !== '/home') router.push('/home')
 }
 
 async function selectSession(sessionId) {
-  if (currentRoute.value !== '/chat') router.push('/chat')
   await chatStore.fetchMessages(sessionId)
+  if (currentRoute.value !== '/home') router.push('/home')
 }
 
 function handleSessionCommand(command, session) {

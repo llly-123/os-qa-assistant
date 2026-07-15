@@ -25,9 +25,4 @@ Thumbs.db
 
 # Env
 .env
-
-# 本地配置含 DeepSeek API key，不入库（避免密钥泄露）
-backend/src/main/resources/application-local.yml
-
-# Claude Code 本地会话目录
-.claude/
+application-local.yml

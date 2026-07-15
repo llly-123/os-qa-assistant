@@ -25,10 +25,8 @@ export const useChatStore = defineStore('chat', () => {
   async function fetchClasses() {
     const res = await getMyClasses()
     classes.value = res.data || []
-    // 默认选中第一个班级
-    if (classes.value.length > 0 && !classes.value.find(c => c.id === currentClassId.value)) {
-      await setCurrentClass(classes.value[0].id)
-    } else if (classes.value.length === 0) {
+    // 不自动选中班级，让学生在首页手动选择
+    if (classes.value.length === 0) {
       currentClassId.value = null
       sessions.value = []
       currentSessionId.value = null
