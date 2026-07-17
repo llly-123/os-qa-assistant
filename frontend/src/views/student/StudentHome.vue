@@ -1,7 +1,12 @@
 <template>
   <div class="home-container">
+    <!-- 加载中 -->
+    <div v-if="loading" class="home-center">
+      <el-icon class="is-loading" :size="32"><Loading /></el-icon>
+    </div>
+
     <!-- 未加入任何班级 -->
-    <div v-if="classes.length === 0" class="home-center">
+    <div v-else-if="classes.length === 0" class="home-center">
       <div class="home-card">
         <h2>欢迎使用 {{ userStore.siteName }}</h2>
         <p>您还未加入任何班级，请等待教师将您加入班级后即可开始学习</p>
@@ -36,6 +41,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { Loading } from '@element-plus/icons-vue'
 import { useChatStore } from '@/stores/chat'
 import { useUserStore } from '@/stores/user'
 import ChatView from '@/views/student/Chat.vue'
@@ -43,13 +49,16 @@ import ChatView from '@/views/student/Chat.vue'
 const chatStore = useChatStore()
 const userStore = useUserStore()
 
+const loading = ref(true)
 const selectedClassId = ref(null)
 const classes = computed(() => chatStore.classes)
 
 onMounted(async () => {
+  // 如果有保存的班级ID，先验证班级列表
   if (!chatStore.classes.length) {
     await chatStore.fetchClasses()
   }
+  loading.value = false
 })
 
 async function enterClass() {

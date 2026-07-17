@@ -41,7 +41,7 @@ public class WebSearchService {
 
     public WebSearchService(ChatLanguageModel chatModel) {
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(10))
+                .connectTimeout(Duration.ofSeconds(5))
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
         this.objectMapper = new ObjectMapper();
@@ -160,7 +160,7 @@ public class WebSearchService {
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(url))
-                    .timeout(Duration.ofSeconds(15))
+                    .timeout(Duration.ofSeconds(8))
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
                     .GET()
                     .build();

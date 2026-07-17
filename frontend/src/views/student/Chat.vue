@@ -255,6 +255,40 @@ onMounted(async () => {
   if (chatStore.currentSessionId) {
     await chatStore.fetchMessages(chatStore.currentSessionId)
   }
+
+  // 检查是否有未完成的提问（最后一条是用户消息，没有助手回答）
+  // 如果有，轮询等待后端回答完成
+  if (chatStore.messages.length > 0 && chatStore.currentSessionId) {
+    const lastMsg = chatStore.messages[chatStore.messages.length - 1]
+    if (lastMsg.role === 'user') {
+      chatStore.isTyping = true
+      const pollTimer = setInterval(async () => {
+        try {
+          await chatStore.fetchMessages(chatStore.currentSessionId)
+          const newLast = chatStore.messages[chatStore.messages.length - 1]
+          if (newLast.role === 'assistant' && newLast.content) {
+            chatStore.isTyping = false
+            clearInterval(pollTimer)
+          }
+        } catch {
+          chatStore.isTyping = false
+          clearInterval(pollTimer)
+        }
+      }, 3000)
+      // 最多轮询60秒
+      setTimeout(() => {
+        if (chatStore.isTyping) {
+          chatStore.isTyping = false
+          clearInterval(pollTimer)
+        }
+      }, 60000)
+    } else {
+      chatStore.isTyping = false
+    }
+  } else {
+    chatStore.isTyping = false
+  }
+
   await loadChaptersAndProgress()
 
   const wasCollapsed = localStorage.getItem('isVideoCollapsed') === 'true'
@@ -451,22 +485,28 @@ watch(visibleMessages, () => scrollToBottom(), { deep: true })
 
 async function sendMessage() {
   const content = inputMessage.value.trim()
-  if (!content || isTyping.value) return
+  console.log('sendMessage called, content:', content, 'isTyping:', isTyping.value)
+  if (!content || isTyping.value) {
+    console.log('sendMessage early return: content empty or isTyping')
+    return
+  }
 
-  if (!currentSessionId.value) await chatStore.createSession()
+  if (!currentSessionId.value) {
+    console.log('No currentSessionId, creating new session...')
+    await chatStore.createSession()
+  }
   const sessionId = currentSessionId.value
+  console.log('Sending message to session:', sessionId)
 
   const hasVideoContext = !!currentVideoSection.value && !isVideoCollapsed.value
   chatStore.addMessage({ role: 'user', content, createTime: new Date().toISOString(), videoContext: hasVideoContext })
   inputMessage.value = ''
 
   chatStore.isTyping = true
-  // 保存占位引用：回答返回后直接填充该对象，而非盲取 messages 末尾——
-  // 否则若期间重新加载过会话（如切换路由后点了侧边栏会话触发 fetchMessages），
-  // 末尾可能已变成 user 提问，会把 AI 回答错误塞进 user 消息，
-  // 导致"提问不见了，变成我的气泡作出的回答"。
+  // 记录占位消息在数组中的位置，回答返回后通过 reactive 数组更新以触发 Vue 响应式
   const assistantMsg = { role: 'assistant', content: '', createTime: new Date().toISOString(), citation: null }
   chatStore.addMessage(assistantMsg)
+  const placeholderIndex = chatStore.messages.length - 1
 
   try {
     const token = localStorage.getItem('token')
@@ -491,14 +531,17 @@ async function sendMessage() {
     if (res.code === 200 && res.data) {
       if (chatStore.currentSessionId !== sessionId) {
         // 用户已切到别的会话，不打扰当前展示
-      } else if (chatStore.messages.indexOf(assistantMsg) !== -1) {
-        // 占位仍在，直接填充
-        assistantMsg.content = res.data.content || '暂无回答'
-        assistantMsg.citation = res.data.citation || null
-        assistantMsg.sourceType = webSearchEnabled.value ? 'web' : 'textbook'
       } else {
-        // 占位已被重新加载覆盖（期间点过会话等）；此时 DB 已含 assistant，以 DB 为准同步
-        await chatStore.fetchMessages(sessionId)
+        // 通过 reactive 数组更新占位消息，确保触发 Vue 响应式
+        const msg = chatStore.messages[placeholderIndex]
+        if (msg && msg.role === 'assistant' && !msg.content) {
+          msg.content = res.data.content || '暂无回答'
+          msg.citation = res.data.citation || null
+          msg.sourceType = webSearchEnabled.value ? 'web' : 'textbook'
+        } else {
+          // 占位已被重新加载覆盖；以 DB 为准同步
+          await chatStore.fetchMessages(sessionId)
+        }
       }
       chatStore.fetchSessions()
     } else {
@@ -507,8 +550,10 @@ async function sendMessage() {
   } catch (error) {
     console.error('发送消息失败:', error)
     ElMessage.error(error.message || '发送失败，请重试')
-    const idx = chatStore.messages.indexOf(assistantMsg)
-    if (idx !== -1 && !assistantMsg.content) chatStore.messages.splice(idx, 1)
+    const msg = chatStore.messages[placeholderIndex]
+    if (msg && msg.role === 'assistant' && !msg.content) {
+      chatStore.messages.splice(placeholderIndex, 1)
+    }
   } finally {
     chatStore.isTyping = false
   }

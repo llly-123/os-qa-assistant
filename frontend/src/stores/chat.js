@@ -11,16 +11,16 @@ import { getMyClasses } from '@/api/clazz'
 
 export const useChatStore = defineStore('chat', () => {
   const sessions = ref([])
-  const currentSessionId = ref(null)
+  const currentSessionId = ref(localStorage.getItem('currentSessionId') ? Number(localStorage.getItem('currentSessionId')) : null)
   const messages = ref([])
   const loading = ref(false)
   // AI 是否正在思考回答。放 store 而非组件局部，避免切换路由组件卸载后状态丢失
-  // （否则切回来 isTyping=false，思考提示消失、输入框解锁，可连问导致“先问N个再答N个”）
+  // （否则切回来 isTyping=false，思考提示消失、输入框解锁，可连问导致"先问N个再答N个"）
   const isTyping = ref(false)
 
   // 学生所在班级列表 + 当前选中的班级
   const classes = ref([])
-  const currentClassId = ref(null)
+  const currentClassId = ref(localStorage.getItem('currentClassId') ? Number(localStorage.getItem('currentClassId')) : null)
 
   async function fetchClasses() {
     const res = await getMyClasses()
@@ -37,7 +37,9 @@ export const useChatStore = defineStore('chat', () => {
 
   async function setCurrentClass(classId) {
     currentClassId.value = classId
+    localStorage.setItem('currentClassId', classId)
     currentSessionId.value = null
+    localStorage.removeItem('currentSessionId')
     messages.value = []
     await fetchSessions()
   }
@@ -54,6 +56,7 @@ export const useChatStore = defineStore('chat', () => {
       const res = await getChatMessages(sessionId)
       messages.value = res.data || []
       currentSessionId.value = sessionId
+      localStorage.setItem('currentSessionId', sessionId)
       return messages.value
     } finally {
       loading.value = false
@@ -65,6 +68,7 @@ export const useChatStore = defineStore('chat', () => {
     const newSession = res.data
     sessions.value.unshift(newSession)
     currentSessionId.value = newSession.id
+    localStorage.setItem('currentSessionId', newSession.id)
     messages.value = []
     return newSession
   }
@@ -74,6 +78,7 @@ export const useChatStore = defineStore('chat', () => {
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
     if (currentSessionId.value === sessionId) {
       currentSessionId.value = null
+      localStorage.removeItem('currentSessionId')
       messages.value = []
     }
   }

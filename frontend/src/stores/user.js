@@ -3,10 +3,19 @@ import { ref, computed } from 'vue'
 import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth'
 import { getPublicSettings } from '@/api/setting'
 
+function safeJsonParse(key, fallback = null) {
+  try {
+    const v = localStorage.getItem(key)
+    return v && v !== 'undefined' ? JSON.parse(v) : fallback
+  } catch {
+    return fallback
+  }
+}
+
 export const useUserStore = defineStore('user', () => {
   const token = ref(localStorage.getItem('token') || '')
-  const userInfo = ref(JSON.parse(localStorage.getItem('userInfo') || 'null'))
-  const settings = ref(JSON.parse(localStorage.getItem('appSettings') || 'null') || {})
+  const userInfo = ref(safeJsonParse('userInfo'))
+  const settings = ref(safeJsonParse('appSettings', {}))
 
   const isLoggedIn = computed(() => !!token.value)
   const role = computed(() => userInfo.value?.role || '')

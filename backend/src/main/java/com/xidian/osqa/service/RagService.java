@@ -93,19 +93,34 @@ public class RagService {
 
             String course = courseName();
 
-            // 如果开启联网搜索，优先使用网络搜索
+            // 如果开启联网搜索，优先使用网络搜索（带超时保护，避免网络不通时阻塞整个请求）
             if (webSearch) {
                 log.info("开启联网搜索模式");
-                List<WebSearchService.SearchResult> searchResults = webSearchService.search(question, course);
+                List<WebSearchService.SearchResult> searchResults = new ArrayList<>();
+                try {
+                    searchResults = java.util.concurrent.CompletableFuture
+                            .supplyAsync(() -> webSearchService.search(question, course))
+                            .get(10, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (java.util.concurrent.TimeoutException e) {
+                    log.warn("联网搜索超时(10s)，降级为纯教材回答");
+                } catch (Exception e) {
+                    log.warn("联网搜索失败，降级为纯教材回答: {}", e.getMessage());
+                }
                 // 缓存搜索结果供getCitation使用
                 cachedSearchResults.set(searchResults);
                 log.info("联网搜索结果数量: {}", searchResults.size());
 
                 if (!searchResults.isEmpty()) {
-                    // 使用DeepSeek整理搜索结果
-                    String aiAnswer = webSearchService.summarizeWithAI(searchResults, question);
-                    if (aiAnswer != null) {
-                        return aiAnswer;
+                    try {
+                        final List<WebSearchService.SearchResult> finalResults = searchResults;
+                        String aiAnswer = java.util.concurrent.CompletableFuture
+                                .supplyAsync(() -> webSearchService.summarizeWithAI(finalResults, question))
+                                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+                        if (aiAnswer != null) {
+                            return aiAnswer;
+                        }
+                    } catch (Exception e) {
+                        log.warn("AI整理搜索结果超时，降级为教材回答: {}", e.getMessage());
                     }
                 }
             }
