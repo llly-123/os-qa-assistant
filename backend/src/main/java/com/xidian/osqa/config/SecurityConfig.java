@@ -40,6 +40,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/login", "/api/auth/send-code", "/api/auth/reset-password", "/api/auth/send-phone-code", "/api/auth/reset-password-by-phone").permitAll()
+                .requestMatchers("/api/settings/public").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/api/courses/chapters").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("TEACHER")
