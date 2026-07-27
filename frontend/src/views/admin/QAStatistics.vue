@@ -220,8 +220,8 @@ onMounted(() => {
 function getDateParams() {
   const params = {}
   if (dateRange.value && dateRange.value.length === 2) {
-    params.startDate = formatDate(dateRange.value[0])
-    params.endDate = formatDate(dateRange.value[1])
+    params.startDate = formatDate(dateRange.value[0]) + ' 00:00:00'
+    params.endDate = formatDate(dateRange.value[1]) + ' 23:59:59'
   }
   return params
 }

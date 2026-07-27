@@ -75,6 +75,15 @@ public class ChatService {
     }
 
     public ChatMessage saveMessage(Long sessionId, String role, String content, String citation, String sourceType) {
+        return saveMessage(sessionId, role, content, citation, sourceType, true);
+    }
+
+    /**
+     * 保存消息。
+     * @param extractKeywords 是否在 user 消息入库后异步提取知识点关键词。
+     *                        当先保存问题、后再根据 AI 回答判定是否相关时，可传 false 延迟提取。
+     */
+    public ChatMessage saveMessage(Long sessionId, String role, String content, String citation, String sourceType, boolean extractKeywords) {
         ChatMessage message = new ChatMessage();
         message.setSessionId(sessionId);
         message.setRole(role);
@@ -84,7 +93,7 @@ public class ChatService {
         message.setCreateTime(LocalDateTime.now());
         messageMapper.insert(message);
         // 学生提问异步提取知识点关键词回填 keywords 字段，供热词统计聚合
-        if ("user".equals(role)) {
+        if ("user".equals(role) && extractKeywords) {
             keywordAiService.extractAndSaveAsync(message.getId(), content);
         }
         return message;
@@ -102,6 +111,11 @@ public class ChatService {
     public boolean isSessionOwner(Long sessionId, Long userId) {
         ChatSession session = sessionMapper.selectById(sessionId);
         return session != null && session.getUserId().equals(userId);
+    }
+
+    /** 延迟触发关键词提取（供 Controller 在确认非无关问题后调用） */
+    public void extractKeywordsAsync(Long messageId, String content) {
+        keywordAiService.extractAndSaveAsync(messageId, content);
     }
 
     /** 会话是否绑定到某个班级（用于统计归属判断） */

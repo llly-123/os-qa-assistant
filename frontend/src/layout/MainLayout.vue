@@ -75,7 +75,11 @@
                     <span class="session-title">{{ session.title }}</span>
                     <span class="session-time">{{ formatSessionTime(session.updateTime || session.createTime) }}</span>
                   </div>
-                  <el-dropdown trigger="click" @command="handleSessionCommand($event, session)">
+                  <!-- 生成中指示器 -->
+                  <span v-if="chatStore.isSessionTyping(session.id)" class="typing-indicator" title="AI 正在生成">
+                    <span class="typing-dot"></span>
+                  </span>
+                  <el-dropdown v-else trigger="click" @command="handleSessionCommand($event, session)">
                     <el-icon class="more-icon"><MoreFilled /></el-icon>
                     <template #dropdown>
                       <el-dropdown-menu>
@@ -345,6 +349,10 @@ const maskedPhone = computed(() => {
 onMounted(async () => {
   if (role.value === 'STUDENT') {
     await chatStore.fetchClasses()
+    // 刷新页面后 sessions 会丢失，需要重新加载会话列表
+    if (chatStore.currentClassId) {
+      await chatStore.fetchSessions()
+    }
   }
 })
 
@@ -670,6 +678,28 @@ function formatSessionTime(time) {
     &:hover .more-icon {
       opacity: 1;
     }
+
+    // 生成中指示器：三个跳动的小点
+    .typing-indicator {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      width: 16px;
+      justify-content: center;
+
+      .typing-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--color-primary);
+        animation: typingPulse 1.4s infinite ease-in-out;
+      }
+    }
+  }
+
+  @keyframes typingPulse {
+    0%, 80%, 100% { opacity: 0.3; transform: scale(0.75); }
+    40% { opacity: 1; transform: scale(1); }
   }
 
   .empty-sessions {

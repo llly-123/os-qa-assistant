@@ -242,7 +242,8 @@ public class ChatController {
             effectiveContent = sanitizedContent;
         }
 
-        chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? "textbook" : "no_class");
+        // 先保存 user 消息，但暂不提取关键词（等 AI 回答后判定是否为无关问题再决定）
+        com.xidian.osqa.entity.ChatMessage userMsg = chatService.saveMessage(sessionId, "user", sanitizedContent, null, inClass ? "textbook" : "no_class", false);
         chatService.autoTitleIfNeeded(sessionId, sanitizedContent);
 
             String answer = chatService.askQuestion(sessionId, effectiveContent, webSearch != null && webSearch);
@@ -250,6 +251,11 @@ public class ChatController {
 
             String assistantSourceType = (webSearch != null && webSearch) ? "web" : "textbook";
             chatService.saveMessage(sessionId, "assistant", answer, citation, assistantSourceType);
+
+            // AI 回答后再决定是否提取关键词：若被判为无关问题（拒答），不统计热词
+            if (!isIrrelevantAnswer(answer)) {
+                chatService.extractKeywordsAsync(userMsg.getId(), sanitizedContent);
+            }
 
             Map<String, Object> result = new HashMap<>();
             result.put("content", answer != null ? answer : "");
@@ -259,6 +265,16 @@ public class ChatController {
             log.error("askNonStream处理失败: sessionId={}", sessionId, e);
             return Result.error(500, "处理失败，请稍后重试");
         }
+    }
+
+    /** 判定 AI 回答是否为"无关问题拒答"，用于决定是否提取关键词统计热词 */
+    private boolean isIrrelevantAnswer(String answer) {
+        if (answer == null || answer.isBlank()) return true;
+        String a = answer.trim();
+        // 短回答且明确含"无关"字样，视为拒答
+        if (a.length() <= 60 && a.contains("无关")) return true;
+        // 兜底空内容
+        return a.isEmpty();
     }
 
     @GetMapping("/my-stats")

@@ -2,6 +2,7 @@ package com.xidian.osqa.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xidian.osqa.common.AnswerSanitizer;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -266,11 +267,14 @@ public class WebSearchService {
             context.append("学生问题：").append(originalQuestion);
 
             List<ChatMessage> messages = new ArrayList<>();
-            messages.add(new SystemMessage("你是一个知识助手，负责整理和总结网络搜索结果，帮助学生理解问题。"));
+            messages.add(new SystemMessage("你是一个知识助手，负责整理和总结网络搜索结果，帮助学生理解问题。" +
+                    "【输出规范·硬性约束】禁止输出任何 AI 自身的思考、推演、验算、疑问、矛盾拆解、推测类文本，只输出最终成品答案；" +
+                    "禁止使用以下句式开头或出现：重新梳理、注意、片段给出、可是根据、可能、笔误；" +
+                    "正文仅保留：定义、数据结构、伪代码、表格、标准计算步骤、客观总结；不要展示草稿、中间步骤、自我纠错过程。"));
             messages.add(new UserMessage(context.toString()));
 
             Response<AiMessage> response = chatModel.generate(messages);
-            return response.content().text();
+            return AnswerSanitizer.sanitize(response.content().text());
         } catch (Exception e) {
             log.error("AI整理搜索结果失败", e);
 

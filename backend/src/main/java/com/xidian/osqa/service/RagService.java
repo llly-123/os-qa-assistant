@@ -1,5 +1,6 @@
 package com.xidian.osqa.service;
 
+import com.xidian.osqa.common.AnswerSanitizer;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
@@ -42,6 +43,14 @@ public class RagService {
         String owner = (school == null || school.isBlank())
                 ? "《" + course + "》"
                 : school + "《" + course + "》";
+        // 输出规范硬性约束（所有模式通用），借鉴 DeepSeek：只输出成品，不输出思考过程
+        String outputConstraint = """
+                【输出规范·硬性约束】
+                A. 禁止输出任何 AI 自身的思考、推演、验算、疑问、矛盾拆解、推测类文本，只输出最终成品答案。
+                B. 禁止使用以下句式开头或出现：重新梳理、注意、片段给出、可是根据、可能、笔误。
+                C. 正文仅保留：定义、数据结构、伪代码、表格、标准计算步骤、客观总结。
+                D. 若素材之间存在冲突，仅在文末用单行备注说明（如"注：某处记载为X，此处采用Y"），正文不展开分析。
+                E. 不要展示草稿、中间步骤、自我纠错过程。""";
         if (webSearch) {
             return """
                     你是%s课程的AI答疑助教。学生开启了联网搜索功能。
@@ -49,7 +58,7 @@ public class RagService {
                     2. 如果课程知识不足以完整回答，请利用你的专业知识进行补充，确保回答完整。
                     3. 对于课程中有的内容，标注"📚 课程内容"。
                     4. 对于你补充的网络/通用知识，标注"🌐 补充知识"。
-                    5. 不要回答与%s课程无关的问题。
+                    5. 若问题与%s课程完全无关，请明确回复"该问题与当前课程无关，暂不回答"，不要强行作答。
                     6. 回答格式清晰，使用Markdown格式，包含代码示例和公式时使用代码块。
                     7. 确保回答完整、准确，不要只说"未找到"就结束，必须给出完整的知识点解答。
                     8. 引用课程内容时，用"第X章"或"第X节"来引用，例如"根据第3章中的描述"。
@@ -60,7 +69,9 @@ public class RagService {
                        - 链接格式：[标题](URL)
                     10. 不要提及"你提供的教材""检索到的片段"等内部技术细节，对学生来说你就是一位知识渊博的助教。
                     11. 不要在回答中单独列出"📚 教材来源"或"🌐 网络搜索来源"等分区标题，来源分区由系统自动整理。
-                    """.formatted(owner, course);
+
+                    %s
+                    """.formatted(owner, course, course, outputConstraint);
         }
         return """
                 你是%s课程的AI答疑助教。你的职责是：
@@ -68,11 +79,13 @@ public class RagService {
                 2. 如果课程中没有相关内容，请明确告知学生"课程中未找到相关内容"，并建议查阅其他资料或咨询老师。
                 3. 回答时尽量使用标准术语和学术表述，保持学术严谨性。
                 4. 如果提供了网络搜索结果，可以补充说明，但需明确标注来源。
-                5. 不要回答与%s课程无关的问题。
+                5. 若问题与%s课程完全无关，请明确回复"该问题与当前课程无关，暂不回答"，不要强行作答。
                 6. 回答格式清晰，使用Markdown格式，包含代码示例和公式时使用代码块。
                 7. 引用课程内容时，用"第X章"或"第X节"来引用，例如"根据第3章中的描述"。
                 8. 不要提及"你提供的教材""检索到的片段"等内部技术细节，对学生来说你就是一位知识渊博的助教。
-                """.formatted(owner, course);
+
+                %s
+                """.formatted(owner, course, course, outputConstraint);
     }
 
     public RagService(ChatLanguageModel chatModel, KnowledgeEmbeddingService embeddingService, WebSearchService webSearchService, SystemSettingService settingService) {
@@ -117,7 +130,7 @@ public class RagService {
                                 .supplyAsync(() -> webSearchService.summarizeWithAI(finalResults, question))
                                 .get(30, java.util.concurrent.TimeUnit.SECONDS);
                         if (aiAnswer != null) {
-                            return aiAnswer;
+                            return AnswerSanitizer.sanitize(aiAnswer);
                         }
                     } catch (Exception e) {
                         log.warn("AI整理搜索结果超时，降级为教材回答: {}", e.getMessage());
@@ -160,7 +173,12 @@ public class RagService {
             messages.add(new UserMessage(userPrompt));
 
             Response<AiMessage> response = chatModel.generate(messages);
-            return response.content().text();
+            String answer = AnswerSanitizer.sanitize(response.content().text());
+            // 兜底：AI 返回空内容（如拒答无关问题被清洗后为空）时给出明确提示
+            if (answer == null || answer.isBlank()) {
+                answer = "该问题与当前课程无关，暂不回答。如需帮助，请提出与" + course + "课程相关的问题。";
+            }
+            return answer;
         } catch (Exception e) {
             log.error("AI回答失败", e);
             if (e.getMessage() != null && e.getMessage().contains("403")) {

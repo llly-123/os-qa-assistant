@@ -275,36 +275,33 @@ onMounted(async () => {
   }
 
   // 检查是否有未完成的提问（最后一条是用户消息，没有助手回答）
-  // 如果有，轮询等待后端回答完成
+  // 如果有，按会话轮询等待后端回答完成（借鉴 DeepSeek：后台生成，切回可见）
   if (chatStore.messages.length > 0 && chatStore.currentSessionId) {
     const lastMsg = chatStore.messages[chatStore.messages.length - 1]
     if (lastMsg.role === 'user') {
-      chatStore.isTyping = true
+      const pollSessionId = chatStore.currentSessionId
+      chatStore.setTyping(pollSessionId)
       const pollTimer = setInterval(async () => {
         try {
-          await chatStore.fetchMessages(chatStore.currentSessionId)
+          await chatStore.fetchMessages(pollSessionId)
           const newLast = chatStore.messages[chatStore.messages.length - 1]
           if (newLast.role === 'assistant' && newLast.content) {
-            chatStore.isTyping = false
+            chatStore.clearTyping(pollSessionId)
             clearInterval(pollTimer)
           }
         } catch {
-          chatStore.isTyping = false
+          chatStore.clearTyping(pollSessionId)
           clearInterval(pollTimer)
         }
       }, 3000)
       // 最多轮询60秒
       setTimeout(() => {
-        if (chatStore.isTyping) {
-          chatStore.isTyping = false
+        if (chatStore.isSessionTyping(pollSessionId)) {
+          chatStore.clearTyping(pollSessionId)
           clearInterval(pollTimer)
         }
       }, 60000)
-    } else {
-      chatStore.isTyping = false
     }
-  } else {
-    chatStore.isTyping = false
   }
 
   await loadChaptersAndProgress()
@@ -449,16 +446,16 @@ function askAboutVideo() {
 function renderKatex(text) {
   if (!text) return ''
   text = text.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => {
-    try { return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false }) } catch { return `$$${formula}$$` }
+    try { return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false, strict: false }) } catch { return `$$${formula}$$` }
   })
   text = text.replace(/\\\[([\s\S]*?)\\\]/g, (_, formula) => {
-    try { return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false }) } catch { return `\\[${formula}\\]` }
+    try { return katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false, strict: false }) } catch { return `\\[${formula}\\]` }
   })
   text = text.replace(/\$([^\$\n]+?)\$/g, (_, formula) => {
-    try { return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false }) } catch { return `$${formula}$` }
+    try { return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, strict: false }) } catch { return `$${formula}$` }
   })
   text = text.replace(/\\\(([\s\S]*?)\\\)/g, (_, formula) => {
-    try { return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false }) } catch { return `\\(${formula}\\)` }
+    try { return katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, strict: false }) } catch { return `\\(${formula}\\)` }
   })
   return text
 }
@@ -524,11 +521,16 @@ async function sendMessage() {
   chatStore.addMessage({ role: 'user', content, createTime: new Date().toISOString(), videoContext: hasVideoContext })
   inputMessage.value = ''
 
-  chatStore.isTyping = true
+  // 借鉴 DeepSeek：按会话标记生成状态，支持多会话并行
+  chatStore.setTyping(sessionId)
   // 记录占位消息在数组中的位置，回答返回后通过 reactive 数组更新以触发 Vue 响应式
   const assistantMsg = { role: 'assistant', content: '', createTime: new Date().toISOString(), citation: null }
   chatStore.addMessage(assistantMsg)
   const placeholderIndex = chatStore.messages.length - 1
+
+  // 为本次提问创建 AbortController，按 sessionId 注册到 store
+  const controller = new AbortController()
+  chatStore.setAbortController(sessionId, controller)
 
   try {
     const token = localStorage.getItem('token')
@@ -541,7 +543,8 @@ async function sendMessage() {
     const response = await fetch(`/api/chat/sessions/${sessionId}/ask`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: controller.signal
     })
 
     if (!response.ok) {
@@ -552,7 +555,7 @@ async function sendMessage() {
     const res = await response.json()
     if (res.code === 200 && res.data) {
       if (chatStore.currentSessionId !== sessionId) {
-        // 用户已切到别的会话，不打扰当前展示
+        // 用户已切到别的会话，不打扰当前展示；后台结果已存 DB，切回时通过 fetchMessages 同步
       } else {
         // 通过 reactive 数组更新占位消息，确保触发 Vue 响应式
         const msg = chatStore.messages[placeholderIndex]
@@ -570,14 +573,29 @@ async function sendMessage() {
       throw new Error(res.message || '请求失败')
     }
   } catch (error) {
+    // 用户主动取消（切换会话/新建对话）时不报错、不弹提示
+    if (error.name === 'AbortError') {
+      // 移除占位消息（仅当仍在该会话时）
+      if (chatStore.currentSessionId === sessionId) {
+        const msg = chatStore.messages[placeholderIndex]
+        if (msg && msg.role === 'assistant' && !msg.content) {
+          chatStore.messages.splice(placeholderIndex, 1)
+        }
+      }
+      return
+    }
     console.error('发送消息失败:', error)
     ElMessage.error(error.message || '发送失败，请重试')
-    const msg = chatStore.messages[placeholderIndex]
-    if (msg && msg.role === 'assistant' && !msg.content) {
-      chatStore.messages.splice(placeholderIndex, 1)
+    if (chatStore.currentSessionId === sessionId) {
+      const msg = chatStore.messages[placeholderIndex]
+      if (msg && msg.role === 'assistant' && !msg.content) {
+        chatStore.messages.splice(placeholderIndex, 1)
+      }
     }
   } finally {
-    chatStore.isTyping = false
+    // 清理该会话的生成状态和 controller
+    chatStore.setAbortController(sessionId, null)
+    chatStore.clearTyping(sessionId)
   }
 }
 </script>
@@ -746,8 +764,8 @@ async function sendMessage() {
   :deep(p) { margin: 6px 0; }
 
   :deep(code) {
-    background: #1e293b;
-    color: #e2e8f0;
+    background: var(--color-bg-secondary);
+    color: var(--color-primary);
     padding: 2px 6px;
     border-radius: 4px;
     font-family: var(--font-mono);

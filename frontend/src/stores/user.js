@@ -42,6 +42,9 @@ export const useUserStore = defineStore('user', () => {
     userInfo.value = null
     localStorage.removeItem('token')
     localStorage.removeItem('userInfo')
+    // 清除班级/会话状态，避免下次登录残留旧班级导致进不去
+    localStorage.removeItem('currentClassId')
+    localStorage.removeItem('currentSessionId')
   }
 
   async function fetchUserInfo() {
