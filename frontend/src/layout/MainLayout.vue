@@ -21,17 +21,18 @@
         <div v-if="role === 'STUDENT'" class="sidebar-content">
           <div v-if="!sidebarCollapsed" class="nav-section">
             <div class="section-label">我的班级</div>
-            <el-select
-              :model-value="chatStore.currentClassId"
-              placeholder="选择班级"
-              size="default"
-              style="width: 100%"
-              @change="onClassChange"
-            >
-              <el-option v-for="c in classes" :key="c.id" :label="c.name" :value="c.id" />
-            </el-select>
-            <div v-if="classes.length === 0" class="empty-sessions" style="padding: 8px 4px">
-              未加入任何班级
+            <div class="current-class-display">
+              <el-icon><School /></el-icon>
+              <span>{{ currentClassName || '未加入任何班级' }}</span>
+              <el-button
+                v-if="currentClassName"
+                size="small"
+                type="primary"
+                class="switch-class-btn"
+                @click="goSelectClass"
+              >
+                切换班级
+              </el-button>
             </div>
           </div>
 
@@ -140,20 +141,12 @@
               <el-icon><School /></el-icon>
               <span v-if="!sidebarCollapsed">班级管理</span>
             </div>
-            <div
-              :class="['nav-item', { active: currentRoute === '/admin/settings' }]"
-              @click="router.push('/admin/settings')"
-              :title="sidebarCollapsed ? '系统设置' : ''"
-            >
-              <el-icon><Setting /></el-icon>
-              <span v-if="!sidebarCollapsed">系统设置</span>
-            </div>
           </div>
         </div>
 
         <!-- User Footer -->
         <div class="sidebar-footer" :class="{ collapsed: sidebarCollapsed }">
-          <div class="user-bar">
+          <div class="user-bar" @click="showAccountDialog = true" style="cursor: pointer">
             <el-avatar :size="32" :style="{ background: 'var(--color-primary)' }">
               {{ username?.charAt(0)?.toUpperCase() }}
             </el-avatar>
@@ -164,28 +157,21 @@
               </el-tag>
             </div>
           </div>
-
-          <div v-if="!sidebarCollapsed" class="footer-actions">
-            <div class="action-item" @click="settingsOpen = !settingsOpen">
-              <el-icon><Setting /></el-icon>
-              <span>设置</span>
-              <el-icon class="arrow" :class="{ open: settingsOpen }"><ArrowRight /></el-icon>
-            </div>
-            <div v-if="settingsOpen" class="action-sub">
-              <div class="sub-item" @click="showPhoneDialog = true">
-                <el-icon><Phone /></el-icon>
-                <span>{{ userPhone ? '更换手机' : '绑定手机' }}</span>
-              </div>
-              <div class="sub-item" @click="showPasswordDialog = true">
-                <el-icon><Lock /></el-icon>
-                <span>修改密码</span>
-              </div>
-              <div class="sub-item logout" @click="handleLogout">
-                <el-icon><SwitchButton /></el-icon>
-                <span>退出登录</span>
-              </div>
-            </div>
-          </div>
+          <el-button
+            v-if="!sidebarCollapsed"
+            link
+            size="small"
+            class="logout-btn"
+            @click="handleLogout"
+          >
+            <el-icon><SwitchButton /></el-icon>
+            退出登录
+          </el-button>
+          <el-tooltip v-else content="退出登录" placement="right">
+            <el-button size="small" circle class="logout-btn-collapsed" @click="handleLogout">
+              <el-icon><SwitchButton /></el-icon>
+            </el-button>
+          </el-tooltip>
         </div>
       </el-aside>
 
@@ -280,6 +266,32 @@
         <el-button type="primary" :loading="changingPassword" @click="handleChangePassword">确认修改</el-button>
       </template>
     </el-dialog>
+
+    <!-- 账户设置 Dialog -->
+    <el-dialog v-model="showAccountDialog" title="账户设置" width="440px" center>
+      <div class="account-cards">
+        <div class="account-card" @click="showPasswordDialog = true; showAccountDialog = false">
+          <div class="account-card-icon" style="background: #eef2ff; color: #6366f1">
+            <el-icon :size="24"><Lock /></el-icon>
+          </div>
+          <div class="account-card-info">
+            <span class="account-card-title">修改密码</span>
+            <span class="account-card-desc">更改您的登录密码</span>
+          </div>
+          <el-icon class="account-card-arrow" color="#c0c4cc"><ArrowRight /></el-icon>
+        </div>
+        <div class="account-card" @click="showPhoneDialog = true; showAccountDialog = false">
+          <div class="account-card-icon" style="background: #fef3c7; color: #f59e0b">
+            <el-icon :size="24"><Phone /></el-icon>
+          </div>
+          <div class="account-card-info">
+            <span class="account-card-title">{{ userPhone ? '手机号管理' : '绑定手机号' }}</span>
+            <span class="account-card-desc">{{ userPhone ? maskedPhone : '绑定后可通过手机找回密码' }}</span>
+          </div>
+          <el-icon class="account-card-arrow" color="#c0c4cc"><ArrowRight /></el-icon>
+        </div>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -297,7 +309,7 @@ const userStore = useUserStore()
 const chatStore = useChatStore()
 
 const sidebarCollapsed = ref(false)
-const settingsOpen = ref(false)
+const showAccountDialog = ref(false)
 const renameDialogVisible = ref(false)
 const newTitle = ref('')
 const renamingSession = ref(null)
@@ -317,6 +329,10 @@ const passwordForm = reactive({ oldPassword: '', newPassword: '', confirmPasswor
 const sessions = computed(() => chatStore.sessions)
 const currentSessionId = computed(() => chatStore.currentSessionId)
 const classes = computed(() => chatStore.classes)
+const currentClassName = computed(() => {
+  const c = classes.value.find(item => item.id === chatStore.currentClassId)
+  return c ? c.name : ''
+})
 const role = computed(() => userStore.role)
 const username = computed(() => userStore.username)
 const currentRoute = computed(() => route.path)
@@ -332,10 +348,13 @@ onMounted(async () => {
   }
 })
 
-async function onClassChange(classId) {
-  await chatStore.setCurrentClass(classId)
-  // 切换班级后跳转到首页（首页根据 currentClassId 展示聊天界面）
-  if (currentRoute.value !== '/home') router.push('/home')
+function goSelectClass() {
+  chatStore.currentClassId = null
+  localStorage.removeItem('currentClassId')
+  chatStore.currentSessionId = null
+  localStorage.removeItem('currentSessionId')
+  chatStore.messages = []
+  router.push('/select-class')
 }
 
 async function createNewSession() {
@@ -370,11 +389,9 @@ async function confirmRename() {
 }
 
 async function handleLogout() {
-  try {
-    await userStore.logout()
-    router.push('/login')
-    ElMessage.success('已退出登录')
-  } catch (error) { console.error('退出失败:', error) }
+  try { await userStore.logout() } catch (e) { /* API 失败不影响本地退出 */ }
+  router.push('/login')
+  ElMessage.success('已退出登录')
 }
 
 async function handleBindPhone() {
@@ -531,6 +548,27 @@ function formatSessionTime(time) {
   padding: 8px 12px 6px;
 }
 
+.current-class-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+
+  .switch-class-btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    height: 28px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+}
+
 .new-chat-btn-wrap {
   padding: 4px 0 8px;
 }
@@ -646,10 +684,12 @@ function formatSessionTime(time) {
 .sidebar-footer {
   padding: 12px;
   border-top: 1px solid var(--color-border-light);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 
   &.collapsed {
-    display: flex;
-    justify-content: center;
+    align-items: center;
     padding: 16px 12px;
   }
 
@@ -657,7 +697,12 @@ function formatSessionTime(time) {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
+    transition: opacity 0.15s;
+
+    &:hover {
+      opacity: 0.85;
+    }
   }
 
   .user-detail {
@@ -677,62 +722,82 @@ function formatSessionTime(time) {
   }
 }
 
-.footer-actions {
-  .action-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 4px;
-    cursor: pointer;
+.logout-btn {
+  color: var(--color-text-tertiary);
+  font-size: 12px;
+  padding: 2px 0;
+  margin-top: 2px;
+  justify-content: flex-start;
+
+  &:hover {
     color: var(--color-text-secondary);
-    font-size: 13px;
-    border-radius: 6px;
-    transition: all 0.15s;
-
-    &:hover {
-      color: var(--color-text-primary);
-      background: var(--color-bg-secondary);
-    }
-
-    span { flex: 1; }
-
-    .arrow {
-      font-size: 12px;
-      transition: transform 0.2s ease;
-
-      &.open {
-        transform: rotate(90deg);
-      }
-    }
   }
+}
 
-  .action-sub {
-    padding-left: 20px;
+.logout-btn-collapsed {
+  color: var(--color-text-tertiary);
+  margin-top: 8px;
 
-    .sub-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 7px 4px;
-      cursor: pointer;
-      color: var(--color-text-secondary);
-      font-size: 12px;
-      border-radius: 6px;
-      transition: all 0.15s;
-
-      &:hover {
-        color: var(--color-text-primary);
-      }
-
-      &.logout {
-        color: #ef4444;
-
-        &:hover {
-          color: #dc2626;
-        }
-      }
-    }
+  &:hover {
+    color: #dc2626;
+    background: #fef2f2;
   }
+}
+
+.account-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+.account-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fff;
+
+  &:hover {
+    border-color: var(--color-primary-light);
+    box-shadow: 0 2px 12px rgba(99,102,241,0.08);
+  }
+}
+
+.account-card-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.account-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.account-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.account-card-desc {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.account-card-arrow {
+  flex-shrink: 0;
 }
 
 // Main Content

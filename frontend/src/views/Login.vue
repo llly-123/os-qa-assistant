@@ -180,7 +180,7 @@ async function handleLogin() {
     if (userStore.role === 'TEACHER') {
       router.push('/admin/students')
     } else {
-      router.push('/chat')
+      router.push('/select-class')
     }
   } catch (error) {
     console.error('登录失败:', error)

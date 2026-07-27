@@ -59,7 +59,7 @@ jwt:
 langchain4j:
   deepseek:
     api-key: ${LANGCHAIN4J_DEEPSEEK_API_KEY:your_deepseek_api_key}
-    model-name: deepseek-chat
+    model-name: deepseek-v4-pro
     base-url: https://api.deepseek.com
   chroma:
     url: http://localhost:8000

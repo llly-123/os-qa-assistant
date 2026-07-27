@@ -54,13 +54,13 @@
           <h2>{{ selectedClass.name }} - 学生管理</h2>
         </div>
         <div class="header-actions">
-          <el-button @click="showOptionDialog = true">
+          <el-button size="small" link type="info" @click="showOptionDialog = true">
             <el-icon><Setting /></el-icon> 选项设置
           </el-button>
-          <el-button type="primary" @click="showImportDialog = true">
+          <el-button @click="showImportDialog = true">
             <el-icon><Upload /></el-icon> 批量导入
           </el-button>
-          <el-button @click="openAddDialog">
+          <el-button type="primary" @click="openAddDialog">
             <el-icon><Plus /></el-icon> 添加学生
           </el-button>
         </div>
@@ -71,7 +71,7 @@
           v-model="searchKeyword"
           placeholder="搜索学号/姓名"
           clearable
-          style="width: 300px"
+          style="width: 260px"
           @clear="filterStudents"
           @keyup.enter="filterStudents"
         >
@@ -79,7 +79,15 @@
             <el-icon><Search /></el-icon>
           </template>
         </el-input>
+        <el-select v-model="filterCollege" placeholder="学院" clearable style="width: 180px" @change="filterStudents">
+          <el-option v-for="c in collegeOptions" :key="c" :label="c" :value="c" />
+        </el-select>
+        <el-select v-model="filterStatus" placeholder="状态" clearable style="width: 120px" @change="filterStudents">
+          <el-option label="正常" :value="1" />
+          <el-option label="冻结" :value="0" />
+        </el-select>
         <el-button type="primary" @click="filterStudents">搜索</el-button>
+        <el-button @click="resetFilters">重置</el-button>
       </div>
 
       <el-table :data="filteredStudents" v-loading="loading" stripe style="width: 100%">
@@ -100,27 +108,37 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="170" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="handleEdit(row)">编辑</el-button>
+            <div class="action-btns">
+            <el-tooltip content="编辑" placement="top">
+              <el-button size="small" circle @click="handleEdit(row)">
+                <el-icon><Edit /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="查看记录" placement="top">
+              <el-button size="small" circle @click="handleViewRecords(row)">
+                <el-icon><Document /></el-icon>
+              </el-button>
+            </el-tooltip>
+            <el-tooltip :content="row.status === 1 ? '冻结' : '解冻'" placement="top">
+              <el-button size="small" circle @click="handleToggleStatus(row)">
+                <el-icon><Lock /></el-icon>
+              </el-button>
+            </el-tooltip>
             <el-dropdown trigger="click">
-              <el-button size="small">
-                操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              <el-button size="small" circle>
+                <el-icon><MoreFilled /></el-icon>
               </el-button>
               <template #dropdown>
                 <el-dropdown-menu>
-                  <el-dropdown-item @click="handleViewRecords(row)">
-                    <el-icon><Document /></el-icon> 查看记录
-                  </el-dropdown-item>
                   <el-dropdown-item @click="handleResetPassword(row)">重置密码</el-dropdown-item>
-                  <el-dropdown-item @click="handleToggleStatus(row)">
-                    {{ row.status === 1 ? '冻结' : '解冻' }}
-                  </el-dropdown-item>
                   <el-dropdown-item @click="handleRemoveFromClass(row)" style="color: #e6a23c">移出班级</el-dropdown-item>
                   <el-dropdown-item @click="handleDelete(row)" style="color: #f56c6c">彻底删除</el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -365,7 +383,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Calendar, ArrowLeft, Search, Upload, Setting, Download, ArrowDown, Document, UploadFilled, Loading } from '@element-plus/icons-vue'
+import { Plus, Calendar, ArrowLeft, Search, Upload, Setting, Download, Document, UploadFilled, Loading, Edit, Lock, MoreFilled } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
 import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources } from '@/api/clazz'
 import { updateStudent, deleteStudent, resetStudentPassword, toggleStudentStatus } from '@/api/student'
@@ -395,13 +413,15 @@ const knowledgeBases = ref([])
 const loading = ref(false)
 const students = ref([])
 const searchKeyword = ref('')
+const filterCollege = ref(null)
+const filterStatus = ref(null)
 const filteredStudents = computed(() => {
-  if (!searchKeyword.value) return students.value
-  const kw = searchKeyword.value.toLowerCase()
-  return students.value.filter(s =>
-    (s.username || '').toLowerCase().includes(kw) ||
-    (s.realName || '').toLowerCase().includes(kw)
-  )
+  let list = students.value
+  const kw = searchKeyword.value?.toLowerCase()
+  if (kw) list = list.filter(s => (s.username||'').toLowerCase().includes(kw) || (s.realName||'').toLowerCase().includes(kw))
+  if (filterCollege.value) list = list.filter(s => s.college === filterCollege.value)
+  if (filterStatus.value !== null && filterStatus.value !== '') list = list.filter(s => s.status === filterStatus.value)
+  return list
 })
 
 // 对话框
@@ -549,6 +569,12 @@ async function fetchStudents(classId) {
   } finally {
     loading.value = false
   }
+}
+
+function resetFilters() {
+  searchKeyword.value = ''
+  filterCollege.value = null
+  filterStatus.value = null
 }
 
 function filterStudents() {
@@ -844,6 +870,14 @@ function formatTime(time) {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action-btns {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 
 .option-list {

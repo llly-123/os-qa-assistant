@@ -374,7 +374,7 @@ public class ClazzService {
     public int dissolveExpiredClasses() {
         LambdaQueryWrapper<Clazz> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Clazz::getStatus, 1);
-        wrapper.lt(Clazz::getEndTime, LocalDateTime.now());
+        wrapper.le(Clazz::getEndTime, LocalDateTime.now());
         List<Clazz> expired = clazzMapper.selectList(wrapper);
 
         for (Clazz clazz : expired) {

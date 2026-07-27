@@ -85,19 +85,41 @@
 
       <!-- 班级统计 -->
       <el-tab-pane label="班级统计" name="class">
-        <div class="class-selector">
-          <span class="selector-label">选择班级：</span>
-          <el-select v-model="selectedClassId" placeholder="请选择班级" @change="handleClassChange" style="width: 280px">
-            <el-option
-              v-for="cls in classList"
-              :key="cls.id"
-              :value="cls.id"
-              :label="cls.name + (cls.status === 1 ? '' : '（已解散）') + ' - ' + (cls.studentCount || 0) + '人'"
-            />
-          </el-select>
+        <!-- 未选班级：居中卡片 -->
+        <div v-if="!selectedClassId" class="class-select-wrapper">
+          <div class="class-select-card">
+            <div class="card-icon-wrap">
+              <el-icon :size="40" color="#6366f1"><DataAnalysis /></el-icon>
+            </div>
+            <h2>班级统计</h2>
+            <p class="card-desc">请选择要查看统计的班级</p>
+            <div class="card-divider"></div>
+            <el-select v-model="classSelectTemp" placeholder="请选择班级" size="large" class="card-select">
+              <el-option
+                v-for="cls in classList"
+                :key="cls.id"
+                :value="cls.id"
+                :label="cls.name + (cls.status === 1 ? '' : '（已解散）') + ' - ' + (cls.studentCount || 0) + '人'"
+              />
+            </el-select>
+            <el-button type="primary" size="large" class="card-btn" :disabled="!classSelectTemp" @click="startClassStats">
+              开始统计
+            </el-button>
+          </div>
         </div>
 
-        <template v-if="selectedClassId">
+        <!-- 已选班级：统计数据 -->
+        <template v-else>
+          <div class="class-stats-header">
+            <div class="class-stats-title">
+              <el-icon :size="20"><School /></el-icon>
+              <span>{{ currentClassName }} - 班级统计</span>
+            </div>
+            <el-button size="small" type="primary" class="switch-class-btn" @click="switchClass">
+              切换班级
+            </el-button>
+          </div>
+
           <el-row :gutter="20" class="stat-cards">
             <el-col :span="6">
               <el-card shadow="hover">
@@ -163,15 +185,13 @@
             </el-col>
           </el-row>
         </template>
-
-        <el-empty v-else description="请选择一个班级查看统计" />
       </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { getQAStatistics, getHotKeywords, getClassList, getClassOverview, getClassHotKeywords } from '@/api/statistics'
 
 const dateRange = ref([])
@@ -184,8 +204,13 @@ const keywords = ref([])
 // 班级统计
 const classList = ref([])
 const selectedClassId = ref(null)
+const classSelectTemp = ref(null)
 const classOverview = ref({})
 const classKeywords = ref([])
+const currentClassName = computed(() => {
+  const c = classList.value.find(item => item.id === selectedClassId.value)
+  return c ? c.name : ''
+})
 
 onMounted(() => {
   fetchOverallData()
@@ -246,9 +271,17 @@ async function fetchClassList() {
   }
 }
 
-async function handleClassChange(classId) {
-  if (!classId) return
-  fetchClassData(classId)
+function startClassStats() {
+  if (!classSelectTemp.value) return
+  selectedClassId.value = classSelectTemp.value
+  fetchClassData(selectedClassId.value)
+}
+
+function switchClass() {
+  selectedClassId.value = null
+  classSelectTemp.value = null
+  classOverview.value = {}
+  classKeywords.value = []
 }
 
 async function fetchClassData(classId) {
@@ -328,16 +361,86 @@ function getTagType(count) {
   min-height: 150px;
 }
 
-.class-selector {
-  margin-bottom: 20px;
+.class-select-wrapper {
   display: flex;
   align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  padding: 40px;
+}
 
-  .selector-label {
-    font-size: 15px;
-    color: var(--color-text-secondary);
-    margin-right: 8px;
-    white-space: nowrap;
-  }
+.class-select-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 48px 40px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+}
+
+.card-icon-wrap {
+  margin-bottom: 20px;
+  display: inline-flex;
+  padding: 16px;
+  background: rgba(99,102,241,0.08);
+  border-radius: 16px;
+}
+
+.class-select-card h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.card-desc {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.card-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 24px 0;
+}
+
+.card-select {
+  width: 100%;
+}
+
+:deep(.card-select .el-select__wrapper) {
+  border-radius: 10px;
+  min-height: 48px;
+}
+
+.card-btn {
+  width: 100%;
+  margin-top: 16px;
+  height: 48px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.class-stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.class-stats-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
 }
 </style>

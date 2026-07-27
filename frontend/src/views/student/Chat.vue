@@ -4,7 +4,23 @@
     <div class="chat-panel" :style="{ width: isVideoCollapsed ? '100%' : leftWidth + 'px' }">
       <!-- Messages Area -->
       <div class="chat-messages" ref="messagesContainer">
-        <div v-if="messages.length === 0" class="empty-state">
+        <div v-if="messages.length === 0 && !currentSessionId" class="empty-state">
+          <div class="empty-icon">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+              <rect x="12" y="14" width="40" height="36" rx="6" stroke="#cbd5e1" stroke-width="2" fill="none"/>
+              <path d="M22 28h20M22 36h14" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"/>
+              <circle cx="44" cy="38" r="8" fill="#eef2ff" stroke="#818cf8" stroke-width="1.5"/>
+              <path d="M42 38h4M44 36v4" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>开始新对话</h3>
+          <p>我是《{{ userStore.courseName }}》课程的 AI 答疑助手</p>
+          <el-button type="primary" size="large" @click="startNewSession" style="margin-top:16px">
+            <el-icon><Plus /></el-icon>
+            新建对话
+          </el-button>
+        </div>
+        <div v-else-if="messages.length === 0" class="empty-state">
           <div class="empty-icon">
             <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="80" height="80">
               <rect x="12" y="14" width="40" height="36" rx="6" stroke="#cbd5e1" stroke-width="2" fill="none"/>
@@ -159,9 +175,11 @@
               @loadedmetadata="onVideoLoaded"
               @ended="onVideoEnded"
             ></video>
-            <el-button class="ask-video-btn" size="small" type="primary" @click="askAboutVideo">
-              <el-icon><ChatDotRound /></el-icon> 提问当前内容
-            </el-button>
+            <div class="player-toolbar">
+              <el-button size="small" type="primary" @click="askAboutVideo">
+                <el-icon><ChatDotRound /></el-icon> 提问当前内容
+              </el-button>
+            </div>
           </div>
         </div>
 
@@ -182,7 +200,7 @@
 <script setup>
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { ChatDotRound, Promotion, VideoCamera, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { ChatDotRound, Plus, Promotion, VideoCamera, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import hljs from 'highlight.js'
@@ -482,6 +500,10 @@ function scrollToBottom() {
 }
 
 watch(visibleMessages, () => scrollToBottom(), { deep: true })
+
+async function startNewSession() {
+  await chatStore.createSession()
+}
 
 async function sendMessage() {
   const content = inputMessage.value.trim()
@@ -1024,7 +1046,6 @@ async function sendMessage() {
     height: 100%;
     display: flex;
     flex-direction: column;
-    position: relative;
 
     video {
       flex: 1;
@@ -1033,12 +1054,14 @@ async function sendMessage() {
       min-height: 0;
     }
 
-    .ask-video-btn {
-      position: absolute;
-      bottom: 12px;
-      right: 12px;
-      z-index: 5;
-      border-radius: 8px;
+    .player-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 8px 12px;
+      background: #1a1a2e;
+      gap: 8px;
+      flex-shrink: 0;
     }
   }
 }

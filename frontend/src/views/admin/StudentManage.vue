@@ -3,15 +3,15 @@
     <div class="page-header">
       <h2>学生账号管理</h2>
       <div class="header-actions">
-        <el-button @click="showOptionDialog = true">
+        <el-button link type="info" @click="showOptionDialog = true">
           <el-icon><Setting /></el-icon>
           选项设置
         </el-button>
-        <el-button type="primary" @click="showImportDialog = true">
+        <el-button @click="showImportDialog = true">
           <el-icon><Upload /></el-icon>
           批量导入
         </el-button>
-        <el-button @click="openAddDialog">
+        <el-button type="primary" @click="openAddDialog">
           <el-icon><Plus /></el-icon>
           添加学生
         </el-button>
@@ -23,7 +23,7 @@
         v-model="searchKeyword"
         placeholder="搜索学号/姓名"
         clearable
-        style="width: 300px"
+        style="width: 260px"
         @clear="fetchStudents"
         @keyup.enter="fetchStudents"
       >
@@ -31,7 +31,15 @@
           <el-icon><Search /></el-icon>
         </template>
       </el-input>
+      <el-select v-model="filterCollege" placeholder="学院" clearable style="width: 180px" @change="fetchStudents">
+        <el-option v-for="c in collegeOptions" :key="c" :label="c" :value="c" />
+      </el-select>
+      <el-select v-model="filterStatus" placeholder="状态" clearable style="width: 120px" @change="fetchStudents">
+        <el-option label="正常" :value="1" />
+        <el-option label="冻结" :value="0" />
+      </el-select>
       <el-button type="primary" @click="fetchStudents">搜索</el-button>
+      <el-button @click="resetFilters">重置</el-button>
     </div>
     
     <el-table
@@ -63,28 +71,36 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="170" fixed="right">
         <template #default="{ row }">
-          <el-button size="small" @click="handleEdit(row)">
-            编辑
-          </el-button>
+          <div class="action-btns">
+          <el-tooltip content="编辑" placement="top">
+            <el-button size="small" circle @click="handleEdit(row)">
+              <el-icon><Edit /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip content="查看记录" placement="top">
+            <el-button size="small" circle @click="handleViewRecords(row)">
+              <el-icon><Document /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip :content="row.status === 1 ? '冻结' : '解冻'" placement="top">
+            <el-button size="small" circle @click="handleToggleStatus(row)">
+              <el-icon><Lock /></el-icon>
+            </el-button>
+          </el-tooltip>
           <el-dropdown trigger="click">
-            <el-button size="small">
-              操作<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            <el-button size="small" circle>
+              <el-icon><MoreFilled /></el-icon>
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="handleViewRecords(row)">
-                  <el-icon><Document /></el-icon>查看记录
-                </el-dropdown-item>
                 <el-dropdown-item @click="handleResetPassword(row)">重置密码</el-dropdown-item>
-                <el-dropdown-item @click="handleToggleStatus(row)">
-                  {{ row.status === 1 ? '冻结' : '解冻' }}
-                </el-dropdown-item>
                 <el-dropdown-item @click="handleDelete(row)" style="color: #f56c6c">删除</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -313,6 +329,8 @@ const total = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const searchKeyword = ref('')
+const filterCollege = ref(null)
+const filterStatus = ref(null)
 
 const showImportDialog = ref(false)
 const showAddDialog = ref(false)
@@ -381,17 +399,28 @@ function openAddDialog() {
 async function fetchStudents() {
   loading.value = true
   try {
-    const res = await getStudentList({
+    const params = {
       page: currentPage.value,
       size: pageSize.value,
       keyword: searchKeyword.value
-    })
+    }
+    if (filterCollege.value) params.college = filterCollege.value
+    if (filterStatus.value !== null && filterStatus.value !== '') params.status = filterStatus.value
+    const res = await getStudentList(params)
     const data = res.data || {}
     students.value = data.records || []
     total.value = data.total || 0
   } finally {
     loading.value = false
   }
+}
+
+function resetFilters() {
+  searchKeyword.value = ''
+  filterCollege.value = null
+  filterStatus.value = null
+  currentPage.value = 1
+  fetchStudents()
 }
 
 function formatDate(date) {
@@ -642,12 +671,20 @@ async function handleDeleteOption(id, category) {
   display: flex;
   gap: 10px;
   margin-bottom: 20px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .pagination {
   margin-top: 20px;
   display: flex;
   justify-content: flex-end;
+}
+
+.action-btns {
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }
 
 .option-list {

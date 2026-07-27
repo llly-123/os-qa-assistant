@@ -110,32 +110,32 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     @Select("SELECT COUNT(*) FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'user' AND s.user_id = #{userId}")
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class')")
     int countUserQuestions(@Param("userId") Long userId);
 
     @Select("SELECT COUNT(*) FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'user' AND s.user_id = #{userId} AND s.class_id = #{classId}")
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND s.class_id = #{classId} AND (m.source_type IS NULL OR m.source_type != 'no_class')")
     int countUserQuestionsByClass(@Param("userId") Long userId, @Param("classId") Long classId);
 
     @Select("SELECT COUNT(DISTINCT m.session_id) FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'assistant' AND s.user_id = #{userId} AND m.citation IS NOT NULL AND m.citation != ''")
+            "WHERE m.role = 'assistant' AND s.user_id = #{userId} AND m.citation IS NOT NULL AND m.citation != '' AND (m.source_type IS NULL OR m.source_type != 'no_class')")
     int countUserCitedAnswers(@Param("userId") Long userId);
 
     @Select("SELECT COUNT(DISTINCT m.session_id) FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'assistant' AND s.user_id = #{userId} AND s.class_id = #{classId} AND m.citation IS NOT NULL AND m.citation != ''")
+            "WHERE m.role = 'assistant' AND s.user_id = #{userId} AND s.class_id = #{classId} AND m.citation IS NOT NULL AND m.citation != '' AND (m.source_type IS NULL OR m.source_type != 'no_class')")
     int countUserCitedAnswersByClass(@Param("userId") Long userId, @Param("classId") Long classId);
 
     @Select("SELECT COUNT(*) FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'assistant' AND s.user_id = #{userId}")
+            "WHERE m.role = 'assistant' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class')")
     int countUserTotalAnswers(@Param("userId") Long userId);
 
     @Select("SELECT COUNT(*) FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'assistant' AND s.user_id = #{userId} AND s.class_id = #{classId}")
+            "WHERE m.role = 'assistant' AND s.user_id = #{userId} AND s.class_id = #{classId} AND (m.source_type IS NULL OR m.source_type != 'no_class')")
     int countUserTotalAnswersByClass(@Param("userId") Long userId, @Param("classId") Long classId);
 
     @Select("<script>SELECT m.id, m.content as question, m.create_time, m.citation, m.source_type " +
@@ -245,13 +245,13 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     @Select("SELECT m.keywords FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'user' AND s.user_id = #{userId} AND m.keywords IS NOT NULL AND m.keywords <> '' " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND m.keywords IS NOT NULL AND m.keywords <> '' AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
             "ORDER BY m.create_time DESC LIMIT #{limit}")
     List<String> findUserQuestionKeywords(@Param("userId") Long userId, @Param("limit") int limit);
 
     @Select("SELECT m.keywords FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
-            "WHERE m.role = 'user' AND s.user_id = #{userId} AND s.class_id = #{classId} AND m.keywords IS NOT NULL AND m.keywords <> '' " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND s.class_id = #{classId} AND m.keywords IS NOT NULL AND m.keywords <> '' AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
             "ORDER BY m.create_time DESC LIMIT #{limit}")
     List<String> findUserQuestionKeywordsByClass(@Param("userId") Long userId, @Param("classId") Long classId, @Param("limit") int limit);
 }

@@ -39,7 +39,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/login", "/api/auth/send-code", "/api/auth/reset-password", "/api/auth/send-phone-code", "/api/auth/reset-password-by-phone").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/send-code", "/api/auth/reset-password", "/api/auth/send-phone-code", "/api/auth/reset-password-by-phone").permitAll()
                 .requestMatchers("/api/settings/public").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/api/courses/chapters").authenticated()
