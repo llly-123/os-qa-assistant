@@ -90,6 +90,15 @@ public class StudentService {
         return result;
     }
 
+    // 获取所有学生（不分页，仅返回基础字段，用于班级管理勾选）
+    public List<User> getAllStudents() {
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getRole, "STUDENT")
+               .eq(User::getStatus, 1)
+               .orderByDesc(User::getCreateTime);
+        return userMapper.selectList(wrapper);
+    }
+
     public Result<?> createStudent(String studentId, String name, String phone, String college, String major, String grade) {
         if (studentId == null || studentId.isBlank()) {
             return Result.error(400, "学号不能为空");

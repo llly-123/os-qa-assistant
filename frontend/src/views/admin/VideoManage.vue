@@ -1,34 +1,66 @@
 <template>
   <div class="video-manage">
-    <div class="page-header">
-      <div class="header-top">
+    <!-- 列表视图 -->
+    <template v-if="viewMode === 'list'">
+      <div class="page-header">
         <h2>视频管理</h2>
-        <el-button type="primary" :disabled="!currentSetId" @click="handleAddChapter">
-          <el-icon><Plus /></el-icon>
-          添加章
-        </el-button>
+        <div class="header-actions">
+          <el-button type="primary" @click="handleCreateSet">
+            <el-icon><Plus /></el-icon>
+            新建视频集
+          </el-button>
+        </div>
       </div>
-      <div class="set-bar">
-        <span class="set-label">视频集：</span>
-        <el-select
-          v-model="currentSetId"
-          placeholder="请选择视频集"
-          style="width: 260px"
-          @change="onSetChange"
-        >
-          <el-option v-for="s in videoSets" :key="s.id" :label="s.name + (s.chapterCount != null ? ` (${s.chapterCount}章)` : '')" :value="s.id" />
-        </el-select>
-        <el-button @click="handleCreateSet">新建视频集</el-button>
-        <el-button :disabled="!currentSetId" @click="handleRenameSet">重命名</el-button>
-        <el-button :disabled="!currentSetId" type="danger" plain @click="handleDeleteSet">删除</el-button>
+
+      <div class="vs-section">
+        <div v-if="videoSets.length === 0" class="vs-empty">
+          <el-empty description="暂无视频集，请新建" />
+        </div>
+
+        <div v-else class="vs-grid">
+          <div
+            v-for="s in videoSets"
+            :key="s.id"
+            class="vs-card"
+            @click="enterSet(s.id)"
+          >
+            <div class="vs-card-cover">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+                <rect width="48" height="48" rx="10" fill="rgba(99,102,241,0.12)"/>
+                <rect x="10" y="14" width="20" height="20" rx="3" stroke="#6366f1" stroke-width="2.5" stroke-linejoin="round"/>
+                <path d="M30 20l8-4v16l-8-4z" stroke="#6366f1" stroke-width="2.5" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="vs-card-info">
+              <h4 class="vs-card-name">{{ s.name }}</h4>
+              <p class="vs-card-meta">{{ s.chapterCount != null ? s.chapterCount : 0 }} 章</p>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </template>
 
-    <div v-if="!currentSetId" class="empty-set-tip">
-      <el-empty description="请先新建或选择一个视频集，再管理章节" />
-    </div>
+    <!-- 详情视图 -->
+    <template v-else>
+      <div class="page-header">
+        <div class="detail-title">
+          <el-button text @click="backToList">
+            <el-icon><ArrowLeft /></el-icon>
+            返回
+          </el-button>
+          <h2>{{ currentSetName }}</h2>
+        </div>
+        <div class="header-actions">
+          <el-button type="primary" @click="handleAddChapter">
+            <el-icon><Plus /></el-icon>
+            添加章
+          </el-button>
+          <el-button @click="handleRenameSet">重命名</el-button>
+          <el-button type="danger" plain @click="handleDeleteSet">删除</el-button>
+        </div>
+      </div>
 
-    <div v-else class="content-layout">
+      <div class="content-layout">
       <!-- 左侧：章节树 -->
       <div class="chapter-tree">
         <el-empty v-if="chapters.length === 0" description="暂无章节，请添加" />
@@ -156,12 +188,14 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, ArrowLeft } from '@element-plus/icons-vue'
 import {
   getChapters, addChapter, updateChapter, deleteChapter, moveChapter,
   addSection, updateSection, deleteSection, moveSection,
@@ -186,6 +220,13 @@ const editingSectionId = ref(null)
 const editingTitle = ref('')
 const uploading = ref(false)
 const uploadPercent = ref(0)
+// 视图模式：list=视频集列表，detail=章节管理
+const viewMode = ref('list')
+
+const currentSetName = computed(() => {
+  const s = videoSets.value.find(item => item.id === currentSetId.value)
+  return s ? s.name : ''
+})
 
 onMounted(async () => {
   await fetchVideoSets()
@@ -194,13 +235,28 @@ onMounted(async () => {
 async function fetchVideoSets() {
   const res = await getVideoSets()
   videoSets.value = res.data || []
-  if (videoSets.value.length > 0) {
-    currentSetId.value = videoSets.value[0].id
-    await fetchChapters()
-  } else {
-    currentSetId.value = null
-    chapters.value = []
-  }
+  // 不自动进入详情，停留在列表视图
+  currentSetId.value = null
+  chapters.value = []
+}
+
+// 点击卡片进入视频集详情
+async function enterSet(setId) {
+  if (!setId) return
+  currentSetId.value = setId
+  viewMode.value = 'detail'
+  selectedSection.value = null
+  selectedChapter.value = null
+  await fetchChapters()
+}
+
+// 返回视频集列表
+function backToList() {
+  viewMode.value = 'list'
+  currentSetId.value = null
+  chapters.value = []
+  selectedSection.value = null
+  selectedChapter.value = null
 }
 
 async function onSetChange() {
@@ -224,9 +280,6 @@ async function handleCreateSet() {
   await createVideoSet({ name: value.trim() })
   ElMessage.success('创建成功')
   await fetchVideoSets()
-  // 选中新创建的
-  currentSetId.value = videoSets.value[0].id
-  await fetchChapters()
 }
 
 async function handleRenameSet() {
@@ -245,8 +298,8 @@ async function handleDeleteSet() {
   await ElMessageBox.confirm('删除视频集将同时删除其下所有章/节与视频，确定删除？', '警告', { type: 'warning' })
   await deleteVideoSet(currentSetId.value)
   ElMessage.success('删除成功')
-  selectedSection.value = null
-  selectedChapter.value = null
+  // 删除后返回列表视图
+  backToList()
   await fetchVideoSets()
 }
 
@@ -410,47 +463,116 @@ function formatSize(bytes) {
 }
 
 .page-header {
-  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
 
-  .header-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-
-    h2 {
-      margin: 0;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--color-text-primary);
-    }
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
   }
 
-  .set-bar {
+  .header-actions {
     display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 12px;
-    background: #fff;
-    border: 1px solid #e4e7ed;
-    border-radius: 8px;
-
-    .set-label {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      white-space: nowrap;
-    }
+    gap: 10px;
   }
 }
 
-.empty-set-tip {
-  flex: 1;
+/* 详情视图标题 */
+.detail-title {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+}
+
+/* 视频集 Grid 卡片 */
+.vs-section {
+  margin-bottom: 24px;
+}
+
+.vs-empty {
   background: #fff;
   border: 1px solid #e4e7ed;
   border-radius: 8px;
+  padding: 40px 0;
+}
+
+.vs-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 1000px) {
+  .vs-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .vs-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.vs-card {
+  background: #fff;
+  border: 2px solid #e4e7ed;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  &:hover {
+    border-color: #c7d2fe;
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.1);
+    transform: translateY(-3px);
+  }
+}
+
+.vs-card-cover {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.vs-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.vs-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vs-card-meta {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
 }
 
 .content-layout {

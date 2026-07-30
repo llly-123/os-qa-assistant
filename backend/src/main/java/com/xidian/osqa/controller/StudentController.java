@@ -30,6 +30,12 @@ public class StudentController {
         return Result.success(result);
     }
 
+    // 获取所有学生（不分页，用于班级管理中勾选学生加入班级）
+    @GetMapping("/all")
+    public Result<?> getAllStudents() {
+        return Result.success(studentService.getAllStudents());
+    }
+
     @PostMapping
     public Result<?> createStudent(@RequestBody Map<String, String> body) {
         String studentId = body.get("studentId");

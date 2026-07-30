@@ -125,18 +125,19 @@ function getTagType(count) {
 }
 
 .stat-card {
-  background: #fff;
-  border-radius: var(--radius-md);
+  background: rgba(99, 102, 241, 0.04);
+  border-radius: 14px;
   padding: 24px;
   display: flex;
   align-items: center;
   gap: 18px;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border-light);
-  transition: box-shadow 0.2s;
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
-    box-shadow: var(--shadow-md);
+    background: rgba(99, 102, 241, 0.1);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
   }
 }
 
@@ -169,11 +170,17 @@ function getTagType(count) {
 }
 
 .section-card {
-  background: #fff;
-  border-radius: var(--radius-md);
+  background: rgba(99, 102, 241, 0.04);
+  border-radius: 14px;
   padding: 24px;
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border-light);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+
+  &:hover {
+    background: rgba(99, 102, 241, 0.08);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
+  }
 
   .section-title {
     font-size: 16px;

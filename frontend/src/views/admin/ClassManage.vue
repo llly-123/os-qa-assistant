@@ -60,6 +60,9 @@
           <el-button @click="showImportDialog = true">
             <el-icon><Upload /></el-icon> 批量导入
           </el-button>
+          <el-button @click="openSelectStudentDialog">
+            <el-icon><UserFilled /></el-icon> 从已有学生选择
+          </el-button>
           <el-button type="primary" @click="openAddDialog">
             <el-icon><Plus /></el-icon> 添加学生
           </el-button>
@@ -377,16 +380,49 @@
         <el-button type="primary" :loading="savingResource" @click="handleSaveResource">保存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 从已有学生选择 -->
+    <el-dialog v-model="showSelectStudentDialog" :title="'从已有学生选择 - ' + (selectedClass?.name || '')" width="700px">
+      <el-input
+        v-model="selectStudentKeyword"
+        placeholder="搜索学号/姓名"
+        clearable
+        style="margin-bottom: 16px"
+      />
+      <el-table
+        ref="selectStudentTableRef"
+        :data="filteredAllStudents"
+        max-height="400"
+        @selection-change="handleSelectStudentChange"
+        stripe
+      >
+        <el-table-column type="selection" width="45" />
+        <el-table-column prop="username" label="学号" width="130" />
+        <el-table-column prop="realName" label="姓名" width="100" />
+        <el-table-column prop="college" label="学院" />
+        <el-table-column prop="major" label="专业" />
+        <el-table-column prop="grade" label="年级" width="80" />
+      </el-table>
+      <div v-if="selectedStudentIds.length > 0" class="select-count">
+        已选 {{ selectedStudentIds.length }} 名学生
+      </div>
+      <template #footer>
+        <el-button @click="showSelectStudentDialog = false">取消</el-button>
+        <el-button type="primary" :loading="addingStudents" @click="handleSelectStudentAdd">
+          添加到班级
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Calendar, ArrowLeft, Search, Upload, Setting, Download, Document, UploadFilled, Loading, Edit, Lock, MoreFilled } from '@element-plus/icons-vue'
+import { Plus, Calendar, ArrowLeft, Search, Upload, Setting, Download, Document, UploadFilled, Loading, Edit, Lock, MoreFilled, UserFilled } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
-import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources } from '@/api/clazz'
-import { updateStudent, deleteStudent, resetStudentPassword, toggleStudentStatus } from '@/api/student'
+import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources, addStudent } from '@/api/clazz'
+import { updateStudent, deleteStudent, resetStudentPassword, toggleStudentStatus, getAllStudents } from '@/api/student'
 import { getOptionsByCategory, addOption, deleteOption } from '@/api/option'
 import { getUserQuestions } from '@/api/statistics'
 import { getVideoSets } from '@/api/video'
@@ -430,9 +466,24 @@ const showAddDialog = ref(false)
 const showOptionDialog = ref(false)
 const showEditDialog = ref(false)
 const showRecordsDialog = ref(false)
+const showSelectStudentDialog = ref(false)
 const importing = ref(false)
 const uploadRef = ref(null)
 const uploadFile = ref(null)
+
+// 从已有学生选择
+const allStudents = ref([])
+const selectStudentKeyword = ref('')
+const selectedStudentIds = ref([])
+const addingStudents = ref(false)
+const filteredAllStudents = computed(() => {
+  const kw = selectStudentKeyword.value?.toLowerCase()
+  if (!kw) return allStudents.value
+  return allStudents.value.filter(s =>
+    (s.username || '').toLowerCase().includes(kw) ||
+    (s.realName || '').toLowerCase().includes(kw)
+  )
+})
 
 // 选项
 const collegeOptions = ref([])
@@ -606,6 +657,52 @@ async function handleAdd() {
     fetchClasses()
   } catch (e) {
     console.error('添加失败:', e)
+  }
+}
+
+// ===== 从已有学生选择 =====
+async function openSelectStudentDialog() {
+  showSelectStudentDialog.value = true
+  selectStudentKeyword.value = ''
+  selectedStudentIds.value = []
+  try {
+    const res = await getAllStudents()
+    // 排除已在当前班级的学生
+    const existingIds = new Set(students.value.map(s => s.id))
+    allStudents.value = (res.data || []).filter(s => !existingIds.has(s.id))
+  } catch (e) {
+    console.error('获取学生列表失败:', e)
+  }
+}
+
+function handleSelectStudentChange(selection) {
+  selectedStudentIds.value = selection
+}
+
+async function handleSelectStudentAdd() {
+  if (selectedStudentIds.value.length === 0) {
+    ElMessage.warning('请至少选择一名学生')
+    return
+  }
+  addingStudents.value = true
+  let successCount = 0
+  let failCount = 0
+  for (const student of selectedStudentIds.value) {
+    try {
+      await addStudent(selectedClass.value.id, student.id)
+      successCount++
+    } catch (e) {
+      failCount++
+    }
+  }
+  addingStudents.value = false
+  if (successCount > 0) {
+    ElMessage.success(`成功添加 ${successCount} 名学生${failCount > 0 ? `，${failCount} 名失败` : ''}`)
+    showSelectStudentDialog.value = false
+    fetchStudents(selectedClass.value.id)
+    fetchClasses()
+  } else {
+    ElMessage.error('添加失败，学生可能已在班级中')
   }
 }
 
@@ -891,5 +988,12 @@ function formatTime(time) {
   }
   .option-empty { color: #999; text-align: center; padding: 20px; }
   .option-add { display: flex; gap: 10px; margin-top: 16px; }
+}
+
+.select-count {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #6366f1;
+  font-weight: 600;
 }
 </style>

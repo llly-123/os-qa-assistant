@@ -1,110 +1,139 @@
 <template>
   <div class="knowledge-manage">
-    <div class="page-header">
-      <h2>知识库管理</h2>
-      <div class="header-actions">
-        <el-button @click="fetchStatus">
-          <el-icon><Refresh /></el-icon>
-          刷新状态
-        </el-button>
-        <el-button type="success" :disabled="!currentKbId" @click="showImportDialog = true">
-          <el-icon><Document /></el-icon>
-          文本导入
-        </el-button>
-        <el-button type="primary" :disabled="!currentKbId" @click="showUploadDialog = true">
-          <el-icon><Upload /></el-icon>
-          上传文档
-        </el-button>
+    <!-- 列表视图 -->
+    <template v-if="viewMode === 'list'">
+      <div class="page-header">
+        <h2>知识库管理</h2>
+        <div class="header-actions">
+          <el-button type="primary" @click="handleCreateKb">
+            <el-icon><Plus /></el-icon>
+            新建知识库
+          </el-button>
+        </div>
       </div>
-    </div>
 
-    <div class="kb-bar">
-      <span class="kb-label">知识库：</span>
-      <el-select
-        v-model="currentKbId"
-        placeholder="请选择知识库"
-        style="width: 280px"
-        @change="onKbChange"
-      >
-        <el-option v-for="kb in knowledgeBases" :key="kb.id" :label="kb.name + (kb.documentCount != null ? ` (${kb.documentCount}篇)` : '')" :value="kb.id" />
-      </el-select>
-      <el-button @click="handleCreateKb">新建知识库</el-button>
-      <el-button :disabled="!currentKbId" @click="handleRenameKb">重命名</el-button>
-      <el-button :disabled="!currentKbId" type="danger" plain @click="handleDeleteKb">删除</el-button>
-    </div>
+      <div class="kb-section">
+        <div v-if="knowledgeBases.length === 0" class="kb-empty">
+          <el-empty description="暂无知识库，请新建" />
+        </div>
 
-    <div v-if="!currentKbId" class="empty-kb-tip">
-      <el-empty description="请先新建或选择一个知识库，再上传文档" />
-    </div>
+        <div v-else class="kb-grid">
+          <div
+            v-for="kb in knowledgeBases"
+            :key="kb.id"
+            class="kb-card"
+            @click="enterKb(kb.id)"
+          >
+            <div class="kb-card-cover">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="40" height="40">
+                <rect width="48" height="48" rx="10" fill="rgba(99,102,241,0.12)"/>
+                <path d="M12 14h24v20H12z" stroke="#6366f1" stroke-width="2.5" stroke-linejoin="round"/>
+                <path d="M18 20h12M18 24h12M18 28h8" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="kb-card-info">
+              <h4 class="kb-card-name">{{ kb.name }}</h4>
+              <p class="kb-card-meta">{{ kb.documentCount != null ? kb.documentCount : 0 }} 篇文档</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
 
+    <!-- 详情视图 -->
     <template v-else>
-    
-    <el-card class="status-card">
-      <template #header>
-        <span>知识库状态</span>
-      </template>
-      <el-descriptions :column="4" border>
-        <el-descriptions-item label="文档数量">
-          {{ status.documentCount || 0 }}
-        </el-descriptions-item>
-        <el-descriptions-item label="切片数量">
-          {{ status.chunkCount || 0 }}
-        </el-descriptions-item>
-        <el-descriptions-item label="向量维度">
-          {{ status.embeddingDimension || 0 }}
-        </el-descriptions-item>
-        <el-descriptions-item label="最后更新">
-          {{ formatDate(status.lastUpdate) || '暂无' }}
-        </el-descriptions-item>
-      </el-descriptions>
-      
-      <div style="margin-top: 20px">
-        <el-button type="warning" @click="handleRebuildIndex">
-          <el-icon><RefreshRight /></el-icon>
-          重建索引
-        </el-button>
+      <div class="page-header">
+        <div class="detail-title">
+          <el-button text @click="backToList">
+            <el-icon><ArrowLeft /></el-icon>
+            返回
+          </el-button>
+          <h2>{{ currentKbName }}</h2>
+        </div>
+        <div class="header-actions">
+          <el-button @click="fetchStatus">
+            <el-icon><Refresh /></el-icon>
+            刷新状态
+          </el-button>
+          <el-button type="success" @click="showImportDialog = true">
+            <el-icon><Document /></el-icon>
+            文本导入
+          </el-button>
+          <el-button type="primary" @click="showUploadDialog = true">
+            <el-icon><Upload /></el-icon>
+            上传文档
+          </el-button>
+          <el-button @click="handleRenameKb">重命名</el-button>
+          <el-button type="danger" plain @click="handleDeleteKb">删除</el-button>
+        </div>
       </div>
-    </el-card>
-    
-    <el-card style="margin-top: 20px">
-      <template #header>
-        <span>已上传文档</span>
-      </template>
+
+      <el-card class="status-card">
+        <template #header>
+          <span>知识库状态</span>
+        </template>
+        <el-descriptions :column="4" border>
+          <el-descriptions-item label="文档数量">
+            {{ status.documentCount || 0 }}
+          </el-descriptions-item>
+          <el-descriptions-item label="切片数量">
+            {{ status.chunkCount || 0 }}
+          </el-descriptions-item>
+          <el-descriptions-item label="向量维度">
+            {{ status.embeddingDimension || 0 }}
+          </el-descriptions-item>
+          <el-descriptions-item label="最后更新">
+            {{ formatDate(status.lastUpdate) || '暂无' }}
+          </el-descriptions-item>
+        </el-descriptions>
+        
+        <div style="margin-top: 20px">
+          <el-button type="warning" @click="handleRebuildIndex">
+            <el-icon><RefreshRight /></el-icon>
+            重建索引
+          </el-button>
+        </div>
+      </el-card>
       
-      <el-table :data="documents" v-loading="loading" stripe>
-        <el-table-column prop="fileName" label="文件名" />
-        <el-table-column label="类型" width="120">
-          <template #default="{ row }">
-            <el-tag>{{ getFileType(row.fileName) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="大小" width="120">
-          <template #default="{ row }">
-            {{ formatSize(row.fileSize) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="chunkCount" label="切片数" width="100" />
-        <el-table-column label="状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 1 ? 'success' : row.status === 2 ? 'danger' : 'warning'">
-              {{ row.status === 1 ? '已处理' : row.status === 2 ? '处理失败' : '处理中' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="上传时间" width="180">
-          <template #default="{ row }">
-            {{ formatDate(row.createTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="120">
-          <template #default="{ row }">
-            <el-button size="small" type="danger" @click="handleDelete(row)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
+      <el-card style="margin-top: 20px">
+        <template #header>
+          <span>已上传文档</span>
+        </template>
+        
+        <el-table :data="documents" v-loading="loading" stripe>
+          <el-table-column prop="fileName" label="文件名" />
+          <el-table-column label="类型" width="120">
+            <template #default="{ row }">
+              <el-tag>{{ getFileType(row.fileName) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="大小" width="120">
+            <template #default="{ row }">
+              {{ formatSize(row.fileSize) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="chunkCount" label="切片数" width="100" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 1 ? 'success' : row.status === 2 ? 'danger' : 'warning'">
+                {{ row.status === 1 ? '已处理' : row.status === 2 ? '处理失败' : '处理中' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="上传时间" width="180">
+            <template #default="{ row }">
+              {{ formatDate(row.createTime) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120">
+            <template #default="{ row }">
+              <el-button size="small" type="danger" @click="handleDelete(row)">
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-card>
     </template>
 
     <el-dialog v-model="showUploadDialog" title="上传知识文档" width="600px">
@@ -193,8 +222,9 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, ArrowLeft } from '@element-plus/icons-vue'
 import {
   getKnowledgeList,
   uploadKnowledge,
@@ -223,6 +253,14 @@ const importContent = ref('')
 
 const knowledgeBases = ref([])
 const currentKbId = ref(null)
+// 视图模式：list=知识库列表，detail=知识库详情
+const viewMode = ref('list')
+
+// 当前知识库名称
+const currentKbName = computed(() => {
+  const kb = knowledgeBases.value.find(k => k.id === currentKbId.value)
+  return kb ? kb.name : ''
+})
 
 onMounted(async () => {
   await fetchKnowledgeBases()
@@ -231,20 +269,28 @@ onMounted(async () => {
 async function fetchKnowledgeBases() {
   const res = await getKnowledgeBases()
   knowledgeBases.value = res.data || []
-  if (knowledgeBases.value.length > 0) {
-    currentKbId.value = knowledgeBases.value[0].id
-    await fetchDocuments()
-    await fetchStatus()
-  } else {
-    currentKbId.value = null
-    documents.value = []
-    status.value = {}
-  }
+  // 不自动进入详情，停留在列表视图
+  currentKbId.value = null
+  documents.value = []
+  status.value = {}
 }
 
 async function onKbChange() {
   await fetchDocuments()
   await fetchStatus()
+}
+
+// 点击卡片进入知识库详情
+async function enterKb(kbId) {
+  if (!kbId) return
+  currentKbId.value = kbId
+  viewMode.value = 'detail'
+  await onKbChange()
+}
+
+// 返回知识库列表
+function backToList() {
+  viewMode.value = 'list'
 }
 
 async function handleCreateKb() {
@@ -256,9 +302,6 @@ async function handleCreateKb() {
   await createKnowledgeBase({ name: value.trim() })
   ElMessage.success('创建成功')
   await fetchKnowledgeBases()
-  currentKbId.value = knowledgeBases.value[0].id
-  await fetchDocuments()
-  await fetchStatus()
 }
 
 async function handleRenameKb() {
@@ -277,6 +320,9 @@ async function handleDeleteKb() {
   await ElMessageBox.confirm('删除知识库将同时删除其下所有文档与切片，确定删除？', '警告', { type: 'warning' })
   await deleteKnowledgeBase(currentKbId.value)
   ElMessage.success('删除成功')
+  // 删除后返回列表视图
+  viewMode.value = 'list'
+  currentKbId.value = null
   await fetchKnowledgeBases()
 }
 
@@ -498,20 +544,97 @@ function onFileSelected(event) {
   margin-bottom: 20px;
 }
 
-.kb-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+/* 知识库 Grid 卡片 */
+.kb-section {
+  margin-bottom: 24px;
+}
+
+.kb-empty {
   background: #fff;
   border: 1px solid #e4e7ed;
   border-radius: 8px;
-  margin-bottom: 20px;
+  padding: 40px 0;
+}
 
-  .kb-label {
-    font-size: 13px;
-    color: var(--color-text-secondary);
-    white-space: nowrap;
+.kb-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+@media (max-width: 1000px) {
+  .kb-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .kb-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kb-card {
+  background: #fff;
+  border: 2px solid #e4e7ed;
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+
+  &:hover {
+    border-color: #c7d2fe;
+    box-shadow: 0 8px 20px rgba(99, 102, 241, 0.1);
+    transform: translateY(-3px);
+  }
+}
+
+.kb-card-cover {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.kb-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.kb-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-card-meta {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+/* 详情视图标题 */
+.detail-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--color-text-primary);
   }
 }
 

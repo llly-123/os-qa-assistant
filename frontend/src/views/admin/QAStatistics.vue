@@ -85,26 +85,39 @@
 
       <!-- 班级统计 -->
       <el-tab-pane label="班级统计" name="class">
-        <!-- 未选班级：居中卡片 -->
-        <div v-if="!selectedClassId" class="class-select-wrapper">
-          <div class="class-select-card">
-            <div class="card-icon-wrap">
-              <el-icon :size="40" color="#6366f1"><DataAnalysis /></el-icon>
+        <!-- 未选班级：Grid 卡片选择 -->
+        <div v-if="!selectedClassId" class="class-grid-section">
+          <p class="grid-hint">请选择要查看统计的班级</p>
+          <div v-if="classList.length === 0" class="class-empty">
+            <el-empty description="暂无班级" />
+          </div>
+          <div v-else class="class-grid">
+            <div
+              v-for="cls in classList"
+              :key="cls.id"
+              class="class-card"
+              @click="startClassStatsById(cls.id)"
+            >
+              <div class="class-card-cover" :style="classCoverStyle(cls)">
+                <span class="class-cover-name">{{ cls.name }}</span>
+              </div>
+              <div class="class-card-info">
+                <h4 class="class-card-title">{{ cls.name }}</h4>
+                <div class="class-card-meta">
+                  <span class="meta-item">
+                    <el-icon><User /></el-icon>
+                    {{ cls.studentCount || 0 }} 人
+                  </span>
+                  <span v-if="cls.status !== 1" class="meta-status">已解散</span>
+                </div>
+                <div class="class-card-enter">
+                  <span>查看统计</span>
+                  <svg viewBox="0 0 16 16" width="13" height="13" fill="none">
+                    <path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </div>
+              </div>
             </div>
-            <h2>班级统计</h2>
-            <p class="card-desc">请选择要查看统计的班级</p>
-            <div class="card-divider"></div>
-            <el-select v-model="classSelectTemp" placeholder="请选择班级" size="large" class="card-select">
-              <el-option
-                v-for="cls in classList"
-                :key="cls.id"
-                :value="cls.id"
-                :label="cls.name + (cls.status === 1 ? '' : '（已解散）') + ' - ' + (cls.studentCount || 0) + '人'"
-              />
-            </el-select>
-            <el-button type="primary" size="large" class="card-btn" :disabled="!classSelectTemp" @click="startClassStats">
-              开始统计
-            </el-button>
           </div>
         </div>
 
@@ -277,6 +290,33 @@ function startClassStats() {
   fetchClassData(selectedClassId.value)
 }
 
+// 卡片点击直接进入班级统计
+function startClassStatsById(classId) {
+  if (!classId) return
+  selectedClassId.value = classId
+  fetchClassData(classId)
+}
+
+// 渐变色调色板
+const GRADIENT_PALETTES = [
+  ['#667eea', '#764ba2'],
+  ['#f093fb', '#f5576c'],
+  ['#4facfe', '#00f2fe'],
+  ['#43e97b', '#38f9d7'],
+  ['#fa709a', '#fee140'],
+  ['#a8edea', '#fed6e3'],
+  ['#ff9a9e', '#fecfef'],
+  ['#ffecd2', '#fcb69f'],
+  ['#a18cd1', '#fbc2eb'],
+  ['#5ee7df', '#b490ca'],
+]
+
+function classCoverStyle(cls) {
+  const idx = (cls.id || 0) % GRADIENT_PALETTES.length
+  const [c1, c2] = GRADIENT_PALETTES[idx]
+  return { background: `linear-gradient(135deg, ${c1}, ${c2})` }
+}
+
 function switchClass() {
   selectedClassId.value = null
   classSelectTemp.value = null
@@ -361,67 +401,139 @@ function getTagType(count) {
   min-height: 150px;
 }
 
-.class-select-wrapper {
+/* 班级 Grid 卡片 */
+.class-grid-section {
+  padding: 8px 0;
+}
+
+.grid-hint {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin: 0 0 20px;
+}
+
+.class-empty {
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 8px;
+  padding: 40px 0;
+}
+
+.class-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+@media (max-width: 1000px) {
+  .class-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .class-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.class-card {
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+
+  &:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.15);
+
+    .class-cover-name {
+      transform: scale(1.05);
+    }
+
+    .class-card-enter {
+      gap: 8px;
+    }
+  }
+}
+
+.class-card-cover {
+  width: 100%;
+  aspect-ratio: 16 / 9;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 400px;
-  padding: 40px;
+  position: relative;
+  overflow: hidden;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 40%, rgba(255, 255, 255, 0.2), transparent 60%);
+  }
 }
 
-.class-select-card {
-  background: #fff;
-  border-radius: 20px;
-  padding: 48px 40px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-  max-width: 420px;
-  width: 100%;
-  text-align: center;
-}
-
-.card-icon-wrap {
-  margin-bottom: 20px;
-  display: inline-flex;
-  padding: 16px;
-  background: rgba(99,102,241,0.08);
-  border-radius: 16px;
-}
-
-.class-select-card h2 {
+.class-cover-name {
   font-size: 20px;
   font-weight: 700;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+  padding: 0 16px;
+  text-align: center;
+  line-height: 1.4;
+  word-break: break-all;
+  transition: transform 0.3s ease;
+  position: relative;
+  z-index: 1;
+}
+
+.class-card-info {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.class-card-title {
+  font-size: 15px;
+  font-weight: 700;
   color: #1e293b;
-  margin-bottom: 6px;
-}
-
-.card-desc {
-  font-size: 14px;
-  color: #64748b;
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.card-divider {
-  height: 1px;
-  background: #e2e8f0;
-  margin: 24px 0;
+.class-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #94a3b8;
 }
 
-.card-select {
-  width: 100%;
+.meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-:deep(.card-select .el-select__wrapper) {
-  border-radius: 10px;
-  min-height: 48px;
+.meta-status {
+  color: #f56c6c;
+  font-size: 11px;
 }
 
-.card-btn {
-  width: 100%;
-  margin-top: 16px;
-  height: 48px;
-  border-radius: 10px;
-  font-size: 16px;
+.class-card-enter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
   font-weight: 600;
+  color: #6366f1;
+  transition: gap 0.2s ease;
 }
 
 .class-stats-header {

@@ -12,7 +12,7 @@
           </svg>
         </div>
         <h1>{{ userStore.siteName }}</h1>
-        <p class="brand-desc">基于{{ userStore.schoolName ? userStore.schoolName + '·' : '' }}《{{ userStore.courseName }}》课程资料<br/>智能检索 · 精准回答 · 高效学习</p>
+        <p class="brand-desc">智能检索 · 精准回答 · 高效学习</p>
         <div class="brand-features">
           <div class="feature-item">
             <span class="feature-icon">📚</span>
@@ -137,6 +137,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import { useChatStore } from '@/stores/chat'
 import { sendPhoneCode, resetPasswordByPhone } from '@/api/auth'
 
 const router = useRouter()
@@ -180,6 +181,15 @@ async function handleLogin() {
     if (userStore.role === 'TEACHER') {
       router.push('/admin/students')
     } else {
+      // 每次登录都重新选择班级，清除 store 和 localStorage 中的残留
+      const chatStore = useChatStore()
+      chatStore.abortAllAsk()
+      chatStore.currentClassId = null
+      chatStore.currentSessionId = null
+      chatStore.sessions = []
+      chatStore.messages = []
+      localStorage.removeItem('currentClassId')
+      localStorage.removeItem('currentSessionId')
       router.push('/select-class')
     }
   } catch (error) {

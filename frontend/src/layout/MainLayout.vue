@@ -603,16 +603,18 @@ function formatSessionTime(time) {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   color: var(--color-text-secondary);
-  transition: all 0.15s ease;
-  margin-bottom: 2px;
+  background: rgba(99, 102, 241, 0.04);
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+  margin-bottom: 4px;
   font-size: 14px;
 
   &:hover {
-    background: var(--color-primary-bg);
+    background: rgba(99, 102, 241, 0.1);
     color: var(--color-primary);
+    transform: translateX(3px);
   }
 
   &.active {
@@ -629,14 +631,16 @@ function formatSessionTime(time) {
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     color: var(--color-text-secondary);
-    transition: all 0.15s ease;
-    margin-bottom: 2px;
+    background: rgba(99, 102, 241, 0.04);
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+    margin-bottom: 4px;
 
     &:hover {
-      background: var(--color-bg-secondary);
+      background: rgba(99, 102, 241, 0.1);
+      transform: translateX(3px);
     }
 
     &.active {

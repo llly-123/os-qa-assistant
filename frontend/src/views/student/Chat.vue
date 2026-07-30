@@ -14,7 +14,7 @@
             </svg>
           </div>
           <h3>开始新对话</h3>
-          <p>我是《{{ userStore.courseName }}》课程的 AI 答疑助手</p>
+          <p>我是《{{ currentClassName }}》课程的 AI 答疑助手</p>
           <el-button type="primary" size="large" @click="startNewSession" style="margin-top:16px">
             <el-icon><Plus /></el-icon>
             新建对话
@@ -30,7 +30,7 @@
             </svg>
           </div>
           <h3>开始提问吧</h3>
-          <p>我是《{{ userStore.courseName }}》课程的 AI 答疑助手</p>
+          <p>我是《{{ currentClassName }}》课程的 AI 答疑助手</p>
           <p class="hint-text">直接输入您的问题开始提问</p>
         </div>
 
@@ -220,6 +220,12 @@ function videoSrc(url) {
 
 const chatStore = useChatStore()
 const userStore = useUserStore()
+
+// 当前班级名称（优先用班级名，fallback 到全局 courseName）
+const currentClassName = computed(() => {
+  const cls = chatStore.classes.find(c => c.id === chatStore.currentClassId)
+  return cls ? cls.name : (userStore.courseName || '本课程')
+})
 
 const messagesContainer = ref(null)
 const inputMessage = ref('')

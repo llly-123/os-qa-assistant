@@ -26,12 +26,12 @@ public class VideoService {
     // ========== Chapter CRUD ==========
 
     public Result<?> getChapters(Long videoSetId) {
-        LambdaQueryWrapper<Chapter> wrapper = new LambdaQueryWrapper<>();
-        if (videoSetId != null) {
-            wrapper.eq(Chapter::getVideoSetId, videoSetId);
-        } else {
-            wrapper.isNotNull(Chapter::getVideoSetId);
+        // 未挂载视频集时返回空列表，不返回其他视频集的章节数据
+        if (videoSetId == null) {
+            return Result.success(List.of());
         }
+        LambdaQueryWrapper<Chapter> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Chapter::getVideoSetId, videoSetId);
         wrapper.orderByAsc(Chapter::getSortOrder);
         List<Chapter> chapters = chapterMapper.selectList(wrapper);
 

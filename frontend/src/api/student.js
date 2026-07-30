@@ -8,6 +8,14 @@ export function getStudentList(params) {
   })
 }
 
+// 获取所有学生（不分页，用于班级管理勾选）
+export function getAllStudents() {
+  return request({
+    url: '/admin/students/all',
+    method: 'get'
+  })
+}
+
 export function batchImportStudents(file) {
   const formData = new FormData()
   formData.append('file', file)
