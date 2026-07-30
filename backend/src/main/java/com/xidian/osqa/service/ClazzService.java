@@ -88,6 +88,7 @@ public class ClazzService {
         return Result.success(classes);
     }
 
+    @Transactional
     public Result<?> createClass(Long teacherId, String name, String startTime, String endTime, Long videoSetId, Long kbId) {
         if (name == null || name.trim().isEmpty()) {
             return Result.error(400, "班级名称不能为空");
@@ -122,6 +123,26 @@ public class ClazzService {
         clazz.setUpdateTime(LocalDateTime.now());
         clazzMapper.insert(clazz);
 
+        return Result.success(clazz);
+    }
+
+    /**
+     * 重命名班级
+     */
+    public Result<?> renameClass(Long classId, Long teacherId, String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return Result.error(400, "班级名称不能为空");
+        }
+        Clazz clazz = clazzMapper.selectById(classId);
+        if (clazz == null) {
+            return Result.error(404, "班级不存在");
+        }
+        if (!clazz.getTeacherId().equals(teacherId)) {
+            return Result.error(403, "无权操作此班级");
+        }
+        clazz.setName(name.trim());
+        clazz.setUpdateTime(LocalDateTime.now());
+        clazzMapper.updateById(clazz);
         return Result.success(clazz);
     }
 
@@ -218,9 +239,19 @@ public class ClazzService {
         return Result.success();
     }
 
+    /** 校验班级归属 */
+    private Result<?> checkClassOwnership(Long classId, Long teacherId) {
+        Clazz clazz = clazzMapper.selectById(classId);
+        if (clazz == null) return Result.error(404, "班级不存在");
+        if (!clazz.getTeacherId().equals(teacherId)) return Result.error(403, "无权操作此班级");
+        return null;
+    }
+
     // ========== 班级学生管理 ==========
 
-    public Result<?> getClassStudents(Long classId) {
+    public Result<?> getClassStudents(Long classId, Long teacherId) {
+        Result<?> ownershipError = checkClassOwnership(classId, teacherId);
+        if (ownershipError != null) return ownershipError;
         LambdaQueryWrapper<ClassStudent> csWrapper = new LambdaQueryWrapper<>();
         csWrapper.eq(ClassStudent::getClassId, classId);
         List<ClassStudent> csList = classStudentMapper.selectList(csWrapper);
@@ -234,11 +265,10 @@ public class ClazzService {
         return Result.success(students);
     }
 
-    public Result<?> addStudent(Long classId, Long studentId) {
+    public Result<?> addStudent(Long classId, Long studentId, Long teacherId) {
+        Result<?> ownershipError = checkClassOwnership(classId, teacherId);
+        if (ownershipError != null) return ownershipError;
         Clazz clazz = clazzMapper.selectById(classId);
-        if (clazz == null) {
-            return Result.error(404, "班级不存在");
-        }
         if (clazz.getStatus() == 0) {
             return Result.error(400, "班级已解散");
         }
@@ -264,7 +294,9 @@ public class ClazzService {
         return Result.success();
     }
 
-    public Result<?> removeStudent(Long classId, Long studentId) {
+    public Result<?> removeStudent(Long classId, Long studentId, Long teacherId) {
+        Result<?> ownershipError = checkClassOwnership(classId, teacherId);
+        if (ownershipError != null) return ownershipError;
         LambdaQueryWrapper<ClassStudent> csWrapper = new LambdaQueryWrapper<>();
         csWrapper.eq(ClassStudent::getClassId, classId);
         csWrapper.eq(ClassStudent::getStudentId, studentId);
@@ -272,7 +304,10 @@ public class ClazzService {
         return Result.success();
     }
 
-    public Result<?> addStudentsByUsernames(Long classId, List<String> usernames) {
+    @Transactional
+    public Result<?> addStudentsByUsernames(Long classId, List<String> usernames, Long teacherId) {
+        Result<?> ownershipError = checkClassOwnership(classId, teacherId);
+        if (ownershipError != null) return ownershipError;
         Clazz clazz = clazzMapper.selectById(classId);
         if (clazz == null) {
             return Result.error(404, "班级不存在");
@@ -371,6 +406,7 @@ public class ClazzService {
     /**
      * 自动解散过期班级（定时任务调用）
      */
+    @Transactional
     public int dissolveExpiredClasses() {
         LambdaQueryWrapper<Clazz> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Clazz::getStatus, 1);
@@ -397,7 +433,10 @@ public class ClazzService {
     /**
      * 在班级内创建学生（创建用户 + 加入班级）
      */
-    public Result<?> createStudentInClass(Long classId, Map<String, String> body) {
+    @Transactional
+    public Result<?> createStudentInClass(Long classId, Map<String, String> body, Long teacherId) {
+        Result<?> ownershipError = checkClassOwnership(classId, teacherId);
+        if (ownershipError != null) return ownershipError;
         String studentId = body.get("studentId");
         String name = body.get("name");
         if (studentId == null || studentId.isBlank() || name == null || name.isBlank()) {
@@ -426,7 +465,7 @@ public class ClazzService {
             // 新建学生账号
             user = new User();
             user.setUsername(studentId.trim());
-            String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : studentId;
+            String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : String.format("%6s", studentId).replace(' ', '0');
             user.setPassword(passwordEncoder.encode(defaultPassword));
             user.setRealName(name.trim());
             user.setPhone(body.get("phone"));
@@ -453,7 +492,10 @@ public class ClazzService {
     /**
      * 批量导入学生到班级
      */
-    public Result<?> importStudentsInClass(Long classId, MultipartFile file) throws Exception {
+    @Transactional
+    public Result<?> importStudentsInClass(Long classId, MultipartFile file, Long teacherId) throws Exception {
+        Result<?> ownershipError = checkClassOwnership(classId, teacherId);
+        if (ownershipError != null) return ownershipError;
         if (file.isEmpty()) {
             return Result.error(400, "文件为空");
         }
@@ -509,7 +551,7 @@ public class ClazzService {
                         // 创建新用户
                         User user = new User();
                         user.setUsername(studentId);
-                        String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : studentId;
+                        String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : String.format("%6s", studentId).replace(' ', '0');
                         user.setPassword(passwordEncoder.encode(defaultPassword));
                         user.setRealName(name);
                         user.setCollege(college);

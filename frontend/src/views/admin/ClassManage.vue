@@ -22,6 +22,7 @@
               </div>
               <div class="card-actions">
                 <el-button size="small" type="primary" @click="enterClass(cls)">进入管理</el-button>
+                <el-button size="small" @click="openRenameDialog(cls)">重命名</el-button>
                 <el-button size="small" :type="(!cls.videoSetId && !cls.kbId) ? 'primary' : 'default'" @click="openResourceDialog(cls)">配置资源</el-button>
                 <el-button v-if="cls.status === 1" size="small" type="warning" @click="handleDissolve(cls)">解散</el-button>
                 <el-button size="small" type="danger" @click="handleDeleteClass(cls)">删除</el-button>
@@ -381,6 +382,15 @@
       </template>
     </el-dialog>
 
+    <!-- 重命名班级 -->
+    <el-dialog v-model="showRenameDialog" title="重命名班级" width="460px">
+      <el-input v-model="renameForm.name" placeholder="请输入新的班级名称" maxlength="50" show-word-limit />
+      <template #footer>
+        <el-button @click="showRenameDialog = false">取消</el-button>
+        <el-button type="primary" :loading="renaming" @click="handleSaveRename">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 从已有学生选择 -->
     <el-dialog v-model="showSelectStudentDialog" :title="'从已有学生选择 - ' + (selectedClass?.name || '')" width="700px">
       <el-input
@@ -390,7 +400,6 @@
         style="margin-bottom: 16px"
       />
       <el-table
-        ref="selectStudentTableRef"
         :data="filteredAllStudents"
         max-height="400"
         @selection-change="handleSelectStudentChange"
@@ -421,7 +430,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Calendar, ArrowLeft, Search, Upload, Setting, Download, Document, UploadFilled, Loading, Edit, Lock, MoreFilled, UserFilled } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
-import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources, addStudent } from '@/api/clazz'
+import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources, addStudent, renameClass } from '@/api/clazz'
 import { updateStudent, deleteStudent, resetStudentPassword, toggleStudentStatus, getAllStudents } from '@/api/student'
 import { getOptionsByCategory, addOption, deleteOption } from '@/api/option'
 import { getUserQuestions } from '@/api/statistics'
@@ -440,6 +449,11 @@ const showResourceDialog = ref(false)
 const savingResource = ref(false)
 const resourceTarget = ref(null)
 const resourceForm = reactive({ videoSetId: null, kbId: null })
+
+// 重命名对话框
+const showRenameDialog = ref(false)
+const renaming = ref(false)
+const renameForm = reactive({ id: null, name: '' })
 
 // 可挂载的视频集 / 知识库
 const videoSets = ref([])
@@ -573,6 +587,31 @@ async function handleSaveResource() {
     console.error('资源配置失败:', e)
   } finally {
     savingResource.value = false
+  }
+}
+
+// ===== 重命名班级 =====
+function openRenameDialog(cls) {
+  renameForm.id = cls.id
+  renameForm.name = cls.name
+  showRenameDialog.value = true
+}
+
+async function handleSaveRename() {
+  if (!renameForm.name.trim()) {
+    ElMessage.warning('班级名称不能为空')
+    return
+  }
+  renaming.value = true
+  try {
+    await renameClass(renameForm.id, renameForm.name.trim())
+    ElMessage.success('重命名成功')
+    showRenameDialog.value = false
+    fetchClasses()
+  } catch (e) {
+    console.error('重命名失败:', e)
+  } finally {
+    renaming.value = false
   }
 }
 

@@ -199,3 +199,8 @@ INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT
 MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('site_name', '智能答疑助手');
 MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('course_name', '本课程');
 MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('school_name', '');
+
+-- ========== 数据清洗：将历史孤儿知识文档/知识块关联到第一个知识库 ==========
+-- knowledge 表中 kb_id 为 null 的记录关联到 id 最小的知识库（幂等，仅执行一次修复）
+UPDATE `knowledge` SET `kb_id` = (SELECT MIN(id) FROM `knowledge_base` WHERE `deleted` = 0) WHERE `kb_id` IS NULL AND EXISTS (SELECT 1 FROM `knowledge_base` WHERE `deleted` = 0);
+UPDATE `knowledge_chunk` SET `kb_id` = (SELECT MIN(id) FROM `knowledge_base` WHERE `deleted` = 0) WHERE `kb_id` IS NULL AND EXISTS (SELECT 1 FROM `knowledge_base` WHERE `deleted` = 0);

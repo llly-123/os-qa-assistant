@@ -1,6 +1,7 @@
 package com.xidian.osqa.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.time.LocalDateTime;
 
 @TableName("sys_user")
@@ -8,6 +9,7 @@ public class User {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String username;
+    @JsonIgnore
     private String password;
     @TableField("real_name")
     private String realName;

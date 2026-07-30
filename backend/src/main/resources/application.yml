@@ -13,10 +13,10 @@ spring:
 
   h2:
     console:
-      enabled: true
+      enabled: ${H2_CONSOLE_ENABLED:false}
       path: /h2-console
       settings:
-        web-allow-others: true
+        web-allow-others: false
 
   sql:
     init:
@@ -44,7 +44,6 @@ mybatis-plus:
   mapper-locations: classpath:mapper/*.xml
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: auto
@@ -53,7 +52,7 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 jwt:
-  secret: os-qa-assistant-xidian-university-2024-secret-key-for-jwt-token-generation
+  secret: ${JWT_SECRET:os-qa-assistant-xidian-university-2024-secret-key-for-jwt-token-generation}
   expiration: 86400000
 
 langchain4j:

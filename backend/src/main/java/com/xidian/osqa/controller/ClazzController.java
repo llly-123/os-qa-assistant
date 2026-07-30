@@ -49,6 +49,14 @@ public class ClazzController {
         return clazzService.dissolveClass(classId, teacherId);
     }
 
+    // 重命名班级
+    @PutMapping("/admin/classes/{classId}/name")
+    public Result<?> renameClass(HttpServletRequest request, @PathVariable Long classId, @RequestBody Map<String, Object> body) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        String name = body.get("name") == null ? null : body.get("name").toString();
+        return clazzService.renameClass(classId, teacherId, name);
+    }
+
     // 为已存在班级挂载/修改/取消挂载视频集与知识库
     @PutMapping("/admin/classes/{classId}/resources")
     public Result<?> updateClassResources(HttpServletRequest request, @PathVariable Long classId, @RequestBody Map<String, Object> body) {
@@ -59,37 +67,43 @@ public class ClazzController {
     }
 
     @GetMapping("/admin/classes/{classId}/students")
-    public Result<?> getClassStudents(@PathVariable Long classId) {
-        return clazzService.getClassStudents(classId);
+    public Result<?> getClassStudents(HttpServletRequest request, @PathVariable Long classId) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return clazzService.getClassStudents(classId, teacherId);
     }
 
     @PostMapping("/admin/classes/{classId}/students")
-    public Result<?> addStudent(@PathVariable Long classId, @RequestBody Map<String, Object> body) {
+    public Result<?> addStudent(HttpServletRequest request, @PathVariable Long classId, @RequestBody Map<String, Object> body) {
+        Long teacherId = (Long) request.getAttribute("userId");
         Long studentId = Long.valueOf(body.get("studentId").toString());
-        return clazzService.addStudent(classId, studentId);
+        return clazzService.addStudent(classId, studentId, teacherId);
     }
 
     @PostMapping("/admin/classes/{classId}/students/batch")
-    public Result<?> addStudentsByUsernames(@PathVariable Long classId, @RequestBody Map<String, Object> body) {
+    public Result<?> addStudentsByUsernames(HttpServletRequest request, @PathVariable Long classId, @RequestBody Map<String, Object> body) {
+        Long teacherId = (Long) request.getAttribute("userId");
         @SuppressWarnings("unchecked")
         List<String> usernames = (List<String>) body.get("usernames");
-        return clazzService.addStudentsByUsernames(classId, usernames);
+        return clazzService.addStudentsByUsernames(classId, usernames, teacherId);
     }
 
     @DeleteMapping("/admin/classes/{classId}/students/{studentId}")
-    public Result<?> removeStudent(@PathVariable Long classId, @PathVariable Long studentId) {
-        return clazzService.removeStudent(classId, studentId);
+    public Result<?> removeStudent(HttpServletRequest request, @PathVariable Long classId, @PathVariable Long studentId) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return clazzService.removeStudent(classId, studentId, teacherId);
     }
 
     @PostMapping("/admin/classes/{classId}/students/create")
-    public Result<?> createStudentInClass(@PathVariable Long classId, @RequestBody Map<String, String> body) {
-        return clazzService.createStudentInClass(classId, body);
+    public Result<?> createStudentInClass(HttpServletRequest request, @PathVariable Long classId, @RequestBody Map<String, String> body) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return clazzService.createStudentInClass(classId, body, teacherId);
     }
 
     @PostMapping("/admin/classes/{classId}/students/import")
-    public Result<?> importStudentsInClass(@PathVariable Long classId, @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+    public Result<?> importStudentsInClass(HttpServletRequest request, @PathVariable Long classId, @RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+        Long teacherId = (Long) request.getAttribute("userId");
         try {
-            return clazzService.importStudentsInClass(classId, file);
+            return clazzService.importStudentsInClass(classId, file, teacherId);
         } catch (Exception e) {
             return Result.error("导入失败：" + e.getMessage());
         }

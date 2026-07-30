@@ -300,7 +300,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
@@ -324,6 +324,7 @@ const changePhoneForm = reactive({ code: '', newPhone: '' })
 const changePhoneStep = ref(1)
 const sendingCode = ref(false)
 const codeCountdown = ref(0)
+let codeTimer = null
 const changingPhone = ref(false)
 
 const showPasswordDialog = ref(false)
@@ -354,6 +355,10 @@ onMounted(async () => {
       await chatStore.fetchSessions()
     }
   }
+})
+
+onBeforeUnmount(() => {
+  if (codeTimer) clearInterval(codeTimer)
 })
 
 function goSelectClass() {
@@ -426,9 +431,10 @@ async function handleSendChangeCode() {
     }
     changePhoneStep.value = 2
     codeCountdown.value = 60
-    const timer = setInterval(() => {
+    if (codeTimer) clearInterval(codeTimer)
+    codeTimer = setInterval(() => {
       codeCountdown.value--
-      if (codeCountdown.value <= 0) clearInterval(timer)
+      if (codeCountdown.value <= 0) { clearInterval(codeTimer); codeTimer = null }
     }, 1000)
   } catch (error) { console.error('发送验证码失败:', error) } finally { sendingCode.value = false }
 }

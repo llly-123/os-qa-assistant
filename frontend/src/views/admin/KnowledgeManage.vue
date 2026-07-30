@@ -222,7 +222,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, ArrowLeft } from '@element-plus/icons-vue'
 import {
@@ -380,8 +380,6 @@ async function handleUpload() {
     return
   }
   
-  console.log('开始上传，文件列表:', fileList.value.map(f => ({ name: f.name, raw: !!f.raw, size: f.size })))
-  
   uploading.value = true
   let successCount = 0
   
@@ -407,16 +405,19 @@ async function handleUpload() {
   }
 }
 
+let pollTimer = null
+
 function startPolling() {
   let count = 0
   const maxPolls = 60
-  const timer = setInterval(async () => {
+  pollTimer = setInterval(async () => {
     count++
     await fetchDocuments()
     await fetchStatus()
     const processing = documents.value.some(d => d.status === 0)
     if (!processing || count >= maxPolls) {
-      clearInterval(timer)
+      clearInterval(pollTimer)
+      pollTimer = null
       if (count >= maxPolls) {
         ElMessage.warning('处理超时，请稍后刷新查看结果')
       } else {
@@ -430,6 +431,13 @@ function startPolling() {
     }
   }, 3000)
 }
+
+onBeforeUnmount(() => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+})
 
 async function handleDelete(row) {
   try {

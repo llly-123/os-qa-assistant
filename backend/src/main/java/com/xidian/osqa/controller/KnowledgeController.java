@@ -3,6 +3,7 @@ package com.xidian.osqa.controller;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.Knowledge;
 import com.xidian.osqa.service.KnowledgeService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -20,22 +21,24 @@ public class KnowledgeController {
     }
 
     @GetMapping
-    public Result<?> getKnowledgeList(@RequestParam(required = false) Long kbId) {
-        List<Knowledge> list = knowledgeService.getKnowledgeList(kbId);
-        return Result.success(list);
+    public Result<?> getKnowledgeList(HttpServletRequest request, @RequestParam(required = false) Long kbId) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return knowledgeService.getKnowledgeList(teacherId, kbId);
     }
 
     @GetMapping("/status")
-    public Result<?> getKnowledgeStatus(@RequestParam(required = false) Long kbId) {
-        Map<String, Object> status = knowledgeService.getKnowledgeStatus(kbId);
-        return Result.success(status);
+    public Result<?> getKnowledgeStatus(HttpServletRequest request, @RequestParam(required = false) Long kbId) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return knowledgeService.getKnowledgeStatus(teacherId, kbId);
     }
 
     @PostMapping("/upload")
-    public Result<?> uploadKnowledge(@RequestParam("file") MultipartFile file,
+    public Result<?> uploadKnowledge(HttpServletRequest request,
+                                     @RequestParam("file") MultipartFile file,
                                      @RequestParam("kbId") Long kbId) {
+        Long teacherId = (Long) request.getAttribute("userId");
         try {
-            Knowledge knowledge = knowledgeService.uploadKnowledge(kbId, file);
+            Knowledge knowledge = knowledgeService.uploadKnowledge(teacherId, kbId, file);
             return Result.success(knowledge);
         } catch (Exception e) {
             return Result.error("上传失败：" + e.getMessage());
@@ -43,7 +46,8 @@ public class KnowledgeController {
     }
 
     @PostMapping("/import-text")
-    public Result<?> importText(@RequestBody Map<String, Object> body) {
+    public Result<?> importText(HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        Long teacherId = (Long) request.getAttribute("userId");
         try {
             String title = body.getOrDefault("title", "教材文本导入").toString();
             String content = body.get("content") == null ? null : body.get("content").toString();
@@ -52,7 +56,7 @@ public class KnowledgeController {
             }
             Object kbIdObj = body.get("kbId");
             Long kbId = kbIdObj == null ? null : Long.valueOf(kbIdObj.toString());
-            Knowledge knowledge = knowledgeService.importText(kbId, title, content);
+            Knowledge knowledge = knowledgeService.importText(teacherId, kbId, title, content);
             return Result.success(knowledge);
         } catch (Exception e) {
             return Result.error("导入失败：" + e.getMessage());
@@ -60,9 +64,9 @@ public class KnowledgeController {
     }
 
     @DeleteMapping("/{id}")
-    public Result<?> deleteKnowledge(@PathVariable Long id) {
-        knowledgeService.deleteKnowledge(id);
-        return Result.success();
+    public Result<?> deleteKnowledge(HttpServletRequest request, @PathVariable Long id) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return knowledgeService.deleteKnowledge(id, teacherId);
     }
 
     @PostMapping("/rebuild")

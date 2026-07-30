@@ -111,7 +111,7 @@ public class StudentService {
         }
         User user = new User();
         user.setUsername(studentId.trim());
-        String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : studentId;
+        String defaultPassword = studentId.length() >= 6 ? studentId.substring(studentId.length() - 6) : String.format("%6s", studentId).replace(' ', '0');
         user.setPassword(passwordEncoder.encode(defaultPassword));
         user.setRealName(name);
         user.setPhone(phone);
@@ -132,7 +132,7 @@ public class StudentService {
             return null;
         }
         String username = user.getUsername();
-        String newPassword = username.length() >= 6 ? username.substring(username.length() - 6) : username;
+        String newPassword = username.length() >= 6 ? username.substring(username.length() - 6) : String.format("%6s", username).replace(' ', '0');
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);

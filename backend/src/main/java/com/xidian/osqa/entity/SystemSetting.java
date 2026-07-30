@@ -8,8 +8,7 @@ import java.time.LocalDateTime;
 
 @TableName("system_setting")
 public class SystemSetting {
-    @TableId(type = IdType.INPUT)
-    @TableField("setting_key")
+    @TableId(value = "setting_key", type = IdType.INPUT)
     private String settingKey;
     @TableField("setting_value")
     private String settingValue;

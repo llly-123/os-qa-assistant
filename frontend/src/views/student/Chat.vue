@@ -230,7 +230,6 @@ const currentClassName = computed(() => {
 const messagesContainer = ref(null)
 const inputMessage = ref('')
 const isTyping = computed(() => chatStore.isTyping)
-const streamingContent = ref('')
 const webSearchEnabled = ref(false)
 const videoPlayer = ref(null)
 
@@ -246,6 +245,8 @@ const currentVideoSection = ref(null)
 const currentVideoChapter = ref(null)
 const videoProgressMap = ref({})
 let progressSaveTimer = null
+let pollTimer = null
+let pollTimeout = null
 
 // Class state：取自 chatStore（学生可同时加入多个班级，在侧边栏切换）
 const inClass = computed(() => !!chatStore.currentClassId)
@@ -287,24 +288,29 @@ onMounted(async () => {
     if (lastMsg.role === 'user') {
       const pollSessionId = chatStore.currentSessionId
       chatStore.setTyping(pollSessionId)
-      const pollTimer = setInterval(async () => {
+      pollTimer = setInterval(async () => {
         try {
           await chatStore.fetchMessages(pollSessionId)
           const newLast = chatStore.messages[chatStore.messages.length - 1]
           if (newLast.role === 'assistant' && newLast.content) {
             chatStore.clearTyping(pollSessionId)
             clearInterval(pollTimer)
+            pollTimer = null
           }
         } catch {
           chatStore.clearTyping(pollSessionId)
           clearInterval(pollTimer)
+          pollTimer = null
         }
       }, 3000)
       // 最多轮询60秒
-      setTimeout(() => {
+      pollTimeout = setTimeout(() => {
         if (chatStore.isSessionTyping(pollSessionId)) {
           chatStore.clearTyping(pollSessionId)
-          clearInterval(pollTimer)
+          if (pollTimer) {
+            clearInterval(pollTimer)
+            pollTimer = null
+          }
         }
       }, 60000)
     }
@@ -329,6 +335,8 @@ watch(() => chatStore.currentClassId, () => {
 
 onBeforeUnmount(() => {
   if (progressSaveTimer) clearInterval(progressSaveTimer)
+  if (pollTimer) clearInterval(pollTimer)
+  if (pollTimeout) clearTimeout(pollTimeout)
   if (localStorage.getItem('token')) saveCurrentProgress()
 })
 
@@ -510,18 +518,14 @@ async function startNewSession() {
 
 async function sendMessage() {
   const content = inputMessage.value.trim()
-  console.log('sendMessage called, content:', content, 'isTyping:', isTyping.value)
   if (!content || isTyping.value) {
-    console.log('sendMessage early return: content empty or isTyping')
     return
   }
 
   if (!currentSessionId.value) {
-    console.log('No currentSessionId, creating new session...')
     await chatStore.createSession()
   }
   const sessionId = currentSessionId.value
-  console.log('Sending message to session:', sessionId)
 
   const hasVideoContext = !!currentVideoSection.value && !isVideoCollapsed.value
   chatStore.addMessage({ role: 'user', content, createTime: new Date().toISOString(), videoContext: hasVideoContext })
@@ -560,9 +564,7 @@ async function sendMessage() {
 
     const res = await response.json()
     if (res.code === 200 && res.data) {
-      if (chatStore.currentSessionId !== sessionId) {
-        // 用户已切到别的会话，不打扰当前展示；后台结果已存 DB，切回时通过 fetchMessages 同步
-      } else {
+      if (chatStore.currentSessionId === sessionId) {
         // 通过 reactive 数组更新占位消息，确保触发 Vue 响应式
         const msg = chatStore.messages[placeholderIndex]
         if (msg && msg.role === 'assistant' && !msg.content) {

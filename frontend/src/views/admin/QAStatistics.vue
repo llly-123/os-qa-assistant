@@ -217,7 +217,6 @@ const keywords = ref([])
 // 班级统计
 const classList = ref([])
 const selectedClassId = ref(null)
-const classSelectTemp = ref(null)
 const classOverview = ref({})
 const classKeywords = ref([])
 const currentClassName = computed(() => {
@@ -284,12 +283,6 @@ async function fetchClassList() {
   }
 }
 
-function startClassStats() {
-  if (!classSelectTemp.value) return
-  selectedClassId.value = classSelectTemp.value
-  fetchClassData(selectedClassId.value)
-}
-
 // 卡片点击直接进入班级统计
 function startClassStatsById(classId) {
   if (!classId) return
@@ -319,7 +312,6 @@ function classCoverStyle(cls) {
 
 function switchClass() {
   selectedClassId.value = null
-  classSelectTemp.value = null
   classOverview.value = {}
   classKeywords.value = []
 }

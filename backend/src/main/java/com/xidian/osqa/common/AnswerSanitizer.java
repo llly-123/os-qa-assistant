@@ -88,7 +88,7 @@ public final class AnswerSanitizer {
             }
         }
         // 2c. 纯疑问句段落（整段只是一个问句）
-        if (para.length() < 60 && para.endsWith("？") || para.endsWith("?")) {
+        if (para.length() < 60 && (para.endsWith("？") || para.endsWith("?"))) {
             long comma = para.chars().filter(c -> c == '，').count();
             if (comma <= 1) return true;
         }

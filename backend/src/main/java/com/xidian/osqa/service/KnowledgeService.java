@@ -1,7 +1,10 @@
 package com.xidian.osqa.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.Knowledge;
+import com.xidian.osqa.entity.KnowledgeBase;
+import com.xidian.osqa.mapper.KnowledgeBaseMapper;
 import com.xidian.osqa.mapper.KnowledgeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class KnowledgeService {
@@ -25,50 +29,81 @@ public class KnowledgeService {
     private static final Logger log = LoggerFactory.getLogger(KnowledgeService.class);
 
     private final KnowledgeMapper knowledgeMapper;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeEmbeddingService embeddingService;
 
     @Value("${knowledge.upload-dir}")
     private String uploadDir;
 
-    public KnowledgeService(KnowledgeMapper knowledgeMapper, KnowledgeEmbeddingService embeddingService) {
+    public KnowledgeService(KnowledgeMapper knowledgeMapper, KnowledgeBaseMapper knowledgeBaseMapper, KnowledgeEmbeddingService embeddingService) {
         this.knowledgeMapper = knowledgeMapper;
+        this.knowledgeBaseMapper = knowledgeBaseMapper;
         this.embeddingService = embeddingService;
     }
 
-    public List<Knowledge> getKnowledgeList(Long kbId) {
-        LambdaQueryWrapper<Knowledge> wrapper = new LambdaQueryWrapper<>();
-        if (kbId != null) {
-            wrapper.eq(Knowledge::getKbId, kbId);
-        } else {
-            // 不传 kbId 时只返回已归入知识库的文档（过滤掉历史孤儿数据）
-            wrapper.isNotNull(Knowledge::getKbId);
+    /** 校验知识库归属，返回 kbId（null 时返回 null） */
+    private Long checkKbOwnership(Long teacherId, Long kbId) {
+        if (kbId == null) return null;
+        KnowledgeBase kb = knowledgeBaseMapper.selectById(kbId);
+        if (kb == null || !kb.getTeacherId().equals(teacherId)) {
+            throw new SecurityException("无权操作此知识库");
         }
-        wrapper.orderByDesc(Knowledge::getCreateTime);
-        return knowledgeMapper.selectList(wrapper);
+        return kbId;
     }
 
-    public Map<String, Object> getKnowledgeStatus(Long kbId) {
+    public Result<?> getKnowledgeList(Long teacherId, Long kbId) {
+        Long verifiedKbId = kbId != null ? checkKbOwnership(teacherId, kbId) : null;
+        LambdaQueryWrapper<Knowledge> wrapper = new LambdaQueryWrapper<>();
+        if (verifiedKbId != null) {
+            wrapper.eq(Knowledge::getKbId, verifiedKbId);
+        } else {
+            // 不传 kbId 时只返回该教师所有知识库下的文档
+            LambdaQueryWrapper<KnowledgeBase> kbWrapper = new LambdaQueryWrapper<>();
+            kbWrapper.eq(KnowledgeBase::getTeacherId, teacherId);
+            List<KnowledgeBase> kbs = knowledgeBaseMapper.selectList(kbWrapper);
+            if (kbs.isEmpty()) return Result.success(List.of());
+            wrapper.in(Knowledge::getKbId, kbs.stream().map(KnowledgeBase::getId).collect(java.util.stream.Collectors.toList()));
+        }
+        wrapper.orderByDesc(Knowledge::getCreateTime);
+        return Result.success(knowledgeMapper.selectList(wrapper));
+    }
+
+    public Result<?> getKnowledgeStatus(Long teacherId, Long kbId) {
+        Long verifiedKbId = kbId != null ? checkKbOwnership(teacherId, kbId) : null;
         Map<String, Object> status = new HashMap<>();
         try {
             LambdaQueryWrapper<Knowledge> w = new LambdaQueryWrapper<>();
-            if (kbId != null) {
-                w.eq(Knowledge::getKbId, kbId);
+            if (verifiedKbId != null) {
+                w.eq(Knowledge::getKbId, verifiedKbId);
             } else {
-                w.isNotNull(Knowledge::getKbId);
+                LambdaQueryWrapper<KnowledgeBase> kbWrapper = new LambdaQueryWrapper<>();
+                kbWrapper.eq(KnowledgeBase::getTeacherId, teacherId);
+                List<KnowledgeBase> kbs = knowledgeBaseMapper.selectList(kbWrapper);
+                if (kbs.isEmpty()) {
+                    status.put("documentCount", 0);
+                    status.put("chunkCount", 0);
+                    status.put("embeddingDimension", 1024);
+                    status.put("lastUpdate", null);
+                    return Result.success(status);
+                }
+                w.in(Knowledge::getKbId, kbs.stream().map(KnowledgeBase::getId).collect(java.util.stream.Collectors.toList()));
             }
             List<Knowledge> all = knowledgeMapper.selectList(w);
             status.put("documentCount", all.size());
             status.put("chunkCount", embeddingService.getChunkCount());
             status.put("embeddingDimension", 1024);
             status.put("lastUpdate", all.isEmpty() ? null : all.get(0).getCreateTime());
+        } catch (SecurityException e) {
+            return Result.error(403, e.getMessage());
         } catch (Exception e) {
             status.put("documentCount", 0);
             status.put("chunkCount", 0);
         }
-        return status;
+        return Result.success(status);
     }
 
-    public Knowledge uploadKnowledge(Long kbId, MultipartFile file) throws IOException {
+    public Knowledge uploadKnowledge(Long teacherId, Long kbId, MultipartFile file) throws IOException {
+        checkKbOwnership(teacherId, kbId);
         log.info("========== uploadKnowledge 开始 ==========");
         log.info("收到文件: name={}, size={}", file.getOriginalFilename(), file.getSize());
 
@@ -78,8 +113,14 @@ public class KnowledgeService {
             log.info("创建上传目录: {}", dirPath.toAbsolutePath());
         }
 
-        String fileName = file.getOriginalFilename();
-        Path filePath = dirPath.resolve(fileName);
+        // 安全文件名：用 UUID 重命名，保留原始扩展名，防止路径穿越
+        String originalName = file.getOriginalFilename();
+        String safeName = UUID.randomUUID().toString();
+        if (originalName != null && originalName.contains(".")) {
+            String ext = originalName.substring(originalName.lastIndexOf("."));
+            safeName += ext;
+        }
+        Path filePath = dirPath.resolve(safeName);
         Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
         long fileSize = Files.size(filePath);
@@ -87,7 +128,7 @@ public class KnowledgeService {
 
         Knowledge knowledge = new Knowledge();
         knowledge.setKbId(kbId);
-        knowledge.setFileName(fileName);
+        knowledge.setFileName(originalName);
         knowledge.setFilePath(filePath.toAbsolutePath().toString());
         knowledge.setFileSize(fileSize);
         knowledge.setChunkCount(0);
@@ -150,7 +191,8 @@ public class KnowledgeService {
         return knowledge;
     }
 
-    public Knowledge importText(Long kbId, String title, String content) {
+    public Knowledge importText(Long teacherId, Long kbId, String title, String content) {
+        checkKbOwnership(teacherId, kbId);
         log.info("========== importText 开始: title={}, 内容长度={}, kbId={} ==========", title, content.length(), kbId);
 
         Knowledge knowledge = new Knowledge();
@@ -197,9 +239,23 @@ public class KnowledgeService {
         return knowledge;
     }
 
-    public void deleteKnowledge(Long id) {
+    public Result<?> deleteKnowledge(Long id, Long teacherId) {
+        Knowledge doc = knowledgeMapper.selectById(id);
+        if (doc == null) return Result.error(404, "文档不存在");
+        if (doc.getKbId() != null) {
+            checkKbOwnership(teacherId, doc.getKbId());
+        }
         embeddingService.removeDocument(id);
+        // 删除物理文件（跳过文本导入的占位记录）
+        if (doc.getFilePath() != null && !"text-import".equals(doc.getFilePath())) {
+            try {
+                Files.deleteIfExists(Paths.get(doc.getFilePath()));
+            } catch (IOException e) {
+                log.warn("删除物理文件失败: {}", doc.getFilePath(), e);
+            }
+        }
         knowledgeMapper.deleteById(id);
+        return Result.success();
     }
 
     public void rebuildIndex() {

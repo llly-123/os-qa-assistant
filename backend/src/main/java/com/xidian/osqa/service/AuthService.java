@@ -5,6 +5,8 @@ import com.xidian.osqa.common.JwtUtil;
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.entity.User;
 import com.xidian.osqa.mapper.UserMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,6 +19,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
@@ -179,12 +183,14 @@ public class AuthService {
             return Result.error(400, "该手机号已被其他账号绑定");
         }
 
+        String oldPhone = user.getPhone();
         user.setPhone(newPhone);
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
 
-        codeStore.remove(user.getPhone());
-        codeExpiry.remove(user.getPhone());
+        // 清理旧手机号的验证码（setPhone 后 getPhone 已是新号，需用 oldPhone）
+        codeStore.remove(oldPhone);
+        codeExpiry.remove(oldPhone);
 
         return Result.success();
     }
@@ -206,11 +212,10 @@ public class AuthService {
 
         logCode(phone, code);
 
-        // 开发模式：返回验证码到前端，方便测试
+        // 开发模式：返回提示（不回显验证码）
         if (smsDevMode) {
             Map<String, Object> result = new HashMap<>();
-            result.put("message", "验证码已发送（开发模式）");
-            result.put("devCode", code);
+            result.put("message", "验证码已发送（开发模式，请查看后端日志）");
             result.put("devMode", true);
             return Result.success(result);
         }
@@ -242,9 +247,10 @@ public class AuthService {
             return Result.error(404, "该手机号未绑定任何账号");
         }
 
-        String newPassword = user.getUsername().length() >= 6
-                ? user.getUsername().substring(user.getUsername().length() - 6)
-                : user.getUsername();
+        String username = user.getUsername();
+        String newPassword = username.length() >= 6
+                ? username.substring(username.length() - 6)
+                : String.format("%6s", username).replace(' ', '0');
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
@@ -255,9 +261,8 @@ public class AuthService {
         codeStore.remove(phone);
         codeExpiry.remove(phone);
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("newPassword", newPassword);
-        return Result.success(result);
+        // 不再回显新密码，提示用户使用默认密码（学号后6位）登录
+        return Result.success("密码已重置为默认密码，请使用学号后6位登录");
     }
 
     /**
@@ -269,9 +274,6 @@ public class AuthService {
     }
 
     private void logCode(String phone, String code) {
-        System.out.println("============================================");
-        System.out.println("  手机号: " + phone + "  验证码: " + code);
-        System.out.println("  (开发模式，部署时替换为短信服务)");
-        System.out.println("============================================");
+        log.debug("验证码已生成: phone={}, code={}", phone, code);
     }
 }
