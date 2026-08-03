@@ -141,9 +141,11 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     @Select("<script>SELECT m.id, m.content as question, m.create_time, m.citation, m.source_type " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
-            "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
+            "<if test='classId != null'>JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} </if>" +
+            "<if test='classId == null'>LEFT JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} </if>" +
             "WHERE m.role = 'user' AND s.user_id = #{userId} " +
             "<if test='classId != null'>AND s.class_id = #{classId}</if> " +
+            "<if test='classId == null'>AND (c.teacher_id = #{teacherId} OR s.class_id IS NULL)</if> " +
             "ORDER BY m.create_time DESC LIMIT #{limit}</script>")
     List<Map<String, Object>> findUserRecentQuestions(@Param("userId") Long userId, @Param("teacherId") Long teacherId, @Param("classId") Long classId, @Param("limit") int limit);
 
@@ -254,4 +256,166 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
             "WHERE m.role = 'user' AND s.user_id = #{userId} AND s.class_id = #{classId} AND m.keywords IS NOT NULL AND m.keywords <> '' AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
             "ORDER BY m.create_time DESC LIMIT #{limit}")
     List<String> findUserQuestionKeywordsByClass(@Param("userId") Long userId, @Param("classId") Long classId, @Param("limit") int limit);
+
+    // ===== 新增统计维度 =====
+
+    // 每日提问趋势（教师维度）
+    @Select("SELECT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
+            "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY FORMATDATETIME(m.create_time, 'yyyy-MM-dd') " +
+            "ORDER BY date")
+    List<Map<String, Object>> findDailyQuestionTrend(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 每日提问趋势（班级维度）
+    @Select("SELECT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY FORMATDATETIME(m.create_time, 'yyyy-MM-dd') " +
+            "ORDER BY date")
+    List<Map<String, Object>> findClassDailyQuestionTrend(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 每日提问趋势（学生维度）
+    @Select("SELECT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "LEFT JOIN chat_session s ON m.session_id = s.id " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
+            "AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY FORMATDATETIME(m.create_time, 'yyyy-MM-dd') " +
+            "ORDER BY date")
+    List<Map<String, Object>> findUserDailyQuestionTrend(@Param("userId") Long userId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 每周提问趋势（教师维度）- weekStart为该周内最早日期
+    @Select("SELECT FORMATDATETIME(MIN(CAST(m.create_time AS DATE)), 'yyyy-MM-dd') as week, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
+            "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY YEAR(m.create_time), WEEK(m.create_time) " +
+            "ORDER BY week")
+    List<Map<String, Object>> findWeeklyQuestionTrend(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 每周提问趋势（班级维度）
+    @Select("SELECT FORMATDATETIME(MIN(CAST(m.create_time AS DATE)), 'yyyy-MM-dd') as week, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY YEAR(m.create_time), WEEK(m.create_time) " +
+            "ORDER BY week")
+    List<Map<String, Object>> findClassWeeklyQuestionTrend(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 每周提问趋势（学生维度）
+    @Select("SELECT FORMATDATETIME(MIN(CAST(m.create_time AS DATE)), 'yyyy-MM-dd') as week, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "LEFT JOIN chat_session s ON m.session_id = s.id " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
+            "AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY YEAR(m.create_time), WEEK(m.create_time) " +
+            "ORDER BY week")
+    List<Map<String, Object>> findUserWeeklyQuestionTrend(@Param("userId") Long userId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 会话轮次统计（教师维度）- 每个会话的问答轮次
+    @Select("SELECT s.id as sessionId, COUNT(m.id) as rounds, s.user_id as userId, u.username as username, u.real_name as realName, " +
+            "MIN(m.create_time) as startTime, MAX(m.create_time) as endTime " +
+            "FROM chat_session s " +
+            "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
+            "JOIN chat_message m ON m.session_id = s.id AND s.deleted = 0 " +
+            "LEFT JOIN sys_user u ON s.user_id = u.id " +
+            "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY s.id, s.user_id, u.username, u.real_name " +
+            "ORDER BY rounds DESC LIMIT #{limit}")
+    List<Map<String, Object>> findSessionRounds(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate, @Param("limit") int limit);
+
+    // 会话轮次统计（班级维度）
+    @Select("SELECT s.id as sessionId, COUNT(m.id) as rounds, s.user_id as userId, u.username as username, u.real_name as realName, " +
+            "MIN(m.create_time) as startTime, MAX(m.create_time) as endTime " +
+            "FROM chat_session s " +
+            "JOIN chat_message m ON m.session_id = s.id AND s.deleted = 0 " +
+            "LEFT JOIN sys_user u ON s.user_id = u.id " +
+            "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY s.id, s.user_id, u.username, u.real_name " +
+            "ORDER BY rounds DESC LIMIT #{limit}")
+    List<Map<String, Object>> findClassSessionRounds(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate, @Param("limit") int limit);
+
+    // 会话轮次统计（学生维度）
+    @Select("SELECT s.id as sessionId, COUNT(m.id) as rounds, " +
+            "MIN(m.create_time) as startTime, MAX(m.create_time) as endTime " +
+            "FROM chat_session s " +
+            "JOIN chat_message m ON m.session_id = s.id AND s.deleted = 0 " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
+            "AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY s.id " +
+            "ORDER BY rounds DESC LIMIT #{limit}")
+    List<Map<String, Object>> findUserSessionRounds(@Param("userId") Long userId, @Param("startDate") String startDate, @Param("endDate") String endDate, @Param("limit") int limit);
+
+    // 提问来源分布（教师维度）
+    @Select("SELECT COALESCE(m.source_type, 'unknown') as source, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
+            "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY COALESCE(m.source_type, 'unknown')")
+    List<Map<String, Object>> findSourceTypeDistribution(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 提问来源分布（班级维度）
+    @Select("SELECT COALESCE(m.source_type, 'unknown') as source, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY COALESCE(m.source_type, 'unknown')")
+    List<Map<String, Object>> findClassSourceTypeDistribution(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 提问来源分布（学生维度）
+    @Select("SELECT COALESCE(m.source_type, 'unknown') as source, COUNT(*) as count " +
+            "FROM chat_message m " +
+            "LEFT JOIN chat_session s ON m.session_id = s.id " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} " +
+            "AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY COALESCE(m.source_type, 'unknown')")
+    List<Map<String, Object>> findUserSourceTypeDistribution(@Param("userId") Long userId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 活跃天数统计（教师维度）- 统计每个学生的活跃天数和连续学习天数
+    @Select("SELECT s.user_id as userId, u.username as username, u.real_name as realName, " +
+            "COUNT(DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd')) as activeDays, " +
+            "MAX(m.create_time) as lastActive " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
+            "LEFT JOIN sys_user u ON s.user_id = u.id " +
+            "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY s.user_id, u.username, u.real_name " +
+            "ORDER BY activeDays DESC")
+    List<Map<String, Object>> findActiveDaysStats(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 活跃天数统计（班级维度）
+    @Select("SELECT s.user_id as userId, u.username as username, u.real_name as realName, " +
+            "COUNT(DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd')) as activeDays, " +
+            "MAX(m.create_time) as lastActive " +
+            "FROM chat_message m " +
+            "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
+            "LEFT JOIN sys_user u ON s.user_id = u.id " +
+            "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "GROUP BY s.user_id, u.username, u.real_name " +
+            "ORDER BY activeDays DESC")
+    List<Map<String, Object>> findClassActiveDaysStats(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 学生个人活跃天数
+    @Select("SELECT COUNT(DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd')) as activeDays " +
+            "FROM chat_message m " +
+            "LEFT JOIN chat_session s ON m.session_id = s.id " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
+            "AND m.create_time >= #{startDate} AND m.create_time <= #{endDate}")
+    int findUserActiveDays(@Param("userId") Long userId, @Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    // 学生每日提问明细（用于计算连续天数）
+    @Select("SELECT DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date " +
+            "FROM chat_message m " +
+            "LEFT JOIN chat_session s ON m.session_id = s.id " +
+            "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
+            "AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
+            "ORDER BY date DESC")
+    List<String> findUserActiveDates(@Param("userId") Long userId, @Param("startDate") String startDate, @Param("endDate") String endDate);
 }

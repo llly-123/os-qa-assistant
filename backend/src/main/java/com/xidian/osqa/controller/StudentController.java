@@ -25,8 +25,10 @@ public class StudentController {
     public Result<?> getStudentList(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String keyword) {
-        Page<User> result = studentService.getStudentList(page, size, keyword);
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String college,
+            @RequestParam(required = false) Integer status) {
+        Page<User> result = studentService.getStudentList(page, size, keyword, college, status);
         return Result.success(result);
     }
 

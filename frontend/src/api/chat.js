@@ -45,3 +45,35 @@ export function getMyStats(classId) {
     params: classId != null ? { classId } : {}
   })
 }
+
+export function getMyTrend(params) {
+  return request({
+    url: '/chat/my-trend',
+    method: 'get',
+    params
+  })
+}
+
+export function getMySessionRounds(params) {
+  return request({
+    url: '/chat/my-sessions',
+    method: 'get',
+    params
+  })
+}
+
+export function getMySourceDistribution(params) {
+  return request({
+    url: '/chat/my-sources',
+    method: 'get',
+    params
+  })
+}
+
+export function getMyActiveDays(params) {
+  return request({
+    url: '/chat/my-active-days',
+    method: 'get',
+    params
+  })
+}

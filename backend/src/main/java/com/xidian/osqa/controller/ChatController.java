@@ -287,6 +287,44 @@ public class ChatController {
         return Result.success(stats);
     }
 
+    @GetMapping("/my-trend")
+    public Result<?> getMyTrend(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "daily") String granularity) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(chatService.getUserTrend(userId, startDate, endDate, granularity));
+    }
+
+    @GetMapping("/my-sessions")
+    public Result<?> getMySessionRounds(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "20") int limit) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(chatService.getUserSessionRounds(userId, startDate, endDate, limit));
+    }
+
+    @GetMapping("/my-sources")
+    public Result<?> getMySourceDistribution(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(chatService.getUserSourceDistribution(userId, startDate, endDate));
+    }
+
+    @GetMapping("/my-active-days")
+    public Result<?> getMyActiveDays(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(chatService.getUserActiveDays(userId, startDate, endDate));
+    }
+
     @GetMapping("/quick-prompts")
     public Result<?> getQuickPrompts(HttpServletRequest request, @RequestParam(required = false) Long classId) {
         Long userId = (Long) request.getAttribute("userId");

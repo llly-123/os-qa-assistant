@@ -44,12 +44,18 @@ public class StudentService {
         this.sysOptionMapper = sysOptionMapper;
     }
 
-    public Page<User> getStudentList(int page, int size, String keyword) {
+    public Page<User> getStudentList(int page, int size, String keyword, String college, Integer status) {
         Page<User> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getRole, "STUDENT");
         if (keyword != null && !keyword.isEmpty()) {
             wrapper.and(w -> w.like(User::getUsername, keyword).or().like(User::getRealName, keyword));
+        }
+        if (college != null && !college.isEmpty()) {
+            wrapper.eq(User::getCollege, college);
+        }
+        if (status != null) {
+            wrapper.eq(User::getStatus, status);
         }
         wrapper.orderByDesc(User::getCreateTime);
         Page<User> result = userMapper.selectPage(pageParam, wrapper);

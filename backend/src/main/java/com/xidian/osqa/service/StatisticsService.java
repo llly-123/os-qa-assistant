@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 @Service
@@ -217,5 +219,210 @@ public class StatisticsService {
         if (val == null) val = map.get(key.toUpperCase());
         if (val == null) val = map.get(key.toLowerCase());
         return val != null ? ((Number) val).intValue() : 0;
+    }
+
+    // ===== 新增统计维度 =====
+
+    private String[] getDefaultDateRange() {
+        LocalDate end = LocalDate.now();
+        LocalDate start = end.minusDays(29);
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+        return new String[]{start.format(fmt) + " 00:00:00", end.format(fmt) + " 23:59:59"};
+    }
+
+    public Map<String, Object> getQuestionTrend(Long teacherId, String startDate, String endDate, String granularity) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> trend;
+            if ("weekly".equals(granularity)) {
+                trend = messageMapper.findWeeklyQuestionTrend(teacherId, startDate, endDate);
+            } else {
+                trend = messageMapper.findDailyQuestionTrend(teacherId, startDate, endDate);
+            }
+            result.put("trend", normalizeMapList(trend));
+            result.put("granularity", granularity);
+        } catch (Exception e) {
+            log.error("获取提问趋势失败", e);
+            result.put("trend", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getClassQuestionTrend(Long classId, String startDate, String endDate, String granularity) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> trend;
+            if ("weekly".equals(granularity)) {
+                trend = messageMapper.findClassWeeklyQuestionTrend(classId, startDate, endDate);
+            } else {
+                trend = messageMapper.findClassDailyQuestionTrend(classId, startDate, endDate);
+            }
+            result.put("trend", normalizeMapList(trend));
+        } catch (Exception e) {
+            log.error("获取班级提问趋势失败", e);
+            result.put("trend", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getSessionRounds(Long teacherId, String startDate, String endDate, int limit) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> rounds = messageMapper.findSessionRounds(teacherId, startDate, endDate, limit);
+            result.put("rounds", normalizeMapList(rounds));
+            // 计算平均轮次
+            int totalRounds = 0;
+            for (Map<String, Object> r : rounds) {
+                totalRounds += getMapInt(r, "rounds");
+            }
+            result.put("avgRounds", rounds.isEmpty() ? 0 : Math.round(totalRounds * 100.0 / rounds.size()) / 100.0);
+            result.put("totalSessions", rounds.size());
+        } catch (Exception e) {
+            log.error("获取会话轮次失败", e);
+            result.put("rounds", new ArrayList<>());
+            result.put("avgRounds", 0);
+            result.put("totalSessions", 0);
+        }
+        return result;
+    }
+
+    public Map<String, Object> getClassSessionRounds(Long classId, String startDate, String endDate, int limit) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> rounds = messageMapper.findClassSessionRounds(classId, startDate, endDate, limit);
+            result.put("rounds", normalizeMapList(rounds));
+            int totalRounds = 0;
+            for (Map<String, Object> r : rounds) {
+                totalRounds += getMapInt(r, "rounds");
+            }
+            result.put("avgRounds", rounds.isEmpty() ? 0 : Math.round(totalRounds * 100.0 / rounds.size()) / 100.0);
+            result.put("totalSessions", rounds.size());
+        } catch (Exception e) {
+            log.error("获取班级会话轮次失败", e);
+            result.put("rounds", new ArrayList<>());
+            result.put("avgRounds", 0);
+            result.put("totalSessions", 0);
+        }
+        return result;
+    }
+
+    public Map<String, Object> getSourceDistribution(Long teacherId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> dist = messageMapper.findSourceTypeDistribution(teacherId, startDate, endDate);
+            result.put("distribution", normalizeMapList(dist));
+        } catch (Exception e) {
+            log.error("获取来源分布失败", e);
+            result.put("distribution", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getClassSourceDistribution(Long classId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> dist = messageMapper.findClassSourceTypeDistribution(classId, startDate, endDate);
+            result.put("distribution", normalizeMapList(dist));
+        } catch (Exception e) {
+            log.error("获取班级来源分布失败", e);
+            result.put("distribution", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getActiveDaysStats(Long teacherId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> stats = messageMapper.findActiveDaysStats(teacherId, startDate, endDate);
+            List<Map<String, Object>> normalized = normalizeMapList(stats);
+            // 计算平均活跃天数
+            int totalDays = 0;
+            for (Map<String, Object> s : normalized) {
+                totalDays += getMapInt(s, "activeDays");
+            }
+            result.put("students", normalized);
+            result.put("avgActiveDays", normalized.isEmpty() ? 0 : Math.round(totalDays * 100.0 / normalized.size()) / 100.0);
+        } catch (Exception e) {
+            log.error("获取活跃天数失败", e);
+            result.put("students", new ArrayList<>());
+            result.put("avgActiveDays", 0);
+        }
+        return result;
+    }
+
+    public Map<String, Object> getClassActiveDaysStats(Long classId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> stats = messageMapper.findClassActiveDaysStats(classId, startDate, endDate);
+            List<Map<String, Object>> normalized = normalizeMapList(stats);
+            int totalDays = 0;
+            for (Map<String, Object> s : normalized) {
+                totalDays += getMapInt(s, "activeDays");
+            }
+            result.put("students", normalized);
+            result.put("avgActiveDays", normalized.isEmpty() ? 0 : Math.round(totalDays * 100.0 / normalized.size()) / 100.0);
+        } catch (Exception e) {
+            log.error("获取班级活跃天数失败", e);
+            result.put("students", new ArrayList<>());
+            result.put("avgActiveDays", 0);
+        }
+        return result;
+    }
+
+    // H2返回大写列名，统一转为驼峰
+    private List<Map<String, Object>> normalizeMapList(List<Map<String, Object>> list) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : list) {
+            Map<String, Object> normalized = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                String key = entry.getKey();
+                if (Character.isUpperCase(key.charAt(0))) {
+                    key = key.toLowerCase();
+                }
+                normalized.put(key, entry.getValue());
+            }
+            result.add(normalized);
+        }
+        return result;
     }
 }

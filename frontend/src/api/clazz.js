@@ -15,6 +15,11 @@ export function renameClass(classId, name) {
   return request({ url: `/admin/classes/${classId}/name`, method: 'put', data: { name } })
 }
 
+// 教师端：修改班级开班/结班时间
+export function updateClassTime(classId, startTime, endTime) {
+  return request({ url: `/admin/classes/${classId}/time`, method: 'put', data: { startTime, endTime } })
+}
+
 // 教师端：为已存在班级挂载/修改/取消挂载视频集与知识库
 export function updateClassResources(classId, videoSetId, kbId) {
   return request({ url: `/admin/classes/${classId}/resources`, method: 'put', data: { videoSetId, kbId } })

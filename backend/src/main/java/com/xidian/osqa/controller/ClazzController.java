@@ -57,6 +57,15 @@ public class ClazzController {
         return clazzService.renameClass(classId, teacherId, name);
     }
 
+    // 修改班级开班/结班时间
+    @PutMapping("/admin/classes/{classId}/time")
+    public Result<?> updateClassTime(HttpServletRequest request, @PathVariable Long classId, @RequestBody Map<String, Object> body) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        String startTime = body.get("startTime") == null ? null : body.get("startTime").toString();
+        String endTime = body.get("endTime") == null ? null : body.get("endTime").toString();
+        return clazzService.updateClassTime(classId, teacherId, startTime, endTime);
+    }
+
     // 为已存在班级挂载/修改/取消挂载视频集与知识库
     @PutMapping("/admin/classes/{classId}/resources")
     public Result<?> updateClassResources(HttpServletRequest request, @PathVariable Long classId, @RequestBody Map<String, Object> body) {

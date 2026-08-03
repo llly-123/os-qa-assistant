@@ -147,6 +147,36 @@ public class ClazzService {
     }
 
     /**
+     * 修改班级开班/结班时间
+     */
+    public Result<?> updateClassTime(Long classId, Long teacherId, String startTime, String endTime) {
+        Clazz clazz = clazzMapper.selectById(classId);
+        if (clazz == null) {
+            return Result.error(404, "班级不存在");
+        }
+        if (!clazz.getTeacherId().equals(teacherId)) {
+            return Result.error(403, "无权操作此班级");
+        }
+        if (startTime == null || endTime == null) {
+            return Result.error(400, "开始时间和截止时间不能为空");
+        }
+        LocalDateTime start = LocalDateTime.parse(startTime.replace(" ", "T"));
+        LocalDateTime end = LocalDateTime.parse(endTime.replace(" ", "T"));
+        if (end.isBefore(start)) {
+            return Result.error(400, "截止时间不能早于开始时间");
+        }
+        LambdaUpdateWrapper<Clazz> uw = new LambdaUpdateWrapper<>();
+        uw.eq(Clazz::getId, classId)
+                .set(Clazz::getStartTime, start)
+                .set(Clazz::getEndTime, end)
+                .set(Clazz::getUpdateTime, LocalDateTime.now());
+        clazzMapper.update(null, uw);
+        clazz.setStartTime(start);
+        clazz.setEndTime(end);
+        return Result.success(clazz);
+    }
+
+    /**
      * 为已存在班级挂载/修改/取消挂载视频集与知识库。
      * 默认 updateById 不写 null，故用 LambdaUpdateWrapper.set 显式落库以支持取消挂载。
      */
@@ -358,7 +388,9 @@ public class ClazzService {
         for (ClassStudent cs : csList) {
             Clazz clazz = clazzMapper.selectById(cs.getClassId());
             if (clazz == null || clazz.getStatus() != 1) continue;
+            // 已结班的班级不再返回
             if (clazz.getEndTime() == null || !clazz.getEndTime().isAfter(LocalDateTime.now())) continue;
+            // 未开班的班级仍然返回，前端根据 startTime 判断是否可进入
             if (clazz.getVideoSetId() != null) {
                 VideoSet vs = videoSetMapper.selectById(clazz.getVideoSetId());
                 clazz.setVideoSetName(vs != null ? vs.getName() : null);

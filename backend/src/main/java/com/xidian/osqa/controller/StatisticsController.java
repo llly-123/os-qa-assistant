@@ -86,4 +86,78 @@ public class StatisticsController {
         List<Map<String, Object>> keywords = statisticsService.getClassHotKeywords(classId, startDate, endDate, limit);
         return Result.success(keywords);
     }
+
+    // ===== 新增统计维度接口 =====
+
+    @GetMapping("/trend")
+    public Result<?> getQuestionTrend(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "daily") String granularity) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return Result.success(statisticsService.getQuestionTrend(teacherId, startDate, endDate, granularity));
+    }
+
+    @GetMapping("/classes/{classId}/trend")
+    public Result<?> getClassQuestionTrend(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "daily") String granularity) {
+        return Result.success(statisticsService.getClassQuestionTrend(classId, startDate, endDate, granularity));
+    }
+
+    @GetMapping("/sessions")
+    public Result<?> getSessionRounds(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "20") int limit) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return Result.success(statisticsService.getSessionRounds(teacherId, startDate, endDate, limit));
+    }
+
+    @GetMapping("/classes/{classId}/sessions")
+    public Result<?> getClassSessionRounds(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            @RequestParam(defaultValue = "20") int limit) {
+        return Result.success(statisticsService.getClassSessionRounds(classId, startDate, endDate, limit));
+    }
+
+    @GetMapping("/sources")
+    public Result<?> getSourceDistribution(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return Result.success(statisticsService.getSourceDistribution(teacherId, startDate, endDate));
+    }
+
+    @GetMapping("/classes/{classId}/sources")
+    public Result<?> getClassSourceDistribution(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return Result.success(statisticsService.getClassSourceDistribution(classId, startDate, endDate));
+    }
+
+    @GetMapping("/active-days")
+    public Result<?> getActiveDaysStats(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return Result.success(statisticsService.getActiveDaysStats(teacherId, startDate, endDate));
+    }
+
+    @GetMapping("/classes/{classId}/active-days")
+    public Result<?> getClassActiveDaysStats(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        return Result.success(statisticsService.getClassActiveDaysStats(classId, startDate, endDate));
+    }
 }

@@ -70,6 +70,9 @@ public class AuthService {
         userInfo.put("realName", user.getRealName());
         userInfo.put("role", user.getRole());
         userInfo.put("phone", user.getPhone());
+        userInfo.put("college", user.getCollege());
+        userInfo.put("major", user.getMajor());
+        userInfo.put("grade", user.getGrade());
         result.put("user", userInfo);
 
         return Result.success(result);
@@ -87,6 +90,9 @@ public class AuthService {
         userInfo.put("realName", user.getRealName());
         userInfo.put("role", user.getRole());
         userInfo.put("phone", user.getPhone());
+        userInfo.put("college", user.getCollege());
+        userInfo.put("major", user.getMajor());
+        userInfo.put("grade", user.getGrade());
 
         return Result.success(userInfo);
     }

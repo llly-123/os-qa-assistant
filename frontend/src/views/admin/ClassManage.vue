@@ -23,6 +23,7 @@
               <div class="card-actions">
                 <el-button size="small" type="primary" @click="enterClass(cls)">进入管理</el-button>
                 <el-button size="small" @click="openRenameDialog(cls)">重命名</el-button>
+                <el-button size="small" @click="openTimeDialog(cls)">修改时间</el-button>
                 <el-button size="small" :type="(!cls.videoSetId && !cls.kbId) ? 'primary' : 'default'" @click="openResourceDialog(cls)">配置资源</el-button>
                 <el-button v-if="cls.status === 1" size="small" type="warning" @click="handleDissolve(cls)">解散</el-button>
                 <el-button size="small" type="danger" @click="handleDeleteClass(cls)">删除</el-button>
@@ -34,10 +35,10 @@
             <div><el-icon><Calendar /></el-icon> 结班：{{ formatTime(cls.endTime) }}</div>
           </div>
           <div class="class-mounts">
-            <el-tag v-if="cls.videoSetName" type="primary" size="small" effect="plain">🎬 {{ cls.videoSetName }}</el-tag>
-            <el-tag v-else type="info" size="small" effect="plain">🎬 未挂载视频集</el-tag>
-            <el-tag v-if="cls.kbName" type="success" size="small" effect="plain">📚 {{ cls.kbName }}</el-tag>
-            <el-tag v-else type="info" size="small" effect="plain">📚 未挂载知识库</el-tag>
+            <el-tag v-if="cls.videoSetName" type="primary" size="small" effect="plain" class="mount-tag" @click="openResourceDialog(cls)">🎬 {{ cls.videoSetName }}</el-tag>
+            <el-tag v-else type="info" size="small" effect="plain" class="mount-tag" @click="openResourceDialog(cls)">🎬 未挂载视频集</el-tag>
+            <el-tag v-if="cls.kbName" type="success" size="small" effect="plain" class="mount-tag" @click="openResourceDialog(cls)">📚 {{ cls.kbName }}</el-tag>
+            <el-tag v-else type="info" size="small" effect="plain" class="mount-tag" @click="openResourceDialog(cls)">📚 未挂载知识库</el-tag>
           </div>
         </el-card>
 
@@ -391,14 +392,49 @@
       </template>
     </el-dialog>
 
+    <!-- 修改班级时间 -->
+    <el-dialog v-model="showTimeDialog" title="修改班级时间" width="460px">
+      <el-form label-width="90px">
+        <el-form-item label="开始时间">
+          <el-date-picker
+            v-model="timeForm.startTime"
+            type="datetime"
+            placeholder="选择开始时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="截止时间">
+          <el-date-picker
+            v-model="timeForm.endTime"
+            type="datetime"
+            placeholder="选择截止时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showTimeDialog = false">取消</el-button>
+        <el-button type="primary" :loading="savingTime" @click="handleSaveTime">保存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 从已有学生选择 -->
     <el-dialog v-model="showSelectStudentDialog" :title="'从已有学生选择 - ' + (selectedClass?.name || '')" width="700px">
-      <el-input
-        v-model="selectStudentKeyword"
-        placeholder="搜索学号/姓名"
-        clearable
-        style="margin-bottom: 16px"
-      />
+      <div style="display: flex; gap: 12px; margin-bottom: 16px">
+        <el-input
+          v-model="selectStudentKeyword"
+          placeholder="搜索学号/姓名"
+          clearable
+          style="flex: 1"
+        />
+        <el-select v-model="selectStudentCollege" placeholder="学院" clearable style="width: 180px">
+          <el-option v-for="c in collegeOptions" :key="c" :label="c" :value="c" />
+        </el-select>
+      </div>
       <el-table
         :data="filteredAllStudents"
         max-height="400"
@@ -430,7 +466,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Calendar, ArrowLeft, Search, Upload, Setting, Download, Document, UploadFilled, Loading, Edit, Lock, MoreFilled, UserFilled } from '@element-plus/icons-vue'
 import * as XLSX from 'xlsx'
-import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources, addStudent, renameClass } from '@/api/clazz'
+import { getClasses, createClass, deleteClass, dissolveClass, getClassStudents, removeStudent, createStudentInClass, importStudentsInClass, updateClassResources, addStudent, renameClass, updateClassTime } from '@/api/clazz'
 import { updateStudent, deleteStudent, resetStudentPassword, toggleStudentStatus, getAllStudents } from '@/api/student'
 import { getOptionsByCategory, addOption, deleteOption } from '@/api/option'
 import { getUserQuestions } from '@/api/statistics'
@@ -455,6 +491,11 @@ const showRenameDialog = ref(false)
 const renaming = ref(false)
 const renameForm = reactive({ id: null, name: '' })
 
+// 修改时间对话框
+const showTimeDialog = ref(false)
+const savingTime = ref(false)
+const timeForm = reactive({ id: null, startTime: '', endTime: '' })
+
 // 可挂载的视频集 / 知识库
 const videoSets = ref([])
 const knowledgeBases = ref([])
@@ -469,7 +510,7 @@ const filteredStudents = computed(() => {
   let list = students.value
   const kw = searchKeyword.value?.toLowerCase()
   if (kw) list = list.filter(s => (s.username||'').toLowerCase().includes(kw) || (s.realName||'').toLowerCase().includes(kw))
-  if (filterCollege.value) list = list.filter(s => s.college === filterCollege.value)
+  if (filterCollege.value) list = list.filter(s => s.college && s.college === filterCollege.value)
   if (filterStatus.value !== null && filterStatus.value !== '') list = list.filter(s => s.status === filterStatus.value)
   return list
 })
@@ -488,15 +529,18 @@ const uploadFile = ref(null)
 // 从已有学生选择
 const allStudents = ref([])
 const selectStudentKeyword = ref('')
+const selectStudentCollege = ref(null)
 const selectedStudentIds = ref([])
 const addingStudents = ref(false)
 const filteredAllStudents = computed(() => {
+  let list = allStudents.value
   const kw = selectStudentKeyword.value?.toLowerCase()
-  if (!kw) return allStudents.value
-  return allStudents.value.filter(s =>
+  if (kw) list = list.filter(s =>
     (s.username || '').toLowerCase().includes(kw) ||
     (s.realName || '').toLowerCase().includes(kw)
   )
+  if (selectStudentCollege.value) list = list.filter(s => s.college && s.college === selectStudentCollege.value)
+  return list
 })
 
 // 选项
@@ -615,6 +659,35 @@ async function handleSaveRename() {
   }
 }
 
+// ===== 修改班级时间 =====
+function openTimeDialog(cls) {
+  timeForm.id = cls.id
+  // 补全秒位以匹配 date-picker 的 value-format
+  const s = (cls.startTime || '').replace('T', ' ').substring(0, 19)
+  const e = (cls.endTime || '').replace('T', ' ').substring(0, 19)
+  timeForm.startTime = s.length === 16 ? s + ':00' : s
+  timeForm.endTime = e.length === 16 ? e + ':00' : e
+  showTimeDialog.value = true
+}
+
+async function handleSaveTime() {
+  if (!timeForm.startTime || !timeForm.endTime) {
+    ElMessage.warning('开始时间和截止时间不能为空')
+    return
+  }
+  savingTime.value = true
+  try {
+    await updateClassTime(timeForm.id, timeForm.startTime, timeForm.endTime)
+    ElMessage.success('时间修改成功')
+    showTimeDialog.value = false
+    fetchClasses()
+  } catch (e) {
+    console.error('时间修改失败:', e)
+  } finally {
+    savingTime.value = false
+  }
+}
+
 async function handleDeleteClass(cls) {
   try {
     await ElMessageBox.confirm(`确定删除班级"${cls.name}"吗？此操作不可恢复。`, '提示', { type: 'warning' })
@@ -703,6 +776,7 @@ async function handleAdd() {
 async function openSelectStudentDialog() {
   showSelectStudentDialog.value = true
   selectStudentKeyword.value = ''
+  selectStudentCollege.value = null
   selectedStudentIds.value = []
   try {
     const res = await getAllStudents()
@@ -993,6 +1067,15 @@ function formatTime(time) {
   gap: 8px;
   margin-top: 10px;
   flex-wrap: wrap;
+}
+
+.mount-tag {
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.mount-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .create-tip {

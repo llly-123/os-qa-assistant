@@ -62,3 +62,59 @@ export function getClassHotKeywords(classId, params) {
     params
   })
 }
+
+export function getClassQuestionTrend(classId, params) {
+  return request({
+    url: `/admin/statistics/classes/${classId}/trend`,
+    method: 'get',
+    params
+  })
+}
+
+export function getSessionRounds(params) {
+  return request({
+    url: '/admin/statistics/sessions',
+    method: 'get',
+    params
+  })
+}
+
+export function getClassSessionRounds(classId, params) {
+  return request({
+    url: `/admin/statistics/classes/${classId}/sessions`,
+    method: 'get',
+    params
+  })
+}
+
+export function getSourceDistribution(params) {
+  return request({
+    url: '/admin/statistics/sources',
+    method: 'get',
+    params
+  })
+}
+
+export function getClassSourceDistribution(classId, params) {
+  return request({
+    url: `/admin/statistics/classes/${classId}/sources`,
+    method: 'get',
+    params
+  })
+}
+
+export function getActiveDaysStats(params) {
+  return request({
+    url: '/admin/statistics/active-days',
+    method: 'get',
+    params
+  })
+}
+
+export function getClassActiveDaysStats(classId, params) {
+  return request({
+    url: `/admin/statistics/classes/${classId}/active-days`,
+    method: 'get',
+    params
+  })
+}

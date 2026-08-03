@@ -11,7 +11,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -237,5 +239,114 @@ public class ChatService {
         } catch (Exception e) {
             return new ArrayList<>();
         }
+    }
+
+    // ===== 学生个人新增统计维度 =====
+
+    public Map<String, Object> getUserTrend(Long userId, String startDate, String endDate, String granularity) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                LocalDate end = LocalDate.now();
+                DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                endDate = end.format(fmt) + " 23:59:59";
+                // 每日和每周都统计全部历史数据
+                startDate = "2000-01-01 00:00:00";
+            }
+            List<Map<String, Object>> trend;
+            if ("weekly".equals(granularity)) {
+                trend = messageMapper.findUserWeeklyQuestionTrend(userId, startDate, endDate);
+            } else {
+                trend = messageMapper.findUserDailyQuestionTrend(userId, startDate, endDate);
+            }
+            result.put("trend", trend);
+        } catch (Exception e) {
+            result.put("trend", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getUserSessionRounds(Long userId, String startDate, String endDate, int limit) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                LocalDate end = LocalDate.now();
+                LocalDate start = end.minusDays(29);
+                DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                startDate = start.format(fmt) + " 00:00:00";
+                endDate = end.format(fmt) + " 23:59:59";
+            }
+            List<Map<String, Object>> rounds = messageMapper.findUserSessionRounds(userId, startDate, endDate, limit);
+            result.put("rounds", rounds);
+            int totalRounds = 0;
+            for (Map<String, Object> r : rounds) {
+                Object val = r.get("ROUNDS");
+                if (val == null) val = r.get("rounds");
+                if (val != null) totalRounds += ((Number) val).intValue();
+            }
+            result.put("avgRounds", rounds.isEmpty() ? 0 : Math.round(totalRounds * 100.0 / rounds.size()) / 100.0);
+            result.put("totalSessions", rounds.size());
+        } catch (Exception e) {
+            result.put("rounds", new ArrayList<>());
+            result.put("avgRounds", 0);
+            result.put("totalSessions", 0);
+        }
+        return result;
+    }
+
+    public Map<String, Object> getUserSourceDistribution(Long userId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                LocalDate end = LocalDate.now();
+                LocalDate start = end.minusDays(29);
+                DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                startDate = start.format(fmt) + " 00:00:00";
+                endDate = end.format(fmt) + " 23:59:59";
+            }
+            List<Map<String, Object>> dist = messageMapper.findUserSourceTypeDistribution(userId, startDate, endDate);
+            result.put("distribution", dist);
+        } catch (Exception e) {
+            result.put("distribution", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getUserActiveDays(Long userId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                LocalDate end = LocalDate.now();
+                LocalDate start = end.minusDays(29);
+                DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                startDate = start.format(fmt) + " 00:00:00";
+                endDate = end.format(fmt) + " 23:59:59";
+            }
+            int activeDays = messageMapper.findUserActiveDays(userId, startDate, endDate);
+            List<String> dates = messageMapper.findUserActiveDates(userId, startDate, endDate);
+            // 计算最大连续天数
+            int maxStreak = 0;
+            int currentStreak = 0;
+            LocalDate prev = null;
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+            for (String d : dates) {
+                LocalDate date = LocalDate.parse(d, fmt);
+                if (prev != null && prev.minusDays(1).equals(date)) {
+                    currentStreak++;
+                } else {
+                    currentStreak = 1;
+                }
+                maxStreak = Math.max(maxStreak, currentStreak);
+                prev = date;
+            }
+            result.put("activeDays", activeDays);
+            result.put("maxStreak", maxStreak);
+            result.put("dates", dates);
+        } catch (Exception e) {
+            result.put("activeDays", 0);
+            result.put("maxStreak", 0);
+            result.put("dates", new ArrayList<>());
+        }
+        return result;
     }
 }
