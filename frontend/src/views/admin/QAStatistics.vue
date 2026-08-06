@@ -21,7 +21,7 @@
           <el-col :span="6">
             <el-card shadow="hover">
               <div class="stat-card">
-                <el-icon :size="32" color="#409eff"><ChatDotRound /></el-icon>
+                <el-icon :size="32" color="#2563eb"><ChatDotRound /></el-icon>
                 <div class="stat-info">
                   <span class="stat-value">{{ overview.totalQuestions || 0 }}</span>
                   <span class="stat-label">总提问数</span>
@@ -32,7 +32,7 @@
           <el-col :span="6">
             <el-card shadow="hover">
               <div class="stat-card">
-                <el-icon :size="32" color="#67c23a"><User /></el-icon>
+                <el-icon :size="32" color="#2563eb"><User /></el-icon>
                 <div class="stat-info">
                   <span class="stat-value">{{ overview.activeUsers || 0 }}</span>
                   <span class="stat-label">活跃用户数</span>
@@ -43,7 +43,7 @@
           <el-col :span="6">
             <el-card shadow="hover">
               <div class="stat-card">
-                <el-icon :size="32" color="#e6a23c"><Timer /></el-icon>
+                <el-icon :size="32" color="#f59e0b"><Timer /></el-icon>
                 <div class="stat-info">
                   <span class="stat-value">{{ overview.avgResponseTime || 0 }}s</span>
                   <span class="stat-label">平均响应时间</span>
@@ -64,165 +64,341 @@
           </el-col>
         </el-row>
 
-        <el-row :gutter="20" style="margin-top: 20px">
-          <el-col :span="24">
-            <el-card>
-              <template #header><span>高频关键词</span></template>
-              <div class="keyword-cloud">
-                <el-tag
-                  v-for="kw in keywords"
-                  :key="kw.word"
-                  :size="getTagSize(kw.count)"
-                  :type="getTagType(kw.count)"
-                  style="margin: 4px"
-                >{{ kw.word }} ({{ kw.count }})</el-tag>
-                <el-empty v-if="keywords.length === 0" description="暂无数据" :image-size="60" />
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
-
-        <!-- 提问趋势折线图（柱状条） -->
-        <div class="dim-card">
-          <div class="dim-card-header">
-            <span class="dim-card-title">提问趋势</span>
-            <div class="granularity-switch">
-              <button
-                :class="['granularity-btn', { active: trendGranularity === 'daily' }]"
-                @click="handleTrendGranularityChange('daily')"
-              >每日</button>
-              <button
-                :class="['granularity-btn', { active: trendGranularity === 'weekly' }]"
-                @click="handleTrendGranularityChange('weekly')"
-              >每周</button>
-            </div>
-          </div>
-          <div class="trend-chart">
-            <div class="trend-bars">
-              <div
-                v-for="(item, idx) in displayTrendData"
-                :key="idx"
-                class="trend-bar-item"
-              >
-                <div class="trend-bar-track">
-                  <div
-                    class="trend-bar"
-                    :style="{ height: barHeight(item.count, trendMax) + '%' }"
-                  >
-                    <span class="trend-bar-tooltip">{{ trendLabel(item, trendGranularity) }}：{{ item.count || 0 }} 次</span>
+        <!-- 分区一：提问概况 -->
+        <div class="stat-section">
+          <div class="stat-section-title"><span class="section-bar"></span>提问概况</div>
+          <el-row :gutter="20">
+            <!-- 提问趋势（次数） -->
+            <el-col :span="12">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">提问趋势</span>
+                  <div class="granularity-switch">
+                    <button
+                      :class="['granularity-btn', { active: trendGranularity === 'daily' }]"
+                      @click="handleTrendGranularityChange('daily')"
+                    >每日</button>
+                    <button
+                      :class="['granularity-btn', { active: trendGranularity === 'weekly' }]"
+                      @click="handleTrendGranularityChange('weekly')"
+                    >每周</button>
                   </div>
                 </div>
-                <span class="trend-bar-label">{{ trendXLabel(item, trendGranularity) }}</span>
-              </div>
-            </div>
-            <div class="trend-footer">
-              <div v-if="trendMax > 0" class="bar-y-hint">最多 {{ trendMax }} 次</div>
-              <button
-                v-if="trendGranularity === 'weekly' && trendData.length > 8"
-                class="toggle-weeks-btn"
-                @click="showAllWeeks = !showAllWeeks"
-              >{{ showAllWeeks ? '收起' : `查看全部 ${trendData.length} 周` }}</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 会话轮次统计 -->
-        <div class="dim-card">
-          <div class="dim-card-header">
-            <span class="dim-card-title">会话轮次统计</span>
-          </div>
-          <div class="mini-cards">
-            <div class="mini-card">
-              <span class="mini-card-value">{{ sessionRounds.avgRounds || 0 }}</span>
-              <span class="mini-card-label">平均轮次</span>
-            </div>
-            <div class="mini-card">
-              <span class="mini-card-value">{{ sessionRounds.totalSessions || 0 }}</span>
-              <span class="mini-card-label">总会话数</span>
-            </div>
-          </div>
-          <div class="dim-table-wrap">
-            <div v-if="topSessions.length === 0" class="dim-empty">暂无会话数据</div>
-            <table v-else class="dim-table">
-              <thead>
-                <tr>
-                  <th style="width: 60px">排名</th>
-                  <th>学生姓名</th>
-                  <th style="width: 90px">轮次</th>
-                  <th>开始时间</th>
-                  <th>结束时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in topSessions" :key="idx">
-                  <td>{{ idx + 1 }}</td>
-                  <td>{{ row.realName || row.username || '-' }}</td>
-                  <td><span class="round-badge">{{ row.rounds || 0 }}</span></td>
-                  <td>{{ formatDateTime(row.startTime) }}</td>
-                  <td>{{ formatDateTime(row.endTime) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- 提问来源分布 -->
-        <div class="dim-card">
-          <div class="dim-card-header">
-            <span class="dim-card-title">提问来源分布</span>
-          </div>
-          <div class="dim-table-wrap">
-            <div v-if="sourceDistribution.length === 0" class="dim-empty">暂无来源数据</div>
-            <div v-else class="source-list">
-              <div v-for="(item, idx) in sourceDistribution" :key="idx" class="source-row">
-                <div class="source-row-head">
-                  <span class="source-row-label">{{ getSourceLabel(item.source) }}</span>
-                  <span class="source-row-value">{{ item.count || 0 }} ({{ getSourcePercent(item, sourceTotal) }}%)</span>
-                </div>
-                <div class="source-bar-track">
-                  <div
-                    class="source-bar"
-                    :style="{
-                      width: getSourcePercent(item, sourceTotal) + '%',
-                      background: getSourceColor(item.source)
-                    }"
-                  ></div>
+                <div class="trend-chart">
+                  <div class="trend-bars">
+                    <div
+                      v-for="(item, idx) in displayTrendData"
+                      :key="idx"
+                      class="trend-bar-item"
+                    >
+                      <div class="trend-bar-track">
+                        <div
+                          class="trend-bar count-bar"
+                          :style="{ height: barHeight(item.count, trendMax) + '%' }"
+                        >
+                          <span class="trend-bar-tooltip">{{ trendLabel(item, trendGranularity) }}：{{ item.count || 0 }} 次</span>
+                        </div>
+                      </div>
+                      <span class="trend-bar-label">{{ trendXLabel(item, trendGranularity) }}</span>
+                    </div>
+                  </div>
+                  <div class="trend-footer">
+                    <div v-if="trendMax > 0" class="bar-y-hint">最多 {{ trendMax }} 次</div>
+                    <button
+                      v-if="trendGranularity === 'weekly' && trendData.length > 8"
+                      class="toggle-weeks-btn"
+                      @click="showAllWeeks = !showAllWeeks"
+                    >{{ showAllWeeks ? '收起' : `查看全部 ${trendData.length} 周` }}</button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </el-col>
+            <!-- 学习时长趋势 -->
+            <el-col :span="12">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">学习时长趋势</span>
+                  <div class="granularity-switch">
+                    <button
+                      :class="['granularity-btn', { active: trendGranularity === 'daily' }]"
+                      @click="handleTrendGranularityChange('daily')"
+                    >每日</button>
+                    <button
+                      :class="['granularity-btn', { active: trendGranularity === 'weekly' }]"
+                      @click="handleTrendGranularityChange('weekly')"
+                    >每周</button>
+                  </div>
+                </div>
+                <div class="trend-chart">
+                  <div class="trend-bars">
+                    <div
+                      v-for="(item, idx) in displayTrendData"
+                      :key="idx"
+                      class="trend-bar-item"
+                    >
+                      <div class="trend-bar-track">
+                        <div
+                          class="trend-bar study-bar"
+                          :style="{ height: barHeight(item.studySeconds, trendStudyMax) + '%' }"
+                        >
+                          <span class="trend-bar-tooltip">{{ trendLabel(item, trendGranularity) }}：学习 {{ formatStudy(item.studySeconds) }}</span>
+                        </div>
+                      </div>
+                      <span class="trend-bar-label">{{ trendXLabel(item, trendGranularity) }}</span>
+                    </div>
+                  </div>
+                  <div class="trend-footer">
+                    <div v-if="trendStudyMax > 0" class="bar-y-hint">最多 {{ formatStudy(trendStudyMax) }}</div>
+                    <button
+                      v-if="trendGranularity === 'weekly' && trendData.length > 8"
+                      class="toggle-weeks-btn"
+                      @click="showAllWeeks = !showAllWeeks"
+                    >{{ showAllWeeks ? '收起' : `查看全部 ${trendData.length} 周` }}</button>
+                  </div>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+
+          <el-row :gutter="20" class="stat-row">
+            <!-- 高频关键词 -->
+            <el-col :span="12">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">高频关键词</span>
+                </div>
+                <div class="keyword-cloud">
+                  <el-tag
+                    v-for="kw in keywords"
+                    :key="kw.word"
+                    :size="getTagSize(kw.count)"
+                    :type="getTagType(kw.count)"
+                    style="margin: 4px"
+                  >{{ kw.word }} ({{ kw.count }})</el-tag>
+                  <el-empty v-if="keywords.length === 0" description="暂无数据" :image-size="60" />
+                </div>
+              </div>
+            </el-col>
+            <!-- 提问来源分布 -->
+            <el-col :span="12">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">提问来源分布</span>
+                </div>
+                <div class="dim-table-wrap">
+                  <div v-if="sourceDistribution.length === 0" class="dim-empty">暂无来源数据</div>
+                  <div v-else class="source-list">
+                    <div v-for="(item, idx) in sourceDistribution" :key="idx" class="source-row">
+                      <div class="source-row-head">
+                        <span class="source-row-label">{{ getSourceLabel(item.source) }}</span>
+                        <span class="source-row-value">{{ item.count || 0 }} ({{ getSourcePercent(item, sourceTotal) }}%)</span>
+                      </div>
+                      <div class="source-bar-track">
+                        <div
+                          class="source-bar"
+                          :style="{
+                            width: getSourcePercent(item, sourceTotal) + '%',
+                            background: getSourceColor(item.source)
+                          }"
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+
+          <el-row :gutter="20" class="stat-row">
+            <!-- 提问时段分布 -->
+            <el-col :span="24">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">提问时段分布</span>
+                </div>
+                <p v-if="hourlyMax === 0" class="dim-empty">暂无时段数据</p>
+                <div v-else class="hour-chart">
+                  <div class="hour-track">
+                    <div v-for="(h, idx) in hourlyData" :key="idx" class="hour-col">
+                      <div class="hour-bar-wrap">
+                        <div
+                          class="hour-bar"
+                          :style="{ height: barHeight(h.count, hourlyMax) + '%' }"
+                        >
+                          <span class="hour-tip">{{ h.hour }} 点：{{ h.count }} 次</span>
+                        </div>
+                      </div>
+                      <span class="hour-x">{{ idx % 3 === 0 ? h.hour : '' }}</span>
+                    </div>
+                  </div>
+                  <div class="hour-y-hint">一天中提问次数最多的时段</div>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
         </div>
 
-        <!-- 活跃天数统计 -->
-        <div class="dim-card">
-          <div class="dim-card-header">
-            <span class="dim-card-title">活跃天数统计</span>
-          </div>
-          <div class="mini-cards">
-            <div class="mini-card">
-              <span class="mini-card-value">{{ activeDaysStats.avgActiveDays || 0 }}</span>
-              <span class="mini-card-label">平均活跃天数</span>
-            </div>
-          </div>
-          <div class="dim-table-wrap">
-            <div v-if="sortedActiveStudents.length === 0" class="dim-empty">暂无活跃数据</div>
-            <table v-else class="dim-table">
-              <thead>
-                <tr>
-                  <th>学生姓名</th>
-                  <th>活跃天数</th>
-                  <th>最后活跃时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, idx) in sortedActiveStudents" :key="idx">
-                  <td>{{ row.realName || row.username || '-' }}</td>
-                  <td>{{ row.activeDays || 0 }}</td>
-                  <td>{{ formatDateTime(row.lastActive) }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        <!-- 分区二：学习与活跃 -->
+        <div class="stat-section">
+          <div class="stat-section-title"><span class="section-bar"></span>学习与活跃</div>
+          <el-row :gutter="20">
+            <!-- 学习时长统计 -->
+            <el-col :span="24">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">学习时长统计</span>
+                </div>
+                <div class="mini-cards">
+                  <div class="mini-card">
+                    <span class="mini-card-value">{{ formatDuration(studyTimeStats.totalSeconds) }}</span>
+                    <span class="mini-card-label">总学习时长</span>
+                  </div>
+                  <div class="mini-card">
+                    <span class="mini-card-value">{{ studyTimeStats.students.length || 0 }}</span>
+                    <span class="mini-card-label">学习学生数</span>
+                  </div>
+                </div>
+                <div class="dim-table-wrap">
+                  <div v-if="studyTimeStats.students.length === 0" class="dim-empty">暂无学习时长数据</div>
+                  <table v-else class="dim-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 60px">排名</th>
+                        <th>学生姓名</th>
+                        <th>班级</th>
+                        <th>学习时长</th>
+                        <th>最后学习时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, idx) in studyTimeStats.students" :key="idx">
+                        <td>{{ idx + 1 }}</td>
+                        <td>{{ row.realName || row.username || '-' }}</td>
+                        <td>{{ row.className || '-' }}</td>
+                        <td><span class="round-badge">{{ formatDuration(row.totalSeconds) }}</span></td>
+                        <td>{{ formatDateTime(row.lastStudy) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+
+          <el-row :gutter="20" class="stat-row">
+            <!-- 会话轮次统计 -->
+            <el-col :span="12">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">会话轮次统计</span>
+                </div>
+                <div class="mini-cards">
+                  <div class="mini-card">
+                    <span class="mini-card-value">{{ sessionRounds.avgRounds || 0 }}</span>
+                    <span class="mini-card-label">平均轮次</span>
+                  </div>
+                  <div class="mini-card">
+                    <span class="mini-card-value">{{ sessionRounds.totalSessions || 0 }}</span>
+                    <span class="mini-card-label">总会话数</span>
+                  </div>
+                </div>
+                <div class="dim-table-wrap">
+                  <div v-if="topSessions.length === 0" class="dim-empty">暂无会话数据</div>
+                  <table v-else class="dim-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 60px">排名</th>
+                        <th>学生姓名</th>
+                        <th style="width: 90px">轮次</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, idx) in topSessions" :key="idx">
+                        <td>{{ idx + 1 }}</td>
+                        <td>{{ row.realName || row.username || '-' }}</td>
+                        <td><span class="round-badge">{{ row.rounds || 0 }}</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </el-col>
+            <!-- 活跃天数统计 -->
+            <el-col :span="12">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">活跃天数统计</span>
+                </div>
+                <div class="mini-cards">
+                  <div class="mini-card">
+                    <span class="mini-card-value">{{ activeDaysStats.avgActiveDays || 0 }}</span>
+                    <span class="mini-card-label">平均活跃天数</span>
+                  </div>
+                </div>
+                <div class="dim-table-wrap">
+                  <div v-if="sortedActiveStudents.length === 0" class="dim-empty">暂无活跃数据</div>
+                  <table v-else class="dim-table">
+                    <thead>
+                      <tr>
+                        <th>学生姓名</th>
+                        <th>活跃天数</th>
+                        <th>最后活跃时间</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, idx) in sortedActiveStudents" :key="idx">
+                        <td>{{ row.realName || row.username || '-' }}</td>
+                        <td>{{ row.activeDays || 0 }}</td>
+                        <td>{{ formatDateTime(row.lastActive) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
+        </div>
+
+        <!-- 分区三：学生分析 -->
+        <div class="stat-section">
+          <div class="stat-section-title"><span class="section-bar"></span>学生分析</div>
+          <el-row :gutter="20">
+            <!-- 学生个体排行 -->
+            <el-col :span="24">
+              <div class="dim-card">
+                <div class="dim-card-header">
+                  <span class="dim-card-title">学生个体排行</span>
+                </div>
+                <div class="dim-table-wrap">
+                  <div v-if="studentRanking.length === 0" class="dim-empty">暂无排行数据</div>
+                  <table v-else class="dim-table">
+                    <thead>
+                      <tr>
+                        <th style="width: 60px">排名</th>
+                        <th>学生姓名</th>
+                        <th>提问数</th>
+                        <th>活跃天数</th>
+                        <th>引用率</th>
+                        <th>学习时长</th>
+                        <th>最后活跃</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, idx) in studentRanking" :key="idx">
+                        <td>{{ idx + 1 }}</td>
+                        <td>{{ row.realName || row.username || '-' }}</td>
+                        <td>{{ row.questionCount || 0 }}</td>
+                        <td>{{ row.activeDays || 0 }}</td>
+                        <td>{{ row.citationRate || 0 }}%</td>
+                        <td><span class="round-badge">{{ formatDuration(row.totalSeconds) }}</span></td>
+                        <td>{{ formatDateTime(row.lastActive) }}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
         </div>
       </el-tab-pane>
 
@@ -280,7 +456,7 @@
             <el-col :span="6">
               <el-card shadow="hover">
                 <div class="stat-card">
-                  <el-icon :size="32" color="#409eff"><ChatDotRound /></el-icon>
+                  <el-icon :size="32" color="#2563eb"><ChatDotRound /></el-icon>
                   <div class="stat-info">
                     <span class="stat-value">{{ classOverview.totalQuestions || 0 }}</span>
                     <span class="stat-label">提问数</span>
@@ -291,7 +467,7 @@
             <el-col :span="6">
               <el-card shadow="hover">
                 <div class="stat-card">
-                  <el-icon :size="32" color="#67c23a"><User /></el-icon>
+                  <el-icon :size="32" color="#2563eb"><User /></el-icon>
                   <div class="stat-info">
                     <span class="stat-value">{{ classOverview.activeUsers || 0 }}</span>
                     <span class="stat-label">活跃用户数</span>
@@ -302,7 +478,7 @@
             <el-col :span="6">
               <el-card shadow="hover">
                 <div class="stat-card">
-                  <el-icon :size="32" color="#e6a23c"><Timer /></el-icon>
+                  <el-icon :size="32" color="#f59e0b"><Timer /></el-icon>
                   <div class="stat-info">
                     <span class="stat-value">{{ classOverview.avgResponseTime || 0 }}s</span>
                     <span class="stat-label">平均响应时间</span>
@@ -323,165 +499,339 @@
             </el-col>
           </el-row>
 
-          <el-row :gutter="20" style="margin-top: 20px">
-            <el-col :span="24">
-              <el-card>
-                <template #header><span>高频关键词</span></template>
-                <div class="keyword-cloud">
-                  <el-tag
-                    v-for="kw in classKeywords"
-                    :key="kw.word"
-                    :size="getTagSize(kw.count)"
-                    :type="getTagType(kw.count)"
-                    style="margin: 4px"
-                  >{{ kw.word }} ({{ kw.count }})</el-tag>
-                  <el-empty v-if="classKeywords.length === 0" description="暂无提问数据" :image-size="60" />
-                </div>
-              </el-card>
-            </el-col>
-          </el-row>
-
-          <!-- 提问趋势折线图（柱状条） -->
-          <div class="dim-card">
-            <div class="dim-card-header">
-              <span class="dim-card-title">提问趋势</span>
-              <div class="granularity-switch">
-                <button
-                  :class="['granularity-btn', { active: classTrendGranularity === 'daily' }]"
-                  @click="handleClassTrendGranularityChange('daily')"
-                >每日</button>
-                <button
-                  :class="['granularity-btn', { active: classTrendGranularity === 'weekly' }]"
-                  @click="handleClassTrendGranularityChange('weekly')"
-                >每周</button>
-              </div>
-            </div>
-            <div class="trend-chart">
-              <div class="trend-bars">
-                <div
-                  v-for="(item, idx) in classDisplayTrendData"
-                  :key="idx"
-                  class="trend-bar-item"
-                >
-                  <div class="trend-bar-track">
-                    <div
-                      class="trend-bar"
-                      :style="{ height: barHeight(item.count, classTrendMax) + '%' }"
-                    >
-                      <span class="trend-bar-tooltip">{{ trendLabel(item, classTrendGranularity) }}：{{ item.count || 0 }} 次</span>
+          <!-- 分区一：提问概况 -->
+          <div class="stat-section">
+            <div class="stat-section-title"><span class="section-bar"></span>提问概况</div>
+            <el-row :gutter="20">
+              <!-- 提问趋势（次数） -->
+              <el-col :span="12">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">提问趋势</span>
+                    <div class="granularity-switch">
+                      <button
+                        :class="['granularity-btn', { active: classTrendGranularity === 'daily' }]"
+                        @click="handleClassTrendGranularityChange('daily')"
+                      >每日</button>
+                      <button
+                        :class="['granularity-btn', { active: classTrendGranularity === 'weekly' }]"
+                        @click="handleClassTrendGranularityChange('weekly')"
+                      >每周</button>
                     </div>
                   </div>
-                  <span class="trend-bar-label">{{ trendXLabel(item, classTrendGranularity) }}</span>
-                </div>
-              </div>
-              <div class="trend-footer">
-                <div v-if="classTrendMax > 0" class="bar-y-hint">最多 {{ classTrendMax }} 次</div>
-                <button
-                  v-if="classTrendGranularity === 'weekly' && classTrendData.length > 8"
-                  class="toggle-weeks-btn"
-                  @click="classShowAllWeeks = !classShowAllWeeks"
-                >{{ classShowAllWeeks ? '收起' : `查看全部 ${classTrendData.length} 周` }}</button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 会话轮次统计 -->
-          <div class="dim-card">
-            <div class="dim-card-header">
-              <span class="dim-card-title">会话轮次统计</span>
-            </div>
-            <div class="mini-cards">
-              <div class="mini-card">
-                <span class="mini-card-value">{{ classSessionRounds.avgRounds || 0 }}</span>
-                <span class="mini-card-label">平均轮次</span>
-              </div>
-              <div class="mini-card">
-                <span class="mini-card-value">{{ classSessionRounds.totalSessions || 0 }}</span>
-                <span class="mini-card-label">总会话数</span>
-              </div>
-            </div>
-            <div class="dim-table-wrap">
-              <div v-if="classTopSessions.length === 0" class="dim-empty">暂无会话数据</div>
-              <table v-else class="dim-table">
-                <thead>
-                  <tr>
-                    <th style="width: 60px">排名</th>
-                    <th>学生姓名</th>
-                    <th style="width: 90px">轮次</th>
-                    <th>开始时间</th>
-                    <th>结束时间</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, idx) in classTopSessions" :key="idx">
-                    <td>{{ idx + 1 }}</td>
-                    <td>{{ row.realName || row.username || '-' }}</td>
-                    <td><span class="round-badge">{{ row.rounds || 0 }}</span></td>
-                    <td>{{ formatDateTime(row.startTime) }}</td>
-                    <td>{{ formatDateTime(row.endTime) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- 提问来源分布 -->
-          <div class="dim-card">
-            <div class="dim-card-header">
-              <span class="dim-card-title">提问来源分布</span>
-            </div>
-            <div class="dim-table-wrap">
-              <div v-if="classSourceDistribution.length === 0" class="dim-empty">暂无来源数据</div>
-              <div v-else class="source-list">
-                <div v-for="(item, idx) in classSourceDistribution" :key="idx" class="source-row">
-                  <div class="source-row-head">
-                    <span class="source-row-label">{{ getSourceLabel(item.source) }}</span>
-                    <span class="source-row-value">{{ item.count || 0 }} ({{ getSourcePercent(item, classSourceTotal) }}%)</span>
-                  </div>
-                  <div class="source-bar-track">
-                    <div
-                      class="source-bar"
-                      :style="{
-                        width: getSourcePercent(item, classSourceTotal) + '%',
-                        background: getSourceColor(item.source)
-                      }"
-                    ></div>
+                  <div class="trend-chart">
+                    <div class="trend-bars">
+                      <div
+                        v-for="(item, idx) in classDisplayTrendData"
+                        :key="idx"
+                        class="trend-bar-item"
+                      >
+                        <div class="trend-bar-track">
+                          <div
+                            class="trend-bar count-bar"
+                            :style="{ height: barHeight(item.count, classTrendMax) + '%' }"
+                          >
+                            <span class="trend-bar-tooltip">{{ trendLabel(item, classTrendGranularity) }}：{{ item.count || 0 }} 次</span>
+                          </div>
+                        </div>
+                        <span class="trend-bar-label">{{ trendXLabel(item, classTrendGranularity) }}</span>
+                      </div>
+                    </div>
+                    <div class="trend-footer">
+                      <div v-if="classTrendMax > 0" class="bar-y-hint">最多 {{ classTrendMax }} 次</div>
+                      <button
+                        v-if="classTrendGranularity === 'weekly' && classTrendData.length > 8"
+                        class="toggle-weeks-btn"
+                        @click="classShowAllWeeks = !classShowAllWeeks"
+                      >{{ classShowAllWeeks ? '收起' : `查看全部 ${classTrendData.length} 周` }}</button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
+              </el-col>
+              <!-- 学习时长趋势 -->
+              <el-col :span="12">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">学习时长趋势</span>
+                    <div class="granularity-switch">
+                      <button
+                        :class="['granularity-btn', { active: classTrendGranularity === 'daily' }]"
+                        @click="handleClassTrendGranularityChange('daily')"
+                      >每日</button>
+                      <button
+                        :class="['granularity-btn', { active: classTrendGranularity === 'weekly' }]"
+                        @click="handleClassTrendGranularityChange('weekly')"
+                      >每周</button>
+                    </div>
+                  </div>
+                  <div class="trend-chart">
+                    <div class="trend-bars">
+                      <div
+                        v-for="(item, idx) in classDisplayTrendData"
+                        :key="idx"
+                        class="trend-bar-item"
+                      >
+                        <div class="trend-bar-track">
+                          <div
+                            class="trend-bar study-bar"
+                            :style="{ height: barHeight(item.studySeconds, classTrendStudyMax) + '%' }"
+                          >
+                            <span class="trend-bar-tooltip">{{ trendLabel(item, classTrendGranularity) }}：学习 {{ formatStudy(item.studySeconds) }}</span>
+                          </div>
+                        </div>
+                        <span class="trend-bar-label">{{ trendXLabel(item, classTrendGranularity) }}</span>
+                      </div>
+                    </div>
+                    <div class="trend-footer">
+                      <div v-if="classTrendStudyMax > 0" class="bar-y-hint">最多 {{ formatStudy(classTrendStudyMax) }}</div>
+                      <button
+                        v-if="classTrendGranularity === 'weekly' && classTrendData.length > 8"
+                        class="toggle-weeks-btn"
+                        @click="classShowAllWeeks = !classShowAllWeeks"
+                      >{{ classShowAllWeeks ? '收起' : `查看全部 ${classTrendData.length} 周` }}</button>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20" class="stat-row">
+              <!-- 高频关键词 -->
+              <el-col :span="12">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">高频关键词</span>
+                  </div>
+                  <div class="keyword-cloud">
+                    <el-tag
+                      v-for="kw in classKeywords"
+                      :key="kw.word"
+                      :size="getTagSize(kw.count)"
+                      :type="getTagType(kw.count)"
+                      style="margin: 4px"
+                    >{{ kw.word }} ({{ kw.count }})</el-tag>
+                    <el-empty v-if="classKeywords.length === 0" description="暂无提问数据" :image-size="60" />
+                  </div>
+                </div>
+              </el-col>
+              <!-- 提问来源分布 -->
+              <el-col :span="12">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">提问来源分布</span>
+                  </div>
+                  <div class="dim-table-wrap">
+                    <div v-if="classSourceDistribution.length === 0" class="dim-empty">暂无来源数据</div>
+                    <div v-else class="source-list">
+                      <div v-for="(item, idx) in classSourceDistribution" :key="idx" class="source-row">
+                        <div class="source-row-head">
+                          <span class="source-row-label">{{ getSourceLabel(item.source) }}</span>
+                          <span class="source-row-value">{{ item.count || 0 }} ({{ getSourcePercent(item, classSourceTotal) }}%)</span>
+                        </div>
+                        <div class="source-bar-track">
+                          <div
+                            class="source-bar"
+                            :style="{
+                              width: getSourcePercent(item, classSourceTotal) + '%',
+                              background: getSourceColor(item.source)
+                            }"
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20" class="stat-row">
+              <!-- 提问时段分布 -->
+              <el-col :span="24">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">提问时段分布</span>
+                  </div>
+                  <p v-if="classHourlyMax === 0" class="dim-empty">暂无时段数据</p>
+                  <div v-else class="hour-chart">
+                    <div class="hour-track">
+                      <div v-for="(h, idx) in classHourlyData" :key="idx" class="hour-col">
+                        <div class="hour-bar-wrap">
+                          <div
+                            class="hour-bar"
+                            :style="{ height: barHeight(h.count, classHourlyMax) + '%' }"
+                          >
+                            <span class="hour-tip">{{ h.hour }} 点：{{ h.count }} 次</span>
+                          </div>
+                        </div>
+                        <span class="hour-x">{{ idx % 3 === 0 ? h.hour : '' }}</span>
+                      </div>
+                    </div>
+                    <div class="hour-y-hint">一天中提问次数最多的时段</div>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
           </div>
 
-          <!-- 活跃天数统计 -->
-          <div class="dim-card">
-            <div class="dim-card-header">
-              <span class="dim-card-title">活跃天数统计</span>
-            </div>
-            <div class="mini-cards">
-              <div class="mini-card">
-                <span class="mini-card-value">{{ classActiveDaysStats.avgActiveDays || 0 }}</span>
-                <span class="mini-card-label">平均活跃天数</span>
-              </div>
-            </div>
-            <div class="dim-table-wrap">
-              <div v-if="classSortedActiveStudents.length === 0" class="dim-empty">暂无活跃数据</div>
-              <table v-else class="dim-table">
-                <thead>
-                  <tr>
-                    <th>学生姓名</th>
-                    <th>活跃天数</th>
-                    <th>最后活跃时间</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, idx) in classSortedActiveStudents" :key="idx">
-                    <td>{{ row.realName || row.username || '-' }}</td>
-                    <td>{{ row.activeDays || 0 }}</td>
-                    <td>{{ formatDateTime(row.lastActive) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <!-- 分区二：学习与活跃 -->
+          <div class="stat-section">
+            <div class="stat-section-title"><span class="section-bar"></span>学习与活跃</div>
+            <el-row :gutter="20">
+              <!-- 学习时长统计 -->
+              <el-col :span="24">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">学习时长统计</span>
+                  </div>
+                  <div class="mini-cards">
+                    <div class="mini-card">
+                      <span class="mini-card-value">{{ formatDuration(classStudyTimeStats.totalSeconds) }}</span>
+                      <span class="mini-card-label">总学习时长</span>
+                    </div>
+                    <div class="mini-card">
+                      <span class="mini-card-value">{{ classStudyTimeStats.students.length || 0 }}</span>
+                      <span class="mini-card-label">学习学生数</span>
+                    </div>
+                  </div>
+                  <div class="dim-table-wrap">
+                    <div v-if="classStudyTimeStats.students.length === 0" class="dim-empty">暂无学习时长数据</div>
+                    <table v-else class="dim-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 60px">排名</th>
+                          <th>学生姓名</th>
+                          <th>学习时长</th>
+                          <th>最后学习时间</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, idx) in classStudyTimeStats.students" :key="idx">
+                          <td>{{ idx + 1 }}</td>
+                          <td>{{ row.realName || row.username || '-' }}</td>
+                          <td><span class="round-badge">{{ formatDuration(row.totalSeconds) }}</span></td>
+                          <td>{{ formatDateTime(row.lastStudy) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+
+            <el-row :gutter="20" class="stat-row">
+              <!-- 会话轮次统计 -->
+              <el-col :span="12">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">会话轮次统计</span>
+                  </div>
+                  <div class="mini-cards">
+                    <div class="mini-card">
+                      <span class="mini-card-value">{{ classSessionRounds.avgRounds || 0 }}</span>
+                      <span class="mini-card-label">平均轮次</span>
+                    </div>
+                    <div class="mini-card">
+                      <span class="mini-card-value">{{ classSessionRounds.totalSessions || 0 }}</span>
+                      <span class="mini-card-label">总会话数</span>
+                    </div>
+                  </div>
+                  <div class="dim-table-wrap">
+                    <div v-if="classTopSessions.length === 0" class="dim-empty">暂无会话数据</div>
+                    <table v-else class="dim-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 60px">排名</th>
+                          <th>学生姓名</th>
+                          <th style="width: 90px">轮次</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, idx) in classTopSessions" :key="idx">
+                          <td>{{ idx + 1 }}</td>
+                          <td>{{ row.realName || row.username || '-' }}</td>
+                          <td><span class="round-badge">{{ row.rounds || 0 }}</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </el-col>
+              <!-- 活跃天数统计 -->
+              <el-col :span="12">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">活跃天数统计</span>
+                  </div>
+                  <div class="mini-cards">
+                    <div class="mini-card">
+                      <span class="mini-card-value">{{ classActiveDaysStats.avgActiveDays || 0 }}</span>
+                      <span class="mini-card-label">平均活跃天数</span>
+                    </div>
+                  </div>
+                  <div class="dim-table-wrap">
+                    <div v-if="classSortedActiveStudents.length === 0" class="dim-empty">暂无活跃数据</div>
+                    <table v-else class="dim-table">
+                      <thead>
+                        <tr>
+                          <th>学生姓名</th>
+                          <th>活跃天数</th>
+                          <th>最后活跃时间</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, idx) in classSortedActiveStudents" :key="idx">
+                          <td>{{ row.realName || row.username || '-' }}</td>
+                          <td>{{ row.activeDays || 0 }}</td>
+                          <td>{{ formatDateTime(row.lastActive) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+          </div>
+
+          <!-- 分区三：学生分析 -->
+          <div class="stat-section">
+            <div class="stat-section-title"><span class="section-bar"></span>学生分析</div>
+            <el-row :gutter="20">
+              <!-- 学生个体排行 -->
+              <el-col :span="24">
+                <div class="dim-card">
+                  <div class="dim-card-header">
+                    <span class="dim-card-title">学生个体排行</span>
+                  </div>
+                  <div class="dim-table-wrap">
+                    <div v-if="classStudentRanking.length === 0" class="dim-empty">暂无排行数据</div>
+                    <table v-else class="dim-table">
+                      <thead>
+                        <tr>
+                          <th style="width: 60px">排名</th>
+                          <th>学生姓名</th>
+                          <th>提问数</th>
+                          <th>活跃天数</th>
+                          <th>引用率</th>
+                          <th>学习时长</th>
+                          <th>最后活跃</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, idx) in classStudentRanking" :key="idx">
+                          <td>{{ idx + 1 }}</td>
+                          <td>{{ row.realName || row.username || '-' }}</td>
+                          <td>{{ row.questionCount || 0 }}</td>
+                          <td>{{ row.activeDays || 0 }}</td>
+                          <td>{{ row.citationRate || 0 }}%</td>
+                          <td><span class="round-badge">{{ formatDuration(row.totalSeconds) }}</span></td>
+                          <td>{{ formatDateTime(row.lastActive) }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
           </div>
         </template>
       </el-tab-pane>
@@ -494,7 +844,9 @@ import { ref, computed, onMounted } from 'vue'
 import {
   getQAStatistics, getHotKeywords, getClassList, getClassOverview, getClassHotKeywords,
   getQuestionTrend, getSessionRounds, getSourceDistribution, getActiveDaysStats,
-  getClassQuestionTrend, getClassSessionRounds, getClassSourceDistribution, getClassActiveDaysStats
+  getClassQuestionTrend, getClassSessionRounds, getClassSourceDistribution, getClassActiveDaysStats,
+  getStudyTimeStats, getClassStudyTimeStats,
+  getHourlyDistribution, getClassHourlyDistribution, getStudentRanking, getClassStudentRanking
 } from '@/api/statistics'
 
 const dateRange = ref([])
@@ -540,6 +892,23 @@ const classTrendMax = computed(() => {
   }
   return m
 })
+// 学习时长趋势最大值
+const trendStudyMax = computed(() => {
+  let m = 0
+  for (const item of trendData.value) {
+    const c = Number(item.studySeconds || 0)
+    if (c > m) m = c
+  }
+  return m
+})
+const classTrendStudyMax = computed(() => {
+  let m = 0
+  for (const item of classTrendData.value) {
+    const c = Number(item.studySeconds || 0)
+    if (c > m) m = c
+  }
+  return m
+})
 // 每周模式默认只显示最近8周，可展开查看全部
 const displayTrendData = computed(() => {
   if (trendGranularity.value === 'weekly' && !showAllWeeks.value && trendData.value.length > 8) {
@@ -571,6 +940,16 @@ const classSourceDistribution = ref([])
 const sourceTotal = computed(() => sourceDistribution.value.reduce((s, i) => s + (i.count || 0), 0))
 const classSourceTotal = computed(() => classSourceDistribution.value.reduce((s, i) => s + (i.count || 0), 0))
 
+// 提问时段分布（24 小时）
+const hourlyData = ref([])
+const classHourlyData = ref([])
+const hourlyMax = computed(() => Math.max(0, ...hourlyData.value.map(h => h.count || 0)))
+const classHourlyMax = computed(() => Math.max(0, ...classHourlyData.value.map(h => h.count || 0)))
+
+// 学生个体排行
+const studentRanking = ref([])
+const classStudentRanking = ref([])
+
 // 活跃天数
 const activeDaysStats = ref({ students: [], avgActiveDays: 0 })
 const classActiveDaysStats = ref({ students: [], avgActiveDays: 0 })
@@ -582,10 +961,38 @@ const classSortedActiveStudents = computed(() =>
   [...classActiveDaysStats.value.students].sort((a, b) => (b.activeDays || 0) - (a.activeDays || 0))
 )
 
+// 学习时长
+const studyTimeStats = ref({ totalSeconds: 0, students: [] })
+const classStudyTimeStats = ref({ totalSeconds: 0, students: [] })
+
+// 秒数格式化为 "X小时Y分钟" / "Y分钟"
+function formatDuration(seconds) {
+  const s = Number(seconds) || 0
+  if (s <= 0) return '0分钟'
+  const hours = Math.floor(s / 3600)
+  const minutes = Math.floor((s % 3600) / 60)
+  const secs = s % 60
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}小时${minutes}分钟` : `${hours}小时`
+  }
+  if (minutes > 0) {
+    return secs > 0 ? `${minutes}分钟${secs}秒` : `${minutes}分钟`
+  }
+  return `${secs}秒`
+}
+
+// 秒数格式化为 "X小时Y分钟" / "Y分钟" / "小于1分钟"（会话时长用）
+function formatStudy(seconds) {
+  const s = Number(seconds) || 0
+  if (s <= 0) return '0分钟'
+  if (s < 60) return '小于1分钟'
+  return formatDuration(s)
+}
+
 // 来源类型配置：不同颜色（与学生端一致的渐变色）
 const SOURCE_CONFIG = {
-  textbook: { label: '教材', color: 'linear-gradient(90deg, #6366f1, #818cf8)' },
-  web: { label: '网络', color: 'linear-gradient(90deg, #10b981, #34d399)' },
+  textbook: { label: '教材', color: 'linear-gradient(90deg, #2563eb, #3b82f6)' },
+  web: { label: '网络', color: 'linear-gradient(90deg, #0ea5e9, #38bdf8)' },
   no_class: { label: '未进班级', color: 'linear-gradient(90deg, #f59e0b, #fbbf24)' },
   unknown: { label: '未知', color: 'linear-gradient(90deg, #94a3b8, #cbd5e1)' }
 }
@@ -668,8 +1075,8 @@ function fillWeeklyGaps(raw, startDate, endDate) {
   return result
 }
 
-// 根据粒度补全趋势数据
-function processTrendData(raw, granularity, startDate) {
+// 根据粒度补全趋势数据（叠加学习时长趋势）
+function processTrendData(raw, studyRaw, granularity, startDate) {
   const today = new Date()
   today.setHours(23, 59, 59, 999)
   const start = startDate || (() => {
@@ -677,10 +1084,42 @@ function processTrendData(raw, granularity, startDate) {
     d.setDate(d.getDate() - 29)
     return d
   })()
+  const studyMap = buildStudyMap(studyRaw || [], granularity)
   if (granularity === 'daily') {
-    return fillDailyGaps(raw, start, today)
+    return fillDailyGaps(raw, start, today).map(it => ({
+      ...it,
+      studySeconds: studyMap[it.date] || 0
+    }))
   }
-  return fillWeeklyGaps(raw, start, today)
+  return fillWeeklyGaps(raw, start, today).map(it => ({
+    ...it,
+    studySeconds: studyMap[it.week] || 0
+  }))
+}
+
+// 将学习时长趋势原始数据（date/week + studySeconds）转为 {归一化日期: 秒数}
+function buildStudyMap(studyRaw, granularity) {
+  const map = {}
+  for (const item of studyRaw) {
+    const rawKey = pickKey(item, 'week', 'WEEK') || pickKey(item, 'date', 'DATE')
+    if (!rawKey) continue
+    const d = new Date(rawKey)
+    if (isNaN(d.getTime())) continue
+    const key = granularity === 'weekly'
+      ? fmtDate(toMonday(d))
+      : fmtDate(d)
+    map[key] = pickNum(item, 'studySeconds', 'STUDYSECONDS')
+  }
+  return map
+}
+
+// 将时段分布原始数据补全为 24 小时数组（0-23 点，缺省补 0）
+function buildHourly(dist) {
+  const map = {}
+  for (const it of dist || []) {
+    map[Number(pickKey(it, 'hour', 'HOUR'))] = pickNum(it, 'count', 'COUNT')
+  }
+  return Array.from({ length: 24 }, (_, h) => ({ hour: h, count: map[h] || 0 }))
 }
 
 // 趋势柱状图高度：最高88%留空间给tooltip，0值给最小高度
@@ -779,18 +1218,28 @@ async function fetchOverallData() {
     startDate.setDate(startDate.getDate() - 29)
   }
   try {
-    const [statRes, kwRes, trendRes, sessionRes, sourceRes, activeRes] = await Promise.all([
+    // 趋势请求：未选日期时把最早班级创建时间作为起始日传给后端，避免后端 30 天默认截断漏数据
+    const trendParams = { ...params, granularity: trendGranularity.value }
+    if (!params.startDate) {
+      trendParams.startDate = formatDate(startDate) + ' 00:00:00'
+      trendParams.endDate = formatDate(new Date()) + ' 23:59:59'
+    }
+    const [statRes, kwRes, trendRes, sessionRes, sourceRes, activeRes, studyRes, hourlyRes, rankingRes] = await Promise.all([
       getQAStatistics(params),
       getHotKeywords({ ...params, limit: 30 }),
-      getQuestionTrend({ ...params, granularity: trendGranularity.value }),
+      getQuestionTrend(trendParams),
       getSessionRounds(params),
       getSourceDistribution(params),
-      getActiveDaysStats(params)
+      getActiveDaysStats(params),
+      getStudyTimeStats(params),
+      getHourlyDistribution(params),
+      getStudentRanking(params)
     ])
     overview.value = statRes.data || {}
     keywords.value = kwRes.data || []
     const rawTrend = (trendRes.data && trendRes.data.trend) || []
-    trendData.value = processTrendData(rawTrend, trendGranularity.value, startDate)
+    const rawStudyTrend = (trendRes.data && trendRes.data.studyTrend) || []
+    trendData.value = processTrendData(rawTrend, rawStudyTrend, trendGranularity.value, startDate)
     sessionRounds.value = {
       rounds: (sessionRes.data && sessionRes.data.rounds) || [],
       avgRounds: (sessionRes.data && sessionRes.data.avgRounds) || 0,
@@ -801,6 +1250,12 @@ async function fetchOverallData() {
       students: (activeRes.data && activeRes.data.students) || [],
       avgActiveDays: (activeRes.data && activeRes.data.avgActiveDays) || 0
     }
+    studyTimeStats.value = {
+      totalSeconds: (studyRes.data && studyRes.data.totalSeconds) || 0,
+      students: (studyRes.data && studyRes.data.students) || []
+    }
+    hourlyData.value = buildHourly(hourlyRes.data && hourlyRes.data.distribution)
+    studentRanking.value = (rankingRes.data && rankingRes.data.students) || []
   } catch (e) {
     console.error('获取总体统计失败:', e)
   }
@@ -826,9 +1281,16 @@ async function handleTrendGranularityChange(g) {
     startDate.setDate(startDate.getDate() - 29)
   }
   try {
-    const res = await getQuestionTrend({ ...params, granularity: g })
+    // 趋势请求：未选日期时把最早班级创建时间作为起始日传给后端，避免后端 30 天默认截断漏数据
+    const trendParams = { ...params, granularity: g }
+    if (!params.startDate) {
+      trendParams.startDate = formatDate(startDate) + ' 00:00:00'
+      trendParams.endDate = formatDate(new Date()) + ' 23:59:59'
+    }
+    const res = await getQuestionTrend(trendParams)
     const rawTrend = (res.data && res.data.trend) || []
-    trendData.value = processTrendData(rawTrend, g, startDate)
+    const rawStudyTrend = (res.data && res.data.studyTrend) || []
+    trendData.value = processTrendData(rawTrend, rawStudyTrend, g, startDate)
   } catch (e) {
     console.error('获取提问趋势失败:', e)
   }
@@ -878,7 +1340,10 @@ function switchClass() {
   classShowAllWeeks.value = false
   classSessionRounds.value = { rounds: [], avgRounds: 0, totalSessions: 0 }
   classSourceDistribution.value = []
+  classHourlyData.value = []
+  classStudentRanking.value = []
   classActiveDaysStats.value = { students: [], avgActiveDays: 0 }
+  classStudyTimeStats.value = { totalSeconds: 0, students: [] }
 }
 
 async function fetchClassData(classId) {
@@ -895,18 +1360,28 @@ async function fetchClassData(classId) {
     startDate.setDate(startDate.getDate() - 29)
   }
   try {
-    const [statRes, kwRes, trendRes, sessionRes, sourceRes, activeRes] = await Promise.all([
+    // 班级趋势请求：未选日期时把班级创建时间作为起始日传给后端，避免后端 30 天默认截断漏数据
+    const trendParams = { ...params, granularity: classTrendGranularity.value }
+    if (!params.startDate) {
+      trendParams.startDate = formatDate(startDate) + ' 00:00:00'
+      trendParams.endDate = formatDate(new Date()) + ' 23:59:59'
+    }
+    const [statRes, kwRes, trendRes, sessionRes, sourceRes, activeRes, studyRes, hourlyRes, rankingRes] = await Promise.all([
       getClassOverview(classId, params),
       getClassHotKeywords(classId, { ...params, limit: 30 }),
-      getClassQuestionTrend(classId, { ...params, granularity: classTrendGranularity.value }),
+      getClassQuestionTrend(classId, trendParams),
       getClassSessionRounds(classId, params),
       getClassSourceDistribution(classId, params),
-      getClassActiveDaysStats(classId, params)
+      getClassActiveDaysStats(classId, params),
+      getClassStudyTimeStats(classId, params),
+      getClassHourlyDistribution(classId, params),
+      getClassStudentRanking(classId, params)
     ])
     classOverview.value = statRes.data || {}
     classKeywords.value = kwRes.data || []
     const rawTrend = (trendRes.data && trendRes.data.trend) || []
-    classTrendData.value = processTrendData(rawTrend, classTrendGranularity.value, startDate)
+    const rawStudyTrend = (trendRes.data && trendRes.data.studyTrend) || []
+    classTrendData.value = processTrendData(rawTrend, rawStudyTrend, classTrendGranularity.value, startDate)
     classSessionRounds.value = {
       rounds: (sessionRes.data && sessionRes.data.rounds) || [],
       avgRounds: (sessionRes.data && sessionRes.data.avgRounds) || 0,
@@ -917,6 +1392,12 @@ async function fetchClassData(classId) {
       students: (activeRes.data && activeRes.data.students) || [],
       avgActiveDays: (activeRes.data && activeRes.data.avgActiveDays) || 0
     }
+    classStudyTimeStats.value = {
+      totalSeconds: (studyRes.data && studyRes.data.totalSeconds) || 0,
+      students: (studyRes.data && studyRes.data.students) || []
+    }
+    classHourlyData.value = buildHourly(hourlyRes.data && hourlyRes.data.distribution)
+    classStudentRanking.value = (rankingRes.data && rankingRes.data.students) || []
   } catch (e) {
     console.error('获取班级统计失败:', e)
   }
@@ -941,9 +1422,16 @@ async function handleClassTrendGranularityChange(g) {
     startDate.setDate(startDate.getDate() - 29)
   }
   try {
-    const res = await getClassQuestionTrend(selectedClassId.value, { ...params, granularity: g })
+    // 班级趋势请求：未选日期时把班级创建时间作为起始日传给后端，避免后端 30 天默认截断漏数据
+    const trendParams = { ...params, granularity: g }
+    if (!params.startDate) {
+      trendParams.startDate = formatDate(startDate) + ' 00:00:00'
+      trendParams.endDate = formatDate(new Date()) + ' 23:59:59'
+    }
+    const res = await getClassQuestionTrend(selectedClassId.value, trendParams)
     const rawTrend = (res.data && res.data.trend) || []
-    classTrendData.value = processTrendData(rawTrend, g, startDate)
+    const rawStudyTrend = (res.data && res.data.studyTrend) || []
+    classTrendData.value = processTrendData(rawTrend, rawStudyTrend, g, startDate)
   } catch (e) {
     console.error('获取班级提问趋势失败:', e)
   }
@@ -1010,6 +1498,9 @@ function getTagType(count) {
 
 .keyword-cloud {
   min-height: 150px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 2px;
 }
 
 /* 班级 Grid 卡片 */
@@ -1143,7 +1634,7 @@ function getTagType(count) {
   gap: 4px;
   font-size: 12px;
   font-weight: 600;
-  color: #6366f1;
+  color: #2563eb;
   transition: gap 0.2s ease;
 }
 
@@ -1167,17 +1658,53 @@ function getTagType(count) {
   color: #1e293b;
 }
 
-/* ===== 新增维度展示区域（深色紫色毛玻璃风格） ===== */
+/* ===== 统计分区（分区标题 + 两列网格） ===== */
+.stat-section {
+  margin-top: 24px;
+}
+
+.stat-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 12px;
+}
+
+.section-bar {
+  width: 4px;
+  height: 16px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+}
+
+.stat-row {
+  margin-top: 20px;
+}
+
+/* 两列并排时卡片等高 */
+.stat-section .el-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-section .dim-card {
+  width: 100%;
+  flex: 1;
+  margin-top: 0;
+}
+
+/* ===== 新增维度展示区域（浅色白底 + 蓝色主色） ===== */
 .dim-card {
   margin-top: 20px;
   padding: 22px 24px;
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(67, 56, 202, 0.65), rgba(55, 48, 163, 0.7));
-  border: 1px solid rgba(167, 139, 250, 0.4);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 8px 28px rgba(30, 27, 75, 0.4);
-  color: #f3f0ff;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
+  color: var(--color-text-primary);
 }
 
 .dim-card-header {
@@ -1190,23 +1717,99 @@ function getTagType(count) {
 .dim-card-title {
   font-size: 16px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--color-text-primary);
   letter-spacing: 0.02em;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }
 
 .dim-empty {
   padding: 28px 0;
   text-align: center;
-  color: #ffffff;
+  color: var(--color-text-tertiary);
   font-size: 13px;
+}
+
+/* 提问时段分布 */
+.hour-chart {
+  width: 100%;
+}
+
+.hour-track {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 160px;
+  padding: 20px 4px 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.hour-col {
+  flex: 1 1 0;
+  min-width: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.hour-bar-wrap {
+  width: 100%;
+  height: calc(100% - 18px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+}
+
+.hour-bar {
+  width: 72%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  position: relative;
+}
+
+.hour-tip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+
+.hour-bar:hover .hour-tip {
+  opacity: 1;
+}
+
+.hour-x {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  height: 16px;
+  line-height: 16px;
+}
+
+.hour-y-hint {
+  text-align: right;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 6px;
 }
 
 /* 每日/每周切换 */
 .granularity-switch {
   display: inline-flex;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(167, 139, 250, 0.4);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   border-radius: 8px;
   padding: 2px;
 }
@@ -1214,7 +1817,7 @@ function getTagType(count) {
 .granularity-btn {
   border: none;
   background: transparent;
-  color: #ffffff;
+  color: var(--color-text-secondary);
   font-size: 12px;
   font-weight: 600;
   padding: 5px 14px;
@@ -1223,13 +1826,13 @@ function getTagType(count) {
   transition: all 0.2s ease;
 
   &:hover {
-    color: #ffffff;
+    color: #2563eb;
   }
 
   &.active {
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
     color: #ffffff;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.5);
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
   }
 }
 
@@ -1263,13 +1866,13 @@ function getTagType(count) {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  gap: 4px;
 }
 
 .trend-bar {
-  width: 70%;
+  width: 60%;
   min-height: 3px;
   border-radius: 6px 6px 0 0;
-  background: linear-gradient(180deg, #a78bfa, #6366f1);
   position: relative;
   transition: filter 0.2s ease, transform 0.2s ease;
 
@@ -1277,6 +1880,14 @@ function getTagType(count) {
     filter: brightness(1.15);
     transform: translateY(-2px);
   }
+}
+
+.count-bar {
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+}
+
+.study-bar {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
 }
 
 .trend-bar-tooltip {
@@ -1303,7 +1914,7 @@ function getTagType(count) {
 .trend-bar-label {
   margin-top: 8px;
   font-size: 11px;
-  color: #ffffff;
+  color: var(--color-text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1326,30 +1937,30 @@ function getTagType(count) {
   justify-content: center;
   padding: 16px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(167, 139, 250, 0.35);
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  box-shadow: var(--shadow-sm);
 }
 
 .mini-card-value {
   font-size: 26px;
   font-weight: 700;
-  color: #ffffff;
+  color: #2563eb;
   line-height: 1.1;
-  text-shadow: 0 1px 6px rgba(139, 92, 246, 0.5);
 }
 
 .mini-card-label {
   margin-top: 6px;
   font-size: 12px;
-  color: #ffffff;
+  color: var(--color-text-tertiary);
 }
 
 /* 表格 */
 .dim-table-wrap {
   overflow-x: auto;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(167, 139, 250, 0.3);
+  background: #ffffff;
+  border: 1px solid var(--color-border);
 }
 
 .dim-table {
@@ -1361,16 +1972,16 @@ function getTagType(count) {
     text-align: left;
     padding: 12px 16px;
     font-weight: 600;
-    color: #ffffff;
-    background: rgba(99, 102, 241, 0.3);
-    border-bottom: 1px solid rgba(167, 139, 250, 0.35);
+    color: var(--color-text-secondary);
+    background: #eff6ff;
+    border-bottom: 1px solid var(--color-border);
     white-space: nowrap;
   }
 
   tbody td {
     padding: 11px 16px;
-    color: #ffffff;
-    border-bottom: 1px solid rgba(167, 139, 250, 0.2);
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-light);
     white-space: nowrap;
   }
 
@@ -1379,7 +1990,7 @@ function getTagType(count) {
   }
 
   tbody tr:hover td {
-    background: rgba(139, 92, 246, 0.12);
+    background: #eff6ff;
   }
 }
 
@@ -1406,19 +2017,19 @@ function getTagType(count) {
 .source-row-label {
   font-size: 13px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--color-text-primary);
 }
 
 .source-row-value {
   font-size: 12px;
-  color: #ffffff;
+  color: var(--color-text-secondary);
 }
 
 .source-bar-track {
   width: 100%;
   height: 10px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--color-bg-secondary);
   overflow: hidden;
 }
 
@@ -1440,14 +2051,14 @@ function getTagType(count) {
 .bar-y-hint {
   text-align: right;
   font-size: 11px;
-  color: #ffffff;
+  color: var(--color-text-tertiary);
   margin-top: 6px;
 }
 
 .toggle-weeks-btn {
-  background: rgba(99, 102, 241, 0.3);
-  border: 1px solid rgba(167, 139, 250, 0.5);
-  color: #ffffff;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
   padding: 4px 12px;
   border-radius: 8px;
   font-size: 12px;
@@ -1456,8 +2067,8 @@ function getTagType(count) {
   transition: all 0.2s ease;
 
   &:hover {
-    background: rgba(139, 92, 246, 0.3);
-    color: #ffffff;
+    background: #eff6ff;
+    color: #1d4ed8;
   }
 }
 
@@ -1469,8 +2080,8 @@ function getTagType(count) {
   min-width: 34px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(167, 139, 250, 0.25);
-  color: #e0e7ff;
+  background: #eff6ff;
+  color: #2563eb;
   font-weight: 600;
   font-size: 12px;
 }

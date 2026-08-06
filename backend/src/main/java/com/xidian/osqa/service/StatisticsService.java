@@ -3,6 +3,7 @@ package com.xidian.osqa.service;
 import com.xidian.osqa.common.KeywordExtractor;
 import com.xidian.osqa.mapper.ChatMessageMapper;
 import com.xidian.osqa.mapper.ChatSessionMapper;
+import com.xidian.osqa.mapper.StudyTimeMapper;
 import com.xidian.osqa.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,12 +22,14 @@ public class StatisticsService {
     private final ChatSessionMapper sessionMapper;
     private final UserMapper userMapper;
     private final KeywordAiService keywordAiService;
+    private final StudyTimeMapper studyTimeMapper;
 
-    public StatisticsService(ChatMessageMapper messageMapper, ChatSessionMapper sessionMapper, UserMapper userMapper, KeywordAiService keywordAiService) {
+    public StatisticsService(ChatMessageMapper messageMapper, ChatSessionMapper sessionMapper, UserMapper userMapper, KeywordAiService keywordAiService, StudyTimeMapper studyTimeMapper) {
         this.messageMapper = messageMapper;
         this.sessionMapper = sessionMapper;
         this.userMapper = userMapper;
         this.keywordAiService = keywordAiService;
+        this.studyTimeMapper = studyTimeMapper;
     }
 
     public Map<String, Object> getOverview(Long teacherId, String startDate, String endDate) {
@@ -38,19 +41,24 @@ public class StatisticsService {
                 int totalAnswers = messageMapper.countTotalAnswersByDate(teacherId, startDate, endDate);
                 int citedAnswers = messageMapper.countCitedAnswersByDate(teacherId, startDate, endDate);
                 overview.put("citationRate", totalAnswers > 0 ? Math.round(citedAnswers * 100.0 / totalAnswers) : 0);
+                overview.put("avgResponseTime", round1(messageMapper.findTeacherAvgResponseTime(teacherId, startDate, endDate)));
             } else {
                 overview.put("totalQuestions", messageMapper.countTotalQuestions(teacherId));
                 overview.put("activeUsers", messageMapper.countActiveSessions(teacherId));
                 int totalAnswers = messageMapper.countTotalAnswers(teacherId);
                 int citedAnswers = messageMapper.countCitedAnswers(teacherId);
                 overview.put("citationRate", totalAnswers > 0 ? Math.round(citedAnswers * 100.0 / totalAnswers) : 0);
+                overview.put("avgResponseTime", round1(messageMapper.findTeacherAvgResponseTime(teacherId, null, null)));
             }
-            overview.put("avgResponseTime", 1.2);
+            int totalStudySeconds = Optional.ofNullable(
+                    studyTimeMapper.sumTeacherStudySeconds(teacherId, toDateStr(startDate), toDateStr(endDate))).orElse(0);
+            overview.put("totalStudySeconds", totalStudySeconds);
         } catch (Exception e) {
             overview.put("totalQuestions", 0);
             overview.put("activeUsers", 0);
             overview.put("avgResponseTime", 0);
             overview.put("citationRate", 0);
+            overview.put("totalStudySeconds", 0);
         }
         return overview;
     }
@@ -74,25 +82,32 @@ public class StatisticsService {
         try {
             Map<String, Object> raw;
             int totalAnswers, citedAnswers;
+            double avgResponseTime;
             if (startDate != null && endDate != null) {
                 raw = messageMapper.findClassOverviewByDate(classId, startDate, endDate);
                 totalAnswers = messageMapper.countClassTotalAnswersByDate(classId, startDate, endDate);
                 citedAnswers = messageMapper.countClassCitedAnswersByDate(classId, startDate, endDate);
+                avgResponseTime = messageMapper.findClassAvgResponseTime(classId, startDate, endDate);
             } else {
                 raw = messageMapper.findClassOverview(classId);
                 totalAnswers = messageMapper.countClassTotalAnswers(classId);
                 citedAnswers = messageMapper.countClassCitedAnswers(classId);
+                avgResponseTime = messageMapper.findClassAvgResponseTime(classId, null, null);
             }
             overview.put("totalQuestions", getMapInt(raw, "totalQuestions"));
             overview.put("activeUsers", getMapInt(raw, "activeUsers"));
             overview.put("citationRate", totalAnswers > 0 ? Math.round(citedAnswers * 100.0 / totalAnswers) : 0);
-            overview.put("avgResponseTime", 1.2);
+            overview.put("avgResponseTime", round1(avgResponseTime));
+            int totalStudySeconds = Optional.ofNullable(
+                    studyTimeMapper.sumClassStudySeconds(classId, toDateStr(startDate), toDateStr(endDate))).orElse(0);
+            overview.put("totalStudySeconds", totalStudySeconds);
         } catch (Exception e) {
             log.error("获取班级概览失败, classId={}", classId, e);
             overview.put("totalQuestions", 0);
             overview.put("activeUsers", 0);
             overview.put("avgResponseTime", 0);
             overview.put("citationRate", 0);
+            overview.put("totalStudySeconds", 0);
         }
         return overview;
     }
@@ -221,6 +236,17 @@ public class StatisticsService {
         return val != null ? ((Number) val).intValue() : 0;
     }
 
+    /** 保留一位小数 */
+    private double round1(double v) {
+        return Math.round(v * 10) / 10.0;
+    }
+
+    /** 班级是否归属于当前教师（越权校验） */
+    public boolean isClassOwnedByTeacher(Long classId, Long teacherId) {
+        if (classId == null || teacherId == null) return false;
+        return messageMapper.countTeacherClass(classId, teacherId) > 0;
+    }
+
     // ===== 新增统计维度 =====
 
     private String[] getDefaultDateRange() {
@@ -228,6 +254,12 @@ public class StatisticsService {
         LocalDate start = end.minusDays(29);
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         return new String[]{start.format(fmt) + " 00:00:00", end.format(fmt) + " 23:59:59"};
+    }
+
+    /** 兼容 "yyyy-MM-dd HH:mm:ss" 与 "yyyy-MM-dd"，统一转成日期字符串 */
+    private String toDateStr(String datetime) {
+        if (datetime == null || datetime.isBlank()) return null;
+        return datetime.length() >= 10 ? datetime.substring(0, 10) : datetime;
     }
 
     public Map<String, Object> getQuestionTrend(Long teacherId, String startDate, String endDate, String granularity) {
@@ -239,16 +271,21 @@ public class StatisticsService {
                 endDate = range[1];
             }
             List<Map<String, Object>> trend;
+            List<Map<String, Object>> studyTrend;
             if ("weekly".equals(granularity)) {
                 trend = messageMapper.findWeeklyQuestionTrend(teacherId, startDate, endDate);
+                studyTrend = studyTimeMapper.findTeacherWeeklyStudyTimeTrend(teacherId, toDateStr(startDate), toDateStr(endDate));
             } else {
                 trend = messageMapper.findDailyQuestionTrend(teacherId, startDate, endDate);
+                studyTrend = studyTimeMapper.findTeacherDailyStudyTimeTrend(teacherId, toDateStr(startDate), toDateStr(endDate));
             }
             result.put("trend", normalizeMapList(trend));
+            result.put("studyTrend", normalizeMapList(studyTrend));
             result.put("granularity", granularity);
         } catch (Exception e) {
             log.error("获取提问趋势失败", e);
             result.put("trend", new ArrayList<>());
+            result.put("studyTrend", new ArrayList<>());
         }
         return result;
     }
@@ -262,15 +299,20 @@ public class StatisticsService {
                 endDate = range[1];
             }
             List<Map<String, Object>> trend;
+            List<Map<String, Object>> studyTrend;
             if ("weekly".equals(granularity)) {
                 trend = messageMapper.findClassWeeklyQuestionTrend(classId, startDate, endDate);
+                studyTrend = studyTimeMapper.findClassWeeklyStudyTimeTrend(classId, toDateStr(startDate), toDateStr(endDate));
             } else {
                 trend = messageMapper.findClassDailyQuestionTrend(classId, startDate, endDate);
+                studyTrend = studyTimeMapper.findClassDailyStudyTimeTrend(classId, toDateStr(startDate), toDateStr(endDate));
             }
             result.put("trend", normalizeMapList(trend));
+            result.put("studyTrend", normalizeMapList(studyTrend));
         } catch (Exception e) {
             log.error("获取班级提问趋势失败", e);
             result.put("trend", new ArrayList<>());
+            result.put("studyTrend", new ArrayList<>());
         }
         return result;
     }
@@ -285,18 +327,26 @@ public class StatisticsService {
             }
             List<Map<String, Object>> rounds = messageMapper.findSessionRounds(teacherId, startDate, endDate, limit);
             result.put("rounds", normalizeMapList(rounds));
-            // 计算平均轮次
+            // 总会话数需独立 COUNT（不受 LIMIT 截断），条件与 rounds 查询保持一致
+            int totalSessions = messageMapper.countSessionRounds(teacherId, startDate, endDate);
+            // 计算平均轮次与会话时长
             int totalRounds = 0;
+            long totalSeconds = 0;
             for (Map<String, Object> r : rounds) {
                 totalRounds += getMapInt(r, "rounds");
+                totalSeconds += getMapInt(r, "sessionSeconds");
             }
             result.put("avgRounds", rounds.isEmpty() ? 0 : Math.round(totalRounds * 100.0 / rounds.size()) / 100.0);
-            result.put("totalSessions", rounds.size());
+            result.put("totalSessions", totalSessions);
+            result.put("avgSessionSeconds", rounds.isEmpty() ? 0 : Math.round(totalSeconds * 100.0 / rounds.size()) / 100.0);
+            result.put("totalSessionSeconds", totalSeconds);
         } catch (Exception e) {
             log.error("获取会话轮次失败", e);
             result.put("rounds", new ArrayList<>());
             result.put("avgRounds", 0);
             result.put("totalSessions", 0);
+            result.put("avgSessionSeconds", 0);
+            result.put("totalSessionSeconds", 0);
         }
         return result;
     }
@@ -311,17 +361,24 @@ public class StatisticsService {
             }
             List<Map<String, Object>> rounds = messageMapper.findClassSessionRounds(classId, startDate, endDate, limit);
             result.put("rounds", normalizeMapList(rounds));
+            int totalSessions = messageMapper.countClassSessionRounds(classId, startDate, endDate);
             int totalRounds = 0;
+            long totalSeconds = 0;
             for (Map<String, Object> r : rounds) {
                 totalRounds += getMapInt(r, "rounds");
+                totalSeconds += getMapInt(r, "sessionSeconds");
             }
             result.put("avgRounds", rounds.isEmpty() ? 0 : Math.round(totalRounds * 100.0 / rounds.size()) / 100.0);
-            result.put("totalSessions", rounds.size());
+            result.put("totalSessions", totalSessions);
+            result.put("avgSessionSeconds", rounds.isEmpty() ? 0 : Math.round(totalSeconds * 100.0 / rounds.size()) / 100.0);
+            result.put("totalSessionSeconds", totalSeconds);
         } catch (Exception e) {
             log.error("获取班级会话轮次失败", e);
             result.put("rounds", new ArrayList<>());
             result.put("avgRounds", 0);
             result.put("totalSessions", 0);
+            result.put("avgSessionSeconds", 0);
+            result.put("totalSessionSeconds", 0);
         }
         return result;
     }
@@ -409,17 +466,164 @@ public class StatisticsService {
         return result;
     }
 
-    // H2返回大写列名，统一转为驼峰
+    // ===== 提问时段分布（按小时）=====
+
+    public Map<String, Object> getHourlyDistribution(Long teacherId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> dist = messageMapper.findTeacherHourlyDistribution(teacherId, startDate, endDate);
+            result.put("distribution", normalizeMapList(dist));
+        } catch (Exception e) {
+            log.error("获取提问时段分布失败", e);
+            result.put("distribution", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getClassHourlyDistribution(Long classId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> dist = messageMapper.findClassHourlyDistribution(classId, startDate, endDate);
+            result.put("distribution", normalizeMapList(dist));
+        } catch (Exception e) {
+            log.error("获取班级提问时段分布失败", e);
+            result.put("distribution", new ArrayList<>());
+        }
+        return result;
+    }
+
+    // ===== 学生个体排行（合并学习时长）=====
+
+    private void mergeRankingData(List<Map<String, Object>> ranking, List<Map<String, Object>> studyStats) {
+        // studyStats 按 (user_id, class_id) 分组，同一学生跨班多行需累加，不能覆盖
+        Map<Long, Long> studySecMap = new HashMap<>();
+        Map<Long, Object> lastStudyMap = new HashMap<>();
+        for (Map<String, Object> s : studyStats) {
+            Object uid = getMapValue(s, "userId");
+            if (uid == null) continue;
+            long key = ((Number) uid).longValue();
+            Object sec = getMapValue(s, "totalSeconds");
+            long secs = sec != null ? ((Number) sec).longValue() : 0;
+            studySecMap.merge(key, secs, Long::sum);
+            if (lastStudyMap.get(key) == null) {
+                lastStudyMap.put(key, getMapValue(s, "lastStudy"));
+            }
+        }
+        for (Map<String, Object> row : ranking) {
+            Object uid = getMapValue(row, "userId");
+            row.put("totalSeconds", uid != null ? studySecMap.getOrDefault(((Number) uid).longValue(), 0L) : 0L);
+            row.put("lastStudy", uid != null ? lastStudyMap.get(((Number) uid).longValue()) : null);
+            int cited = getMapInt(row, "citedCount");
+            int answer = getMapInt(row, "answerCount");
+            row.put("citationRate", answer > 0 ? Math.round(cited * 100.0 / answer) : 0);
+        }
+    }
+
+    public Map<String, Object> getStudentRanking(Long teacherId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> ranking = normalizeMapList(messageMapper.findStudentRanking(teacherId, startDate, endDate));
+            mergeRankingData(ranking, studyTimeMapper.findTeacherStudyTimeStats(teacherId, toDateStr(startDate), toDateStr(endDate)));
+            result.put("students", ranking);
+        } catch (Exception e) {
+            log.error("获取学生排行失败", e);
+            result.put("students", new ArrayList<>());
+        }
+        return result;
+    }
+
+    public Map<String, Object> getClassStudentRanking(Long classId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                String[] range = getDefaultDateRange();
+                startDate = range[0];
+                endDate = range[1];
+            }
+            List<Map<String, Object>> ranking = normalizeMapList(messageMapper.findClassStudentRanking(classId, startDate, endDate));
+            mergeRankingData(ranking, studyTimeMapper.findClassStudyTimeStats(classId, toDateStr(startDate), toDateStr(endDate)));
+            result.put("students", ranking);
+        } catch (Exception e) {
+            log.error("获取班级学生排行失败", e);
+            result.put("students", new ArrayList<>());
+        }
+        return result;
+    }
+
+    private Object getMapValue(Map<String, Object> map, String key) {
+        if (map == null) return null;
+        Object val = map.get(key);
+        if (val == null) val = map.get(key.toUpperCase());
+        if (val == null) val = map.get(key.toLowerCase());
+        return val;
+    }
+
+    // H2返回大写列名，统一转为前端使用的小驼峰键
+    private static final Map<String, String> COLUMN_MAP = new HashMap<>();
+    static {
+        COLUMN_MAP.put("USERID", "userId");
+        COLUMN_MAP.put("USERNAME", "username");
+        COLUMN_MAP.put("REALNAME", "realName");
+        COLUMN_MAP.put("CLASSID", "classId");
+        COLUMN_MAP.put("CLASSNAME", "className");
+        COLUMN_MAP.put("TOTALSECONDS", "totalSeconds");
+        COLUMN_MAP.put("LASTSTUDY", "lastStudy");
+        COLUMN_MAP.put("DATE", "date");
+        COLUMN_MAP.put("WEEK", "week");
+        COLUMN_MAP.put("STUDYSECONDS", "studySeconds");
+        COLUMN_MAP.put("SESSIONID", "sessionId");
+        COLUMN_MAP.put("ROUNDS", "rounds");
+        COLUMN_MAP.put("STARTTIME", "startTime");
+        COLUMN_MAP.put("ENDTIME", "endTime");
+        COLUMN_MAP.put("SESSIONSECONDS", "sessionSeconds");
+        COLUMN_MAP.put("COUNT", "count");
+        COLUMN_MAP.put("ACTIVEDAYS", "activeDays");
+        COLUMN_MAP.put("LASTACTIVE", "lastActive");
+        COLUMN_MAP.put("SOURCE", "source");
+        COLUMN_MAP.put("QUESTION", "question");
+        COLUMN_MAP.put("STUDENTNAME", "studentName");
+        COLUMN_MAP.put("STUDENTREALNAME", "studentRealName");
+        COLUMN_MAP.put("TOTALQUESTIONS", "totalQuestions");
+        COLUMN_MAP.put("ACTIVEUSERS", "activeUsers");
+        COLUMN_MAP.put("LASTQUESTIONTIME", "lastQuestionTime");
+        COLUMN_MAP.put("ID", "id");
+        COLUMN_MAP.put("NAME", "name");
+        COLUMN_MAP.put("STATUS", "status");
+        COLUMN_MAP.put("VIDEOSETID", "videoSetId");
+        COLUMN_MAP.put("KBID", "kbId");
+        COLUMN_MAP.put("STUDENTCOUNT", "studentCount");
+        COLUMN_MAP.put("HOUR", "hour");
+        COLUMN_MAP.put("QUESTIONCOUNT", "questionCount");
+        COLUMN_MAP.put("CITEDCOUNT", "citedCount");
+        COLUMN_MAP.put("ANSWERCOUNT", "answerCount");
+    }
+
     private List<Map<String, Object>> normalizeMapList(List<Map<String, Object>> list) {
         List<Map<String, Object>> result = new ArrayList<>();
         for (Map<String, Object> row : list) {
             Map<String, Object> normalized = new LinkedHashMap<>();
             for (Map.Entry<String, Object> entry : row.entrySet()) {
                 String key = entry.getKey();
-                if (Character.isUpperCase(key.charAt(0))) {
-                    key = key.toLowerCase();
+                String mapped = COLUMN_MAP.get(key);
+                if (mapped == null && !key.isEmpty() && Character.isUpperCase(key.charAt(0))) {
+                    mapped = key.toLowerCase();
                 }
-                normalized.put(key, entry.getValue());
+                normalized.put(mapped != null ? mapped : key, entry.getValue());
             }
             result.add(normalized);
         }

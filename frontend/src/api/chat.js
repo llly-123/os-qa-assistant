@@ -77,3 +77,21 @@ export function getMyActiveDays(params) {
     params
   })
 }
+
+export function getMyHours(params) {
+  return request({
+    url: '/chat/my-hours',
+    method: 'get',
+    params
+  })
+}
+
+// ===== 学习时长统计 =====
+
+export function getMyStudyTime(params) {
+  return request({
+    url: '/chat/my-study-time',
+    method: 'get',
+    params
+  })
+}

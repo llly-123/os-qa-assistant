@@ -7,7 +7,7 @@
 
     <div class="stat-grid">
       <div class="stat-card">
-        <div class="stat-icon" style="background: #eef2ff; color: #6366f1">
+        <div class="stat-icon" style="background: #eff6ff; color: #2563eb">
           <el-icon :size="28"><ChatDotRound /></el-icon>
         </div>
         <div class="stat-body">
@@ -16,12 +16,21 @@
         </div>
       </div>
       <div class="stat-card">
-        <div class="stat-icon" style="background: #ecfdf5; color: #10b981">
+        <div class="stat-icon" style="background: #eff6ff; color: #2563eb">
           <el-icon :size="28"><Document /></el-icon>
         </div>
         <div class="stat-body">
           <span class="stat-value">{{ stats.citationRate || 0 }}%</span>
           <span class="stat-label">引用资料率</span>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background: #fef3c7; color: #f59e0b">
+          <el-icon :size="28"><Timer /></el-icon>
+        </div>
+        <div class="stat-body">
+          <span class="stat-value">{{ studyTime.value }}</span>
+          <span class="stat-label">{{ studyTime.label }}</span>
         </div>
       </div>
     </div>
@@ -42,7 +51,7 @@
       <el-empty v-else description="暂无提问记录，快去提问吧！" :image-size="60" />
     </div>
 
-    <!-- 1. 提问趋势 -->
+    <!-- 1. 提问趋势（次数） -->
     <div class="section-card">
       <div class="section-head">
         <div class="section-title">提问趋势</div>
@@ -66,8 +75,8 @@
           >
             <div class="bar-wrap">
               <div
-                class="bar-fill"
-                :style="{ height: barHeight(item.count) + '%' }"
+                class="bar-fill count-bar"
+                :style="{ height: barHeight(item.count, trendMax) + '%' }"
               >
                 <span class="bar-tip">{{ trendLabel(item) }}：{{ item.count }} 次</span>
               </div>
@@ -77,6 +86,50 @@
         </div>
         <div class="trend-footer">
           <div v-if="trendMax > 0" class="bar-y-hint">最多 {{ trendMax }} 次</div>
+          <button
+            v-if="trendGranularity === 'weekly' && trendData.length > 8"
+            class="toggle-weeks-btn"
+            @click="showAllWeeks = !showAllWeeks"
+          >{{ showAllWeeks ? '收起' : `查看全部 ${trendData.length} 周` }}</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1.1 学习时长趋势 -->
+    <div class="section-card">
+      <div class="section-head">
+        <div class="section-title">学习时长趋势</div>
+        <div class="trend-switch">
+          <button
+            :class="['switch-btn', { active: trendGranularity === 'daily' }]"
+            @click="switchTrend('daily')"
+          >每日</button>
+          <button
+            :class="['switch-btn', { active: trendGranularity === 'weekly' }]"
+            @click="switchTrend('weekly')"
+          >每周</button>
+        </div>
+      </div>
+      <div class="bar-chart">
+        <div class="bar-track">
+          <div
+            v-for="(item, idx) in displayTrendData"
+            :key="idx"
+            class="bar-col"
+          >
+            <div class="bar-wrap">
+              <div
+                class="bar-fill study-bar"
+                :style="{ height: barHeight(item.studySeconds, trendStudyMax) + '%' }"
+              >
+                <span class="bar-tip">{{ trendLabel(item) }}：学习 {{ formatStudy(item.studySeconds) }}</span>
+              </div>
+            </div>
+            <span class="bar-x">{{ trendXLabel(item) }}</span>
+          </div>
+        </div>
+        <div class="trend-footer">
+          <div v-if="trendStudyMax > 0" class="bar-y-hint">最多 {{ formatStudy(trendStudyMax) }}</div>
           <button
             v-if="trendGranularity === 'weekly' && trendData.length > 8"
             class="toggle-weeks-btn"
@@ -105,16 +158,12 @@
             <tr>
               <th style="width: 60px">排名</th>
               <th style="width: 90px">轮次</th>
-              <th>开始时间</th>
-              <th>结束时间</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(row, idx) in sessionRows" :key="pickKey(row, 'sessionId', 'SESSIONID') || idx">
               <td>{{ idx + 1 }}</td>
               <td><span class="round-badge">{{ pickNum(row, 'rounds', 'ROUNDS') }}</span></td>
-              <td>{{ formatTime(row.startTime || row.STARTTIME) }}</td>
-              <td>{{ formatTime(row.endTime || row.ENDTIME) }}</td>
             </tr>
           </tbody>
         </table>
@@ -145,6 +194,28 @@
       <el-empty v-else description="近期暂无来源数据" :image-size="60" />
     </div>
 
+    <!-- 3.1 提问时段分布 -->
+    <div class="section-card">
+      <div class="section-title">提问时段分布</div>
+      <p v-if="hourlyMax === 0" class="hour-hint">近期暂无提问数据</p>
+      <div v-else class="hour-chart">
+        <div class="hour-track">
+          <div v-for="(h, idx) in hourlyData" :key="idx" class="hour-col">
+            <div class="hour-bar-wrap">
+              <div
+                class="hour-bar"
+                :style="{ height: barHeight(h.count, hourlyMax) + '%' }"
+              >
+                <span class="hour-tip">{{ h.hour }} 点：{{ h.count }} 次</span>
+              </div>
+            </div>
+            <span class="hour-x">{{ idx % 3 === 0 ? h.hour : '' }}</span>
+          </div>
+        </div>
+        <div class="hour-y-hint">一天中提问次数最多的时段</div>
+      </div>
+    </div>
+
     <!-- 4. 活跃天数 / 连续学习 -->
     <div class="section-card">
       <div class="section-title">活跃天数 / 连续学习</div>
@@ -159,16 +230,17 @@
         </div>
       </div>
       <div class="heatmap-wrap">
-        <div class="heatmap-label">近 30 天活跃热力图</div>
+        <div class="heatmap-label">近 30 天活跃热力图（<span class="study-dot"></span> 表示该日有学习时长）</div>
         <div class="heatmap-grid">
           <div
             v-for="(day, idx) in heatmapDays"
             :key="idx"
             class="heat-cell"
-            :class="{ active: day.active }"
-            :title="day.date + (day.active ? '（有提问）' : '（无提问）')"
+            :class="{ active: day.active, studied: day.studySeconds > 0 }"
+            :title="day.date + (day.active ? '（有提问' : '（无提问') + (day.studySeconds > 0 ? '，学习 ' + formatStudy(day.studySeconds) + '）' : '）')"
           >
             <span class="heat-day">{{ day.label }}</span>
+            <span v-if="day.studySeconds > 0" class="study-marker"></span>
           </div>
         </div>
         <div class="heatmap-legend">
@@ -189,7 +261,9 @@ import {
   getMyTrend,
   getMySessionRounds,
   getMySourceDistribution,
-  getMyActiveDays
+  getMyActiveDays,
+  getMyHours,
+  getMyStudyTime
 } from '@/api/chat'
 import { useChatStore } from '@/stores/chat'
 
@@ -201,6 +275,9 @@ const currentClassName = computed(() => {
   return c ? c.name : ''
 })
 
+// ===== 学习时长 =====
+const studyTime = ref({ value: 0, label: '学习时长(分钟)' })
+
 // ===== 新增维度数据 =====
 const trendGranularity = ref('daily')
 const trendData = ref([])
@@ -209,11 +286,13 @@ const sessionData = ref({})
 const sessionRows = ref([])
 const sourceItems = ref([])
 const activeData = ref({ activeDays: 0, maxStreak: 0, dates: [] })
+const hourlyData = ref([])
+const hourlyMax = computed(() => Math.max(0, ...hourlyData.value.map(h => h.count || 0)))
 
 // 来源类型配置
 const SOURCE_CONFIG = {
-  textbook: { label: '教材', color: 'linear-gradient(90deg, #6366f1, #818cf8)' },
-  web: { label: '网络', color: 'linear-gradient(90deg, #10b981, #34d399)' },
+  textbook: { label: '教材', color: 'linear-gradient(90deg, #2563eb, #3b82f6)' },
+  web: { label: '网络', color: 'linear-gradient(90deg, #0ea5e9, #38bdf8)' },
   no_class: { label: '未进班级', color: 'linear-gradient(90deg, #f59e0b, #fbbf24)' },
   unknown: { label: '未知', color: 'linear-gradient(90deg, #94a3b8, #cbd5e1)' }
 }
@@ -249,15 +328,52 @@ async function loadStats() {
     loadTrend(),
     loadSessionRounds(),
     loadSourceDistribution(),
-    loadActiveDays()
+    loadHourly(),
+    loadActiveDays(),
+    loadStudyTime()
   ])
+}
+
+// 提问时段分布（按小时 0-23）
+async function loadHourly() {
+  try {
+    const res = await getMyHours({ classId: chatStore.currentClassId })
+    const dist = (res.data && res.data.distribution) || []
+    const map = {}
+    for (const it of dist) {
+      map[Number(it.hour || it.HOUR)] = Number(it.count || it.COUNT) || 0
+    }
+    hourlyData.value = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: map[h] || 0 }))
+  } catch (e) {
+    console.error('获取时段分布失败:', e)
+    hourlyData.value = Array.from({ length: 24 }, (_, h) => ({ hour: h, count: 0 }))
+  }
+}
+
+// 学习时长（当前班级累计）
+async function loadStudyTime() {
+  try {
+    const res = await getMyStudyTime({ classId: chatStore.currentClassId })
+    const totalSeconds = Number((res.data && res.data.totalSeconds) || 0)
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    if (hours > 0) {
+      studyTime.value = { value: `${hours}小时${minutes}分钟`, label: '学习时长' }
+    } else {
+      studyTime.value = { value: `${minutes}`, label: '学习时长(分钟)' }
+    }
+  } catch (e) {
+    console.error('获取学习时长失败:', e)
+    studyTime.value = { value: 0, label: '学习时长(分钟)' }
+  }
 }
 
 // 提问趋势
 async function loadTrend() {
   try {
-    const res = await getMyTrend({ granularity: trendGranularity.value })
+    const res = await getMyTrend({ granularity: trendGranularity.value, classId: chatStore.currentClassId })
     const raw = (res.data && res.data.trend) || []
+    const studyRaw = (res.data && res.data.studyTrend) || []
     // 获取当前班级创建时间作为起始日期
     const currentClass = chatStore.classes.find(c => c.id === chatStore.currentClassId)
     let startDate = null
@@ -271,15 +387,63 @@ async function loadTrend() {
     const today = new Date()
     today.setHours(23, 59, 59, 999)
 
+    const studyMap = buildStudyMap(studyRaw, trendGranularity.value)
     if (trendGranularity.value === 'daily') {
-      trendData.value = fillDailyGaps(raw, startDate, today)
+      trendData.value = fillDailyGaps(raw, startDate, today).map(it => ({
+        ...it,
+        studySeconds: studyMap[it.date] || 0
+      }))
     } else {
-      trendData.value = fillWeeklyGaps(raw, startDate, today)
+      trendData.value = fillWeeklyGaps(raw, startDate, today).map(it => ({
+        ...it,
+        studySeconds: studyMap[it.week] || 0
+      }))
     }
   } catch (e) {
     console.error('获取提问趋势失败:', e)
     trendData.value = []
   }
+}
+
+// 将学习时长趋势原始数据（date/week + studySeconds）转为 {归一化日期: 秒数}
+function buildStudyMap(studyRaw, granularity) {
+  const map = {}
+  for (const item of studyRaw) {
+    const rawKey = pickKey(item, 'week', 'WEEK') || pickKey(item, 'date', 'DATE')
+    if (!rawKey) continue
+    const d = new Date(rawKey)
+    if (isNaN(d.getTime())) continue
+    const key = granularity === 'weekly'
+      ? fmtDateLocal(toMondayLocal(d))
+      : fmtDateLocal(d)
+    map[key] = pickNum(item, 'studySeconds', 'STUDYSECONDS')
+  }
+  return map
+}
+
+function toMondayLocal(date) {
+  const d = new Date(date)
+  const dayOfWeek = (d.getDay() + 6) % 7 // 周一=0, 周日=6
+  d.setDate(d.getDate() - dayOfWeek)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function fmtDateLocal(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0')
+}
+
+// 秒数格式化为 "X小时Y分钟" / "Y分钟" / "小于1分钟"
+function formatStudy(seconds) {
+  const s = Number(seconds) || 0
+  if (s <= 0) return '0分钟'
+  if (s < 60) return '小于1分钟'
+  const hours = Math.floor(s / 3600)
+  const minutes = Math.floor((s % 3600) / 60)
+  if (hours > 0) {
+    return minutes > 0 ? `${hours}小时${minutes}分钟` : `${hours}小时`
+  }
+  return `${minutes}分钟`
 }
 
 // 补全每日缺失日期
@@ -347,11 +511,22 @@ const trendMax = computed(() => {
   return m
 })
 
-function barHeight(count) {
-  const c = Number(count) || 0
-  if (trendMax.value <= 0) return 4 // 全部为0时给最小高度
+// 学习时长趋势最大值（柱状图高度比例）
+const trendStudyMax = computed(() => {
+  let m = 0
+  for (const item of trendData.value) {
+    const c = Number(item.studySeconds || 0)
+    if (c > m) m = c
+  }
+  return m
+})
+
+function barHeight(value, max) {
+  const c = Number(value) || 0
+  const m = Number(max) || 0
+  if (m <= 0) return 4 // 全部为0时给最小高度
   if (c <= 0) return 4 // 0值也给最小高度
-  return Math.max(6, Math.round((c / trendMax.value) * 88)) // 最高88%留空间给tooltip
+  return Math.max(6, Math.round((c / m) * 88)) // 最高88%留空间给tooltip
 }
 
 function trendLabel(item) {
@@ -388,7 +563,7 @@ const displayTrendData = computed(() => {
 // 会话轮次
 async function loadSessionRounds() {
   try {
-    const res = await getMySessionRounds({})
+    const res = await getMySessionRounds({ classId: chatStore.currentClassId })
     const data = res.data || {}
     sessionData.value = {
       avgRounds: data.avgRounds || 0,
@@ -405,7 +580,7 @@ async function loadSessionRounds() {
 // 来源分布
 async function loadSourceDistribution() {
   try {
-    const res = await getMySourceDistribution({})
+    const res = await getMySourceDistribution({ classId: chatStore.currentClassId })
     const dist = (res.data && res.data.distribution) || []
     // 按固定顺序排列，缺失的来源补 0
     const ordered = Object.keys(SOURCE_CONFIG).map(src => {
@@ -437,22 +612,24 @@ function sourcePercent(count) {
 // 活跃天数
 async function loadActiveDays() {
   try {
-    const res = await getMyActiveDays({})
+    const res = await getMyActiveDays({ classId: chatStore.currentClassId })
     const data = res.data || {}
     activeData.value = {
       activeDays: data.activeDays || 0,
       maxStreak: data.maxStreak || 0,
-      dates: data.dates || []
+      dates: data.dates || [],
+      studyByDate: data.studyByDate || {}
     }
   } catch (e) {
     console.error('获取活跃天数失败:', e)
-    activeData.value = { activeDays: 0, maxStreak: 0, dates: [] }
+    activeData.value = { activeDays: 0, maxStreak: 0, dates: [], studyByDate: {} }
   }
 }
 
 const heatmapDays = computed(() => {
   const dates = (activeData.value.dates || []).map(d => d.slice(0, 10))
   const set = new Set(dates)
+  const studyMap = activeData.value.studyByDate || {}
   // 近30天，按时间正序展示
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -467,24 +644,12 @@ const heatmapDays = computed(() => {
     days.push({
       date: dateStr,
       label: `${m}-${day}`,
-      active: set.has(dateStr)
+      active: set.has(dateStr),
+      studySeconds: Number(studyMap[dateStr] || 0)
     })
   }
   return days
 })
-
-function formatTime(t) {
-  if (!t) return '-'
-  // 兼容 "yyyy-MM-dd HH:mm:ss" 与 ISO
-  const d = new Date(t.replace(' ', 'T'))
-  if (isNaN(d.getTime())) return t
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  return `${y}-${m}-${day} ${hh}:${mm}`
-}
 
 onMounted(async () => {
   if (!chatStore.classes.length) await chatStore.fetchClasses()
@@ -533,25 +698,31 @@ function getTagType(count) {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
   margin-bottom: 28px;
 }
 
+@media (max-width: 900px) {
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 .stat-card {
-  background: rgba(99, 102, 241, 0.04);
+  background: #ffffff;
   border-radius: 14px;
   padding: 24px;
   display: flex;
   align-items: center;
   gap: 18px;
-  border: 1px solid rgba(99, 102, 241, 0.1);
+  border: 1px solid var(--color-border);
   transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 
   &:hover {
-    background: rgba(99, 102, 241, 0.1);
+    background: #eff6ff;
     transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(99, 102, 241, 0.12);
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.1);
   }
 }
 
@@ -584,24 +755,23 @@ function getTagType(count) {
 }
 
 .section-card {
-  background: linear-gradient(135deg, rgba(67, 56, 202, 0.5), rgba(55, 48, 163, 0.55));
+  background: #ffffff;
   border-radius: 14px;
   padding: 24px;
-  border: 1px solid rgba(167, 139, 250, 0.35);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   margin-bottom: 20px;
 
   &:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(30, 27, 75, 0.3);
+    box-shadow: var(--shadow-md);
   }
 
   .section-title {
     font-size: 16px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--color-text-primary);
     margin-bottom: 16px;
   }
 }
@@ -621,19 +791,23 @@ function getTagType(count) {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px 2px;
 }
 
 /* ===== 提问趋势柱状图 ===== */
 .trend-switch {
   display: inline-flex;
-  background: rgba(99, 102, 241, 0.1);
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   border-radius: 8px;
   padding: 3px;
 
   .switch-btn {
     border: none;
     background: transparent;
-    color: #ffffff;
+    color: var(--color-text-secondary);
     font-size: 12px;
     padding: 5px 14px;
     border-radius: 6px;
@@ -642,13 +816,13 @@ function getTagType(count) {
     font-weight: 500;
 
     &:hover {
-      color: var(--color-primary);
+      color: #2563eb;
     }
 
     &.active {
-      background: var(--color-primary);
+      background: #2563eb;
       color: #fff;
-      box-shadow: 0 2px 6px rgba(99, 102, 241, 0.35);
+      box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
     }
   }
 }
@@ -683,13 +857,13 @@ function getTagType(count) {
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  gap: 3px;
 }
 
 .bar-fill {
-  width: 70%;
+  width: 55%;
   min-height: 2px;
   border-radius: 6px 6px 0 0;
-  background: linear-gradient(180deg, #818cf8, #6366f1);
   position: relative;
   transition: height 0.3s ease, filter 0.2s ease;
 
@@ -720,17 +894,108 @@ function getTagType(count) {
   }
 }
 
+.count-bar {
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+}
+
+.study-bar {
+  background: linear-gradient(180deg, #fbbf24, #f59e0b);
+}
+
 .bar-x {
   margin-top: 6px;
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--color-text-secondary);
   white-space: nowrap;
+}
+
+/* 提问时段分布 */
+.hour-hint {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  padding: 12px 0;
+}
+
+.hour-chart {
+  width: 100%;
+}
+
+.hour-track {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 160px;
+  padding: 20px 4px 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.hour-col {
+  flex: 1 1 0;
+  min-width: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+}
+
+.hour-bar-wrap {
+  width: 100%;
+  height: calc(100% - 18px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  position: relative;
+}
+
+.hour-bar {
+  width: 72%;
+  min-height: 2px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  position: relative;
+}
+
+.hour-tip {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: #fff;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 5;
+}
+
+.hour-bar:hover .hour-tip {
+  opacity: 1;
+}
+
+.hour-x {
+  font-size: 10px;
+  color: var(--color-text-tertiary);
+  height: 16px;
+  line-height: 16px;
+}
+
+.hour-y-hint {
+  text-align: right;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 6px;
 }
 
 .bar-y-hint {
   text-align: right;
   font-size: 11px;
-  color: #ffffff;
+  color: var(--color-text-tertiary);
   margin-top: 6px;
 }
 
@@ -742,18 +1007,19 @@ function getTagType(count) {
 }
 
 .toggle-weeks-btn {
-  background: rgba(99, 102, 241, 0.3);
-  border: 1px solid rgba(167, 139, 250, 0.5);
-  color: #ffffff;
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
+  color: #2563eb;
   padding: 4px 12px;
   border-radius: 8px;
   font-size: 12px;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
 }
 .toggle-weeks-btn:hover {
-  background: rgba(99, 102, 241, 0.35);
-  color: #ffffff;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 /* ===== 小卡片（轮次/活跃天数） ===== */
@@ -765,24 +1031,25 @@ function getTagType(count) {
 }
 
 .mini-card {
-  background: rgba(99, 102, 241, 0.15);
-  border: 1px solid rgba(167, 139, 250, 0.3);
+  background: #ffffff;
+  border: 1px solid #bfdbfe;
   border-radius: 12px;
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  box-shadow: var(--shadow-sm);
 
   .mini-value {
     font-size: 26px;
     font-weight: 700;
-    color: #ffffff;
+    color: #2563eb;
     line-height: 1.1;
   }
 
   .mini-label {
     font-size: 13px;
-    color: #ffffff;
+    color: var(--color-text-tertiary);
   }
 }
 
@@ -802,9 +1069,9 @@ function getTagType(count) {
     text-align: left;
     padding: 10px 12px;
     font-weight: 600;
-    color: #ffffff;
-    background: rgba(99, 102, 241, 0.25);
-    border-bottom: 1px solid rgba(167, 139, 250, 0.3);
+    color: var(--color-text-secondary);
+    background: #eff6ff;
+    border-bottom: 1px solid var(--color-border);
     white-space: nowrap;
 
     &:first-child { border-top-left-radius: 10px; }
@@ -813,8 +1080,8 @@ function getTagType(count) {
 
   tbody td {
     padding: 11px 12px;
-    color: #ffffff;
-    border-bottom: 1px solid rgba(167, 139, 250, 0.15);
+    color: var(--color-text-primary);
+    border-bottom: 1px solid var(--color-border-light);
     white-space: nowrap;
   }
 
@@ -822,7 +1089,7 @@ function getTagType(count) {
     transition: background 0.2s ease;
 
     &:hover {
-      background: rgba(99, 102, 241, 0.06);
+      background: #eff6ff;
     }
 
     &:last-child td {
@@ -838,8 +1105,8 @@ function getTagType(count) {
   min-width: 34px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(99, 102, 241, 0.25);
-  color: #ffffff;
+  background: #eff6ff;
+  color: #2563eb;
   font-weight: 600;
   font-size: 12px;
 }
@@ -865,19 +1132,19 @@ function getTagType(count) {
   .source-name {
     font-size: 13px;
     font-weight: 600;
-    color: #ffffff;
+    color: var(--color-text-primary);
   }
 
   .source-count {
     font-size: 12px;
-    color: #ffffff;
+    color: var(--color-text-secondary);
   }
 }
 
 .source-track {
   width: 100%;
   height: 10px;
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--color-bg-secondary);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -896,8 +1163,18 @@ function getTagType(count) {
 
 .heatmap-label {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--color-text-secondary);
   margin-bottom: 10px;
+
+  .study-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    margin: 0 2px;
+    vertical-align: middle;
+  }
 }
 
 .heatmap-grid {
@@ -909,28 +1186,51 @@ function getTagType(count) {
 .heat-cell {
   aspect-ratio: 1 / 1;
   border-radius: 6px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.1);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   transition: transform 0.15s ease, background 0.2s ease;
 
   .heat-day {
     font-size: 9px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-text-tertiary);
     opacity: 0.7;
   }
 
   &.active {
-    background: linear-gradient(135deg, #818cf8, #6366f1);
-    border-color: rgba(99, 102, 241, 0.5);
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.3);
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-color: #bfdbfe;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
 
     .heat-day {
       color: rgba(255, 255, 255, 0.92);
       opacity: 1;
       font-weight: 600;
+    }
+  }
+
+  // 会话时间标志：该日有学习时长时显示琥珀色圆点
+  .study-marker {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #fbbf24, #f59e0b);
+    box-shadow: 0 0 4px rgba(245, 158, 11, 0.8);
+  }
+
+  &.studied:not(.active) {
+    background: #fff7ed;
+    border-color: #fdba74;
+
+    .heat-day {
+      color: #b45309;
+      opacity: 0.9;
     }
   }
 
@@ -954,19 +1254,19 @@ function getTagType(count) {
 
   .legend-text {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--color-text-tertiary);
   }
 
   .legend-cell {
     width: 14px;
     height: 14px;
     border-radius: 4px;
-    background: rgba(99, 102, 241, 0.08);
-    border: 1px solid rgba(99, 102, 241, 0.1);
+    background: var(--color-bg-secondary);
+    border: 1px solid var(--color-border);
 
     &.active {
-      background: linear-gradient(135deg, #818cf8, #6366f1);
-      border-color: rgba(99, 102, 241, 0.5);
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border-color: #bfdbfe;
     }
   }
 }

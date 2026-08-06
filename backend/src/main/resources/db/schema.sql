@@ -135,6 +135,19 @@ CREATE TABLE IF NOT EXISTS `class_student` (
     CONSTRAINT `uk_class_student` UNIQUE (`class_id`, `student_id`)
 );
 
+-- ========== 学习时长统计（学生登录课程界面的累计时间，按用户+班级+日期汇总）==========
+CREATE TABLE IF NOT EXISTS `study_time` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT,
+    `user_id` BIGINT NOT NULL,
+    `class_id` BIGINT NOT NULL,
+    `study_date` DATE NOT NULL,
+    `total_seconds` INT NOT NULL DEFAULT 0,
+    `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    CONSTRAINT `uk_user_class_date` UNIQUE (`user_id`, `class_id`, `study_date`)
+);
+
 -- ========== 知识库（教师可配置若干套）==========
 CREATE TABLE IF NOT EXISTS `knowledge_base` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,

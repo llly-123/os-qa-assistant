@@ -306,11 +306,15 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import { bindPhone, changePhone, changePassword, sendPhoneCode } from '@/api/auth'
 import { useChatStore } from '@/stores/chat'
+import { useStudyTime } from '@/composables/useStudyTime'
 
 const router = useRouter()
 const route = useRoute()
 const userStore = useUserStore()
 const chatStore = useChatStore()
+
+// 学习时长统计：学生在已选择班级的课程界面停留时自动累计并上报
+useStudyTime(() => userStore.role === 'STUDENT' && !!chatStore.currentClassId)
 
 const sidebarCollapsed = ref(false)
 const showAccountDialog = ref(false)

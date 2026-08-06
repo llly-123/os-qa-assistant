@@ -7,6 +7,7 @@ import com.xidian.osqa.entity.Clazz;
 import com.xidian.osqa.mapper.ChatMessageMapper;
 import com.xidian.osqa.mapper.ChatSessionMapper;
 import com.xidian.osqa.mapper.ClazzMapper;
+import com.xidian.osqa.mapper.StudyTimeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,13 +28,15 @@ public class ChatService {
     private final RagService ragService;
     private final ClazzMapper clazzMapper;
     private final KeywordAiService keywordAiService;
+    private final StudyTimeMapper studyTimeMapper;
 
-    public ChatService(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper, RagService ragService, ClazzMapper clazzMapper, KeywordAiService keywordAiService) {
+    public ChatService(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper, RagService ragService, ClazzMapper clazzMapper, KeywordAiService keywordAiService, StudyTimeMapper studyTimeMapper) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.ragService = ragService;
         this.clazzMapper = clazzMapper;
         this.keywordAiService = keywordAiService;
+        this.studyTimeMapper = studyTimeMapper;
     }
 
     public List<ChatSession> getUserSessions(Long userId) {
@@ -243,7 +246,7 @@ public class ChatService {
 
     // ===== 学生个人新增统计维度 =====
 
-    public Map<String, Object> getUserTrend(Long userId, String startDate, String endDate, String granularity) {
+    public Map<String, Object> getUserTrend(Long userId, Long classId, String startDate, String endDate, String granularity) {
         Map<String, Object> result = new HashMap<>();
         try {
             if (startDate == null || endDate == null) {
@@ -254,19 +257,26 @@ public class ChatService {
                 startDate = "2000-01-01 00:00:00";
             }
             List<Map<String, Object>> trend;
+            List<Map<String, Object>> studyTrend;
+            String sd = toDateStr(startDate);
+            String ed = toDateStr(endDate);
             if ("weekly".equals(granularity)) {
-                trend = messageMapper.findUserWeeklyQuestionTrend(userId, startDate, endDate);
+                trend = messageMapper.findUserWeeklyQuestionTrend(userId, classId, startDate, endDate);
+                studyTrend = studyTimeMapper.findUserWeeklyStudyTimeTrend(userId, classId, sd, ed);
             } else {
-                trend = messageMapper.findUserDailyQuestionTrend(userId, startDate, endDate);
+                trend = messageMapper.findUserDailyQuestionTrend(userId, classId, startDate, endDate);
+                studyTrend = studyTimeMapper.findUserDailyStudyTimeTrend(userId, classId, sd, ed);
             }
-            result.put("trend", trend);
+            result.put("trend", normalizeMapList(trend));
+            result.put("studyTrend", normalizeMapList(studyTrend));
         } catch (Exception e) {
             result.put("trend", new ArrayList<>());
+            result.put("studyTrend", new ArrayList<>());
         }
         return result;
     }
 
-    public Map<String, Object> getUserSessionRounds(Long userId, String startDate, String endDate, int limit) {
+    public Map<String, Object> getUserSessionRounds(Long userId, Long classId, String startDate, String endDate, int limit) {
         Map<String, Object> result = new HashMap<>();
         try {
             if (startDate == null || endDate == null) {
@@ -276,25 +286,33 @@ public class ChatService {
                 startDate = start.format(fmt) + " 00:00:00";
                 endDate = end.format(fmt) + " 23:59:59";
             }
-            List<Map<String, Object>> rounds = messageMapper.findUserSessionRounds(userId, startDate, endDate, limit);
-            result.put("rounds", rounds);
+            List<Map<String, Object>> rounds = messageMapper.findUserSessionRounds(userId, classId, startDate, endDate, limit);
+            // H2 返回大写列名，先归一化再取值（避免 SESSION_SECONDS 拼写错误导致时长恒为 0）
+            List<Map<String, Object>> normalized = normalizeMapList(rounds);
+            result.put("rounds", normalized);
             int totalRounds = 0;
-            for (Map<String, Object> r : rounds) {
-                Object val = r.get("ROUNDS");
-                if (val == null) val = r.get("rounds");
+            long totalSeconds = 0;
+            for (Map<String, Object> r : normalized) {
+                Object val = r.get("rounds");
                 if (val != null) totalRounds += ((Number) val).intValue();
+                Object sec = r.get("sessionSeconds");
+                if (sec != null) totalSeconds += ((Number) sec).longValue();
             }
-            result.put("avgRounds", rounds.isEmpty() ? 0 : Math.round(totalRounds * 100.0 / rounds.size()) / 100.0);
-            result.put("totalSessions", rounds.size());
+            result.put("avgRounds", normalized.isEmpty() ? 0 : Math.round(totalRounds * 100.0 / normalized.size()) / 100.0);
+            result.put("totalSessions", normalized.size());
+            result.put("avgSessionSeconds", normalized.isEmpty() ? 0 : Math.round(totalSeconds * 100.0 / normalized.size()) / 100.0);
+            result.put("totalSessionSeconds", totalSeconds);
         } catch (Exception e) {
             result.put("rounds", new ArrayList<>());
             result.put("avgRounds", 0);
             result.put("totalSessions", 0);
+            result.put("avgSessionSeconds", 0);
+            result.put("totalSessionSeconds", 0);
         }
         return result;
     }
 
-    public Map<String, Object> getUserSourceDistribution(Long userId, String startDate, String endDate) {
+    public Map<String, Object> getUserSourceDistribution(Long userId, Long classId, String startDate, String endDate) {
         Map<String, Object> result = new HashMap<>();
         try {
             if (startDate == null || endDate == null) {
@@ -304,15 +322,15 @@ public class ChatService {
                 startDate = start.format(fmt) + " 00:00:00";
                 endDate = end.format(fmt) + " 23:59:59";
             }
-            List<Map<String, Object>> dist = messageMapper.findUserSourceTypeDistribution(userId, startDate, endDate);
-            result.put("distribution", dist);
+            List<Map<String, Object>> dist = messageMapper.findUserSourceTypeDistribution(userId, classId, startDate, endDate);
+            result.put("distribution", normalizeMapList(dist));
         } catch (Exception e) {
             result.put("distribution", new ArrayList<>());
         }
         return result;
     }
 
-    public Map<String, Object> getUserActiveDays(Long userId, String startDate, String endDate) {
+    public Map<String, Object> getUserActiveDays(Long userId, Long classId, String startDate, String endDate) {
         Map<String, Object> result = new HashMap<>();
         try {
             if (startDate == null || endDate == null) {
@@ -322,8 +340,8 @@ public class ChatService {
                 startDate = start.format(fmt) + " 00:00:00";
                 endDate = end.format(fmt) + " 23:59:59";
             }
-            int activeDays = messageMapper.findUserActiveDays(userId, startDate, endDate);
-            List<String> dates = messageMapper.findUserActiveDates(userId, startDate, endDate);
+            int activeDays = messageMapper.findUserActiveDays(userId, classId, startDate, endDate);
+            List<String> dates = messageMapper.findUserActiveDates(userId, classId, startDate, endDate);
             // 计算最大连续天数
             int maxStreak = 0;
             int currentStreak = 0;
@@ -339,13 +357,106 @@ public class ChatService {
                 maxStreak = Math.max(maxStreak, currentStreak);
                 prev = date;
             }
+            // 每日学习时长（活跃热力图叠加"会话时间"标志）
+            List<Map<String, Object>> studyRows = studyTimeMapper.findUserDailyStudySeconds(
+                    userId, classId, toDateStr(startDate), toDateStr(endDate));
+            Map<String, Object> studyByDate = new LinkedHashMap<>();
+            for (Map<String, Object> row : studyRows) {
+                Object d = row.get("date");
+                if (d == null) d = row.get("DATE");
+                Object sec = row.get("studySeconds");
+                if (sec == null) sec = row.get("STUDYSECONDS");
+                if (d != null && sec != null) {
+                    studyByDate.put(d.toString(), ((Number) sec).intValue());
+                }
+            }
             result.put("activeDays", activeDays);
             result.put("maxStreak", maxStreak);
             result.put("dates", dates);
+            result.put("studyByDate", studyByDate);
         } catch (Exception e) {
             result.put("activeDays", 0);
             result.put("maxStreak", 0);
             result.put("dates", new ArrayList<>());
+            result.put("studyByDate", new HashMap<>());
+        }
+        return result;
+    }
+
+    /** 提问时段分布（按小时 0-23，可按班级过滤） */
+    public Map<String, Object> getUserHourlyDistribution(Long userId, Long classId, String startDate, String endDate) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            if (startDate == null || endDate == null) {
+                LocalDate end = LocalDate.now();
+                LocalDate start = end.minusDays(29);
+                DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                startDate = start.format(fmt) + " 00:00:00";
+                endDate = end.format(fmt) + " 23:59:59";
+            }
+            List<Map<String, Object>> dist = messageMapper.findUserHourlyDistribution(userId, classId, startDate, endDate);
+            result.put("distribution", normalizeMapList(dist));
+        } catch (Exception e) {
+            result.put("distribution", new ArrayList<>());
+        }
+        return result;
+    }
+
+    /** 兼容 "yyyy-MM-dd HH:mm:ss" 与 "yyyy-MM-dd"，统一转成日期字符串 */
+    private String toDateStr(String datetime) {
+        if (datetime == null || datetime.isBlank()) return null;
+        return datetime.length() >= 10 ? datetime.substring(0, 10) : datetime;
+    }
+
+    // H2 返回大写列名（如 TOTALSECONDS），统一转为前端使用的小驼峰键
+    private static final Map<String, String> COLUMN_MAP = new HashMap<>();
+    static {
+        COLUMN_MAP.put("USERID", "userId");
+        COLUMN_MAP.put("USERNAME", "username");
+        COLUMN_MAP.put("REALNAME", "realName");
+        COLUMN_MAP.put("CLASSID", "classId");
+        COLUMN_MAP.put("CLASSNAME", "className");
+        COLUMN_MAP.put("TOTALSECONDS", "totalSeconds");
+        COLUMN_MAP.put("LASTSTUDY", "lastStudy");
+        COLUMN_MAP.put("DATE", "date");
+        COLUMN_MAP.put("WEEK", "week");
+        COLUMN_MAP.put("STUDYSECONDS", "studySeconds");
+        COLUMN_MAP.put("SESSIONID", "sessionId");
+        COLUMN_MAP.put("ROUNDS", "rounds");
+        COLUMN_MAP.put("STARTTIME", "startTime");
+        COLUMN_MAP.put("ENDTIME", "endTime");
+        COLUMN_MAP.put("SESSIONSECONDS", "sessionSeconds");
+        COLUMN_MAP.put("COUNT", "count");
+        COLUMN_MAP.put("ACTIVEDAYS", "activeDays");
+        COLUMN_MAP.put("LASTACTIVE", "lastActive");
+        COLUMN_MAP.put("SOURCE", "source");
+        COLUMN_MAP.put("QUESTION", "question");
+        COLUMN_MAP.put("STUDENTNAME", "studentName");
+        COLUMN_MAP.put("STUDENTREALNAME", "studentRealName");
+        COLUMN_MAP.put("TOTALQUESTIONS", "totalQuestions");
+        COLUMN_MAP.put("ACTIVEUSERS", "activeUsers");
+        COLUMN_MAP.put("LASTQUESTIONTIME", "lastQuestionTime");
+        COLUMN_MAP.put("ID", "id");
+        COLUMN_MAP.put("NAME", "name");
+        COLUMN_MAP.put("STATUS", "status");
+        COLUMN_MAP.put("VIDEOSETID", "videoSetId");
+        COLUMN_MAP.put("KBID", "kbId");
+        COLUMN_MAP.put("STUDENTCOUNT", "studentCount");
+    }
+
+    private List<Map<String, Object>> normalizeMapList(List<Map<String, Object>> list) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map<String, Object> row : list) {
+            Map<String, Object> normalized = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> entry : row.entrySet()) {
+                String key = entry.getKey();
+                String mapped = COLUMN_MAP.get(key);
+                if (mapped == null && !key.isEmpty() && Character.isUpperCase(key.charAt(0))) {
+                    mapped = key.toLowerCase();
+                }
+                normalized.put(mapped != null ? mapped : key, entry.getValue());
+            }
+            result.add(normalized);
         }
         return result;
     }

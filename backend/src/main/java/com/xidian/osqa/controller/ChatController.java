@@ -8,6 +8,7 @@ import com.xidian.osqa.entity.ChatSession;
 import com.xidian.osqa.security.PromptInjectionFilter;
 import com.xidian.osqa.security.RateLimiter;
 import com.xidian.osqa.service.ChatService;
+import com.xidian.osqa.service.StudyTimeService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,12 +32,14 @@ public class ChatController {
     private final ChatService chatService;
     private final PromptInjectionFilter promptInjectionFilter;
     private final RateLimiter rateLimiter;
+    private final StudyTimeService studyTimeService;
     private final ExecutorService executorService = Executors.newFixedThreadPool(10);
 
-    public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter) {
+    public ChatController(ChatService chatService, PromptInjectionFilter promptInjectionFilter, RateLimiter rateLimiter, StudyTimeService studyTimeService) {
         this.chatService = chatService;
         this.promptInjectionFilter = promptInjectionFilter;
         this.rateLimiter = rateLimiter;
+        this.studyTimeService = studyTimeService;
     }
 
     @GetMapping("/sessions")
@@ -290,39 +293,79 @@ public class ChatController {
     @GetMapping("/my-trend")
     public Result<?> getMyTrend(
             HttpServletRequest request,
+            @RequestParam(required = false) Long classId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(defaultValue = "daily") String granularity) {
         Long userId = (Long) request.getAttribute("userId");
-        return Result.success(chatService.getUserTrend(userId, startDate, endDate, granularity));
+        return Result.success(chatService.getUserTrend(userId, classId, startDate, endDate, granularity));
     }
 
     @GetMapping("/my-sessions")
     public Result<?> getMySessionRounds(
             HttpServletRequest request,
+            @RequestParam(required = false) Long classId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
             @RequestParam(defaultValue = "20") int limit) {
         Long userId = (Long) request.getAttribute("userId");
-        return Result.success(chatService.getUserSessionRounds(userId, startDate, endDate, limit));
+        return Result.success(chatService.getUserSessionRounds(userId, classId, startDate, endDate, limit));
     }
 
     @GetMapping("/my-sources")
     public Result<?> getMySourceDistribution(
             HttpServletRequest request,
+            @RequestParam(required = false) Long classId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
         Long userId = (Long) request.getAttribute("userId");
-        return Result.success(chatService.getUserSourceDistribution(userId, startDate, endDate));
+        return Result.success(chatService.getUserSourceDistribution(userId, classId, startDate, endDate));
     }
 
     @GetMapping("/my-active-days")
     public Result<?> getMyActiveDays(
             HttpServletRequest request,
+            @RequestParam(required = false) Long classId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
         Long userId = (Long) request.getAttribute("userId");
-        return Result.success(chatService.getUserActiveDays(userId, startDate, endDate));
+        return Result.success(chatService.getUserActiveDays(userId, classId, startDate, endDate));
+    }
+
+    @GetMapping("/my-hours")
+    public Result<?> getMyHourlyDistribution(
+            HttpServletRequest request,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(chatService.getUserHourlyDistribution(userId, classId, startDate, endDate));
+    }
+
+    // ===== 学习时长统计 =====
+
+    /** 学生上报学习时长（登录课程界面期间周期性心跳上报） */
+    @PostMapping("/study-time")
+    public Result<?> reportStudyTime(HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        Long userId = (Long) request.getAttribute("userId");
+        Long classId = body.get("classId") == null ? null : Long.valueOf(body.get("classId").toString());
+        int seconds = body.get("seconds") == null ? 0 : Integer.parseInt(body.get("seconds").toString());
+        if (classId == null || seconds <= 0) {
+            return Result.error(400, "参数无效");
+        }
+        studyTimeService.report(userId, classId, seconds);
+        return Result.success();
+    }
+
+    /** 我的学习时长（可按班级过滤） */
+    @GetMapping("/my-study-time")
+    public Result<?> getMyStudyTime(
+            HttpServletRequest request,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long userId = (Long) request.getAttribute("userId");
+        return Result.success(studyTimeService.getUserStudySeconds(userId, classId, startDate, endDate));
     }
 
     @GetMapping("/quick-prompts")

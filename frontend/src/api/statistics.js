@@ -118,3 +118,57 @@ export function getClassActiveDaysStats(classId, params) {
     params
   })
 }
+
+// ===== 学习时长统计 =====
+
+export function getStudyTimeStats(params) {
+  return request({
+    url: '/admin/statistics/study-time',
+    method: 'get',
+    params
+  })
+}
+
+export function getClassStudyTimeStats(classId, params) {
+  return request({
+    url: `/admin/statistics/classes/${classId}/study-time`,
+    method: 'get',
+    params
+  })
+}
+
+// ===== 提问时段分布 =====
+
+export function getHourlyDistribution(params) {
+  return request({
+    url: '/admin/statistics/hourly',
+    method: 'get',
+    params
+  })
+}
+
+export function getClassHourlyDistribution(classId, params) {
+  return request({
+    url: `/admin/statistics/classes/${classId}/hourly`,
+    method: 'get',
+    params
+  })
+}
+
+// ===== 学生个体排行 =====
+
+export function getStudentRanking(params) {
+  return request({
+    url: '/admin/statistics/student-ranking',
+    method: 'get',
+    params
+  })
+}
+
+export function getClassStudentRanking(classId, params) {
+  return request({
+    url: `/admin/statistics/classes/${classId}/student-ranking`,
+    method: 'get',
+    params
+  })
+}

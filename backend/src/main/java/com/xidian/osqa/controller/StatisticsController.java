@@ -2,6 +2,7 @@ package com.xidian.osqa.controller;
 
 import com.xidian.osqa.common.Result;
 import com.xidian.osqa.service.StatisticsService;
+import com.xidian.osqa.service.StudyTimeService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,9 +14,11 @@ import java.util.Map;
 public class StatisticsController {
 
     private final StatisticsService statisticsService;
+    private final StudyTimeService studyTimeService;
 
-    public StatisticsController(StatisticsService statisticsService) {
+    public StatisticsController(StatisticsService statisticsService, StudyTimeService studyTimeService) {
         this.statisticsService = statisticsService;
+        this.studyTimeService = studyTimeService;
     }
 
     @GetMapping("/qa")
@@ -72,7 +75,10 @@ public class StatisticsController {
     public Result<?> getClassOverview(
             @PathVariable Long classId,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
         Map<String, Object> overview = statisticsService.getClassOverview(classId, startDate, endDate);
         return Result.success(overview);
     }
@@ -82,7 +88,10 @@ public class StatisticsController {
             @PathVariable Long classId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
-            @RequestParam(defaultValue = "30") int limit) {
+            @RequestParam(defaultValue = "30") int limit,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
         List<Map<String, Object>> keywords = statisticsService.getClassHotKeywords(classId, startDate, endDate, limit);
         return Result.success(keywords);
     }
@@ -104,7 +113,10 @@ public class StatisticsController {
             @PathVariable Long classId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
-            @RequestParam(defaultValue = "daily") String granularity) {
+            @RequestParam(defaultValue = "daily") String granularity,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
         return Result.success(statisticsService.getClassQuestionTrend(classId, startDate, endDate, granularity));
     }
 
@@ -123,7 +135,10 @@ public class StatisticsController {
             @PathVariable Long classId,
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate,
-            @RequestParam(defaultValue = "20") int limit) {
+            @RequestParam(defaultValue = "20") int limit,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
         return Result.success(statisticsService.getClassSessionRounds(classId, startDate, endDate, limit));
     }
 
@@ -140,7 +155,10 @@ public class StatisticsController {
     public Result<?> getClassSourceDistribution(
             @PathVariable Long classId,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
         return Result.success(statisticsService.getClassSourceDistribution(classId, startDate, endDate));
     }
 
@@ -157,7 +175,81 @@ public class StatisticsController {
     public Result<?> getClassActiveDaysStats(
             @PathVariable Long classId,
             @RequestParam(required = false) String startDate,
-            @RequestParam(required = false) String endDate) {
+            @RequestParam(required = false) String endDate,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
         return Result.success(statisticsService.getClassActiveDaysStats(classId, startDate, endDate));
+    }
+
+    // ===== 学习时长统计 =====
+
+    @GetMapping("/study-time")
+    public Result<?> getStudyTimeStats(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return Result.success(studyTimeService.getTeacherStudyTimeStats(teacherId, startDate, endDate));
+    }
+
+    @GetMapping("/classes/{classId}/study-time")
+    public Result<?> getClassStudyTimeStats(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
+        return Result.success(studyTimeService.getClassStudyTimeStats(classId, startDate, endDate));
+    }
+
+    // ===== 提问时段分布 =====
+
+    @GetMapping("/hourly")
+    public Result<?> getHourlyDistribution(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return Result.success(statisticsService.getHourlyDistribution(teacherId, startDate, endDate));
+    }
+
+    @GetMapping("/classes/{classId}/hourly")
+    public Result<?> getClassHourlyDistribution(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
+        return Result.success(statisticsService.getClassHourlyDistribution(classId, startDate, endDate));
+    }
+
+    // ===== 学生个体排行 =====
+
+    @GetMapping("/student-ranking")
+    public Result<?> getStudentRanking(
+            HttpServletRequest request,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        return Result.success(statisticsService.getStudentRanking(teacherId, startDate, endDate));
+    }
+
+    @GetMapping("/classes/{classId}/student-ranking")
+    public Result<?> getClassStudentRanking(
+            @PathVariable Long classId,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate,
+            HttpServletRequest request) {
+        Long teacherId = (Long) request.getAttribute("userId");
+        if (denied(classId, teacherId)) return Result.error(403, "无权访问该班级数据");
+        return Result.success(statisticsService.getClassStudentRanking(classId, startDate, endDate));
+    }
+
+    /** 校验当前教师是否有权访问该班级（越权防护） */
+    private boolean denied(Long classId, Long teacherId) {
+        return teacherId == null || !statisticsService.isClassOwnedByTeacher(classId, teacherId);
     }
 }
