@@ -85,7 +85,7 @@
                   </div>
                 </div>
                 <div class="trend-chart">
-                  <div class="trend-bars">
+                  <div class="trend-bars" ref="trendBarRefs">
                     <div
                       v-for="(item, idx) in displayTrendData"
                       :key="idx"
@@ -130,7 +130,7 @@
                   </div>
                 </div>
                 <div class="trend-chart">
-                  <div class="trend-bars">
+                  <div class="trend-bars" ref="trendBarRefs">
                     <div
                       v-for="(item, idx) in displayTrendData"
                       :key="idx"
@@ -520,7 +520,7 @@
                     </div>
                   </div>
                   <div class="trend-chart">
-                    <div class="trend-bars">
+                    <div class="trend-bars" ref="trendBarRefs">
                       <div
                         v-for="(item, idx) in classDisplayTrendData"
                         :key="idx"
@@ -565,7 +565,7 @@
                     </div>
                   </div>
                   <div class="trend-chart">
-                    <div class="trend-bars">
+                    <div class="trend-bars" ref="trendBarRefs">
                       <div
                         v-for="(item, idx) in classDisplayTrendData"
                         :key="idx"
@@ -840,7 +840,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import {
   getQAStatistics, getHotKeywords, getClassList, getClassOverview, getClassHotKeywords,
   getQuestionTrend, getSessionRounds, getSourceDistribution, getActiveDaysStats,
@@ -849,7 +849,14 @@ import {
   getHourlyDistribution, getClassHourlyDistribution, getStudentRanking, getClassStudentRanking
 } from '@/api/statistics'
 
-const dateRange = ref([])
+// 默认统计最近30天
+function defaultDateRange() {
+  const end = new Date()
+  const start = new Date()
+  start.setDate(start.getDate() - 29)
+  return [start, end]
+}
+const dateRange = ref(defaultDateRange())
 const activeTab = ref('overall')
 
 // 总体统计
@@ -875,6 +882,18 @@ const classTrendData = ref([])
 // 每周模式默认只显示最近8周，可展开查看全部
 const showAllWeeks = ref(false)
 const classShowAllWeeks = ref(false)
+// 趋势图横向滚动容器（总体/班级 各2个：提问+学习时长）
+const trendBarRefs = ref([])
+// 趋势数据更新或展开/收起周数后，自动滚动到最右侧（最新日期）
+watch([trendData, classTrendData, showAllWeeks, classShowAllWeeks], () => {
+  nextTick(() => {
+    trendBarRefs.value.forEach((el) => {
+      if (el && el.scrollWidth > el.clientWidth) {
+        el.scrollLeft = el.scrollWidth
+      }
+    })
+  })
+})
 // 趋势最大值（柱状图高度比例）
 const trendMax = computed(() => {
   let m = 0

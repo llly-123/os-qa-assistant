@@ -6,22 +6,16 @@ spring:
     active: local
 
   datasource:
-    url: jdbc:h2:file:./data/os_qa;AUTO_SERVER=TRUE;DB_CLOSE_DELAY=-1;MODE=MySQL
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
-
-  h2:
-    console:
-      enabled: ${H2_CONSOLE_ENABLED:false}
-      path: /h2-console
-      settings:
-        web-allow-others: false
+    url: jdbc:mysql://localhost:3306/os_qa?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: ${DB_PASSWORD:123456}
+    driver-class-name: com.mysql.cj.jdbc.Driver
 
   sql:
     init:
       mode: always
       schema-locations: classpath:db/schema.sql
+      encoding: UTF-8
 
   mail:
     host: smtp.qq.com

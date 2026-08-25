@@ -5,12 +5,21 @@ import com.xidian.osqa.entity.StudyTime;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 import java.util.Map;
 
 @Mapper
 public interface StudyTimeMapper extends BaseMapper<StudyTime> {
+
+    // 原子累加学习时长（单条 UPDATE，避免 select-then-update 的并发竞态）
+    @Update("UPDATE study_time SET total_seconds = total_seconds + #{seconds}, update_time = CURRENT_TIMESTAMP " +
+            "WHERE user_id = #{userId} AND class_id = #{classId} AND study_date = #{studyDate}")
+    int addSeconds(@Param("userId") Long userId,
+                   @Param("classId") Long classId,
+                   @Param("studyDate") java.time.LocalDate studyDate,
+                   @Param("seconds") int seconds);
 
     // 学习时长统计（教师维度）：统计该教师所有班级学生的累计学习时长
     @Select("<script>" +
@@ -92,17 +101,17 @@ public interface StudyTimeMapper extends BaseMapper<StudyTime> {
 
     // ===== 学习时长趋势（教师/班级/学生维度，日期为 yyyy-MM-dd）=====
 
-    @Select("SELECT FORMATDATETIME(st.study_date, 'yyyy-MM-dd') as date, SUM(st.total_seconds) as studySeconds " +
+    @Select("SELECT DATE_FORMAT(st.study_date, '%Y-%m-%d') as date, SUM(st.total_seconds) as studySeconds " +
             "FROM study_time st " +
             "JOIN clazz c ON c.id = st.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
             "WHERE st.study_date >= #{startDate} AND st.study_date <= #{endDate} " +
-            "GROUP BY FORMATDATETIME(st.study_date, 'yyyy-MM-dd') " +
+            "GROUP BY DATE_FORMAT(st.study_date, '%Y-%m-%d') " +
             "ORDER BY date")
     List<Map<String, Object>> findTeacherDailyStudyTimeTrend(@Param("teacherId") Long teacherId,
                                                              @Param("startDate") String startDate,
                                                              @Param("endDate") String endDate);
 
-    @Select("SELECT FORMATDATETIME(MIN(st.study_date), 'yyyy-MM-dd') as week, SUM(st.total_seconds) as studySeconds " +
+    @Select("SELECT DATE_FORMAT(MIN(st.study_date), '%Y-%m-%d') as week, SUM(st.total_seconds) as studySeconds " +
             "FROM study_time st " +
             "JOIN clazz c ON c.id = st.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
             "WHERE st.study_date >= #{startDate} AND st.study_date <= #{endDate} " +
@@ -112,16 +121,16 @@ public interface StudyTimeMapper extends BaseMapper<StudyTime> {
                                                               @Param("startDate") String startDate,
                                                               @Param("endDate") String endDate);
 
-    @Select("SELECT FORMATDATETIME(st.study_date, 'yyyy-MM-dd') as date, SUM(st.total_seconds) as studySeconds " +
+    @Select("SELECT DATE_FORMAT(st.study_date, '%Y-%m-%d') as date, SUM(st.total_seconds) as studySeconds " +
             "FROM study_time st " +
             "WHERE st.class_id = #{classId} AND st.study_date >= #{startDate} AND st.study_date <= #{endDate} " +
-            "GROUP BY FORMATDATETIME(st.study_date, 'yyyy-MM-dd') " +
+            "GROUP BY DATE_FORMAT(st.study_date, '%Y-%m-%d') " +
             "ORDER BY date")
     List<Map<String, Object>> findClassDailyStudyTimeTrend(@Param("classId") Long classId,
                                                            @Param("startDate") String startDate,
                                                            @Param("endDate") String endDate);
 
-    @Select("SELECT FORMATDATETIME(MIN(st.study_date), 'yyyy-MM-dd') as week, SUM(st.total_seconds) as studySeconds " +
+    @Select("SELECT DATE_FORMAT(MIN(st.study_date), '%Y-%m-%d') as week, SUM(st.total_seconds) as studySeconds " +
             "FROM study_time st " +
             "WHERE st.class_id = #{classId} AND st.study_date >= #{startDate} AND st.study_date <= #{endDate} " +
             "GROUP BY YEAR(st.study_date), WEEK(st.study_date) " +
@@ -131,14 +140,14 @@ public interface StudyTimeMapper extends BaseMapper<StudyTime> {
                                                             @Param("endDate") String endDate);
 
     @Select("<script>" +
-            "SELECT FORMATDATETIME(st.study_date, 'yyyy-MM-dd') as date, SUM(st.total_seconds) as studySeconds " +
+            "SELECT DATE_FORMAT(st.study_date, '%Y-%m-%d') as date, SUM(st.total_seconds) as studySeconds " +
             "FROM study_time st " +
             "<where>" +
             "st.user_id = #{userId} " +
             "<if test='classId != null'>AND st.class_id = #{classId}</if>" +
             "AND st.study_date &gt;= #{startDate} AND st.study_date &lt;= #{endDate}" +
             "</where> " +
-            "GROUP BY FORMATDATETIME(st.study_date, 'yyyy-MM-dd') " +
+            "GROUP BY DATE_FORMAT(st.study_date, '%Y-%m-%d') " +
             "ORDER BY date" +
             "</script>")
     List<Map<String, Object>> findUserDailyStudyTimeTrend(@Param("userId") Long userId,
@@ -147,7 +156,7 @@ public interface StudyTimeMapper extends BaseMapper<StudyTime> {
                                                           @Param("endDate") String endDate);
 
     @Select("<script>" +
-            "SELECT FORMATDATETIME(MIN(st.study_date), 'yyyy-MM-dd') as week, SUM(st.total_seconds) as studySeconds " +
+            "SELECT DATE_FORMAT(MIN(st.study_date), '%Y-%m-%d') as week, SUM(st.total_seconds) as studySeconds " +
             "FROM study_time st " +
             "<where>" +
             "st.user_id = #{userId} " +
@@ -164,14 +173,14 @@ public interface StudyTimeMapper extends BaseMapper<StudyTime> {
 
     // 学生每日学习时长（用于活跃天数热力图叠加学习时长标志，可按班级过滤）
     @Select("<script>" +
-            "SELECT FORMATDATETIME(st.study_date, 'yyyy-MM-dd') as date, SUM(st.total_seconds) as studySeconds " +
+            "SELECT DATE_FORMAT(st.study_date, '%Y-%m-%d') as date, SUM(st.total_seconds) as studySeconds " +
             "FROM study_time st " +
             "<where>" +
             "st.user_id = #{userId} " +
             "<if test='classId != null'>AND st.class_id = #{classId}</if>" +
             "AND st.study_date &gt;= #{startDate} AND st.study_date &lt;= #{endDate}" +
             "</where> " +
-            "GROUP BY FORMATDATETIME(st.study_date, 'yyyy-MM-dd') " +
+            "GROUP BY DATE_FORMAT(st.study_date, '%Y-%m-%d') " +
             "ORDER BY date" +
             "</script>")
     List<Map<String, Object>> findUserDailyStudySeconds(@Param("userId") Long userId,

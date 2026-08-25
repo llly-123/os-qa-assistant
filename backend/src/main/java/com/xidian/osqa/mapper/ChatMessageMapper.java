@@ -260,39 +260,39 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // ===== 新增统计维度 =====
 
     // 每日提问趋势（教师维度）
-    @Select("SELECT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date, COUNT(*) as count " +
+    @Select("SELECT DATE_FORMAT(m.create_time, '%Y-%m-%d') as date, COUNT(*) as count " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
             "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
-            "GROUP BY FORMATDATETIME(m.create_time, 'yyyy-MM-dd') " +
+            "GROUP BY DATE_FORMAT(m.create_time, '%Y-%m-%d') " +
             "ORDER BY date")
     List<Map<String, Object>> findDailyQuestionTrend(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
     // 每日提问趋势（班级维度）
-    @Select("SELECT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date, COUNT(*) as count " +
+    @Select("SELECT DATE_FORMAT(m.create_time, '%Y-%m-%d') as date, COUNT(*) as count " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
-            "GROUP BY FORMATDATETIME(m.create_time, 'yyyy-MM-dd') " +
+            "GROUP BY DATE_FORMAT(m.create_time, '%Y-%m-%d') " +
             "ORDER BY date")
     List<Map<String, Object>> findClassDailyQuestionTrend(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
     // 每日提问趋势（学生维度）
     @Select("<script>" +
-            "SELECT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date, COUNT(*) as count " +
+            "SELECT DATE_FORMAT(m.create_time, '%Y-%m-%d') as date, COUNT(*) as count " +
             "FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
             "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
             "<if test='classId != null'>AND s.class_id = #{classId}</if>" +
             "AND m.create_time &gt;= #{startDate} AND m.create_time &lt;= #{endDate} " +
-            "GROUP BY FORMATDATETIME(m.create_time, 'yyyy-MM-dd') " +
+            "GROUP BY DATE_FORMAT(m.create_time, '%Y-%m-%d') " +
             "ORDER BY date" +
             "</script>")
     List<Map<String, Object>> findUserDailyQuestionTrend(@Param("userId") Long userId, @Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
     // 每周提问趋势（教师维度）- weekStart为该周内最早日期
-    @Select("SELECT FORMATDATETIME(MIN(CAST(m.create_time AS DATE)), 'yyyy-MM-dd') as week, COUNT(*) as count " +
+    @Select("SELECT DATE_FORMAT(MIN(m.create_time), '%Y-%m-%d') as week, COUNT(*) as count " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
@@ -302,7 +302,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     List<Map<String, Object>> findWeeklyQuestionTrend(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
     // 每周提问趋势（班级维度）
-    @Select("SELECT FORMATDATETIME(MIN(CAST(m.create_time AS DATE)), 'yyyy-MM-dd') as week, COUNT(*) as count " +
+    @Select("SELECT DATE_FORMAT(MIN(m.create_time), '%Y-%m-%d') as week, COUNT(*) as count " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
@@ -312,7 +312,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     // 每周提问趋势（学生维度）
     @Select("<script>" +
-            "SELECT FORMATDATETIME(MIN(CAST(m.create_time AS DATE)), 'yyyy-MM-dd') as week, COUNT(*) as count " +
+            "SELECT DATE_FORMAT(MIN(m.create_time), '%Y-%m-%d') as week, COUNT(*) as count " +
             "FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
             "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
@@ -326,7 +326,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // 会话轮次统计（教师维度）- 每个会话的问答轮次与时长
     @Select("SELECT s.id as sessionId, COUNT(m.id) as rounds, s.user_id as userId, u.username as username, u.real_name as realName, " +
             "MIN(m.create_time) as startTime, MAX(m.create_time) as endTime, " +
-            "LEAST(DATEDIFF('SECOND', MIN(m.create_time), MAX(m.create_time)), 14400) as sessionSeconds " +
+            "LEAST(TIMESTAMPDIFF(SECOND, MIN(m.create_time), MAX(m.create_time)), 14400) as sessionSeconds " +
             "FROM chat_session s " +
             "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
             "JOIN chat_message m ON m.session_id = s.id AND s.deleted = 0 " +
@@ -339,7 +339,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // 会话轮次统计（班级维度）
     @Select("SELECT s.id as sessionId, COUNT(m.id) as rounds, s.user_id as userId, u.username as username, u.real_name as realName, " +
             "MIN(m.create_time) as startTime, MAX(m.create_time) as endTime, " +
-            "LEAST(DATEDIFF('SECOND', MIN(m.create_time), MAX(m.create_time)), 14400) as sessionSeconds " +
+            "LEAST(TIMESTAMPDIFF(SECOND, MIN(m.create_time), MAX(m.create_time)), 14400) as sessionSeconds " +
             "FROM chat_session s " +
             "JOIN chat_message m ON m.session_id = s.id AND s.deleted = 0 " +
             "LEFT JOIN sys_user u ON s.user_id = u.id " +
@@ -352,7 +352,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     @Select("<script>" +
             "SELECT s.id as sessionId, COUNT(m.id) as rounds, " +
             "MIN(m.create_time) as startTime, MAX(m.create_time) as endTime, " +
-            "LEAST(DATEDIFF('SECOND', MIN(m.create_time), MAX(m.create_time)), 14400) as sessionSeconds " +
+            "LEAST(TIMESTAMPDIFF(SECOND, MIN(m.create_time), MAX(m.create_time)), 14400) as sessionSeconds " +
             "FROM chat_session s " +
             "JOIN chat_message m ON m.session_id = s.id AND s.deleted = 0 " +
             "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
@@ -394,7 +394,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     // 活跃天数统计（教师维度）- 统计每个学生的活跃天数和连续学习天数
     @Select("SELECT s.user_id as userId, u.username as username, u.real_name as realName, " +
-            "COUNT(DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd')) as activeDays, " +
+            "COUNT(DISTINCT DATE_FORMAT(m.create_time, '%Y-%m-%d')) as activeDays, " +
             "MAX(m.create_time) as lastActive " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
@@ -407,7 +407,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     // 活跃天数统计（班级维度）
     @Select("SELECT s.user_id as userId, u.username as username, u.real_name as realName, " +
-            "COUNT(DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd')) as activeDays, " +
+            "COUNT(DISTINCT DATE_FORMAT(m.create_time, '%Y-%m-%d')) as activeDays, " +
             "MAX(m.create_time) as lastActive " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
@@ -419,7 +419,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     // 学生个人活跃天数
     @Select("<script>" +
-            "SELECT COUNT(DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd')) as activeDays " +
+            "SELECT COUNT(DISTINCT DATE_FORMAT(m.create_time, '%Y-%m-%d')) as activeDays " +
             "FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
             "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
@@ -430,7 +430,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
 
     // 学生每日提问明细（用于计算连续天数）
     @Select("<script>" +
-            "SELECT DISTINCT FORMATDATETIME(m.create_time, 'yyyy-MM-dd') as date " +
+            "SELECT DISTINCT DATE_FORMAT(m.create_time, '%Y-%m-%d') as date " +
             "FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
             "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
@@ -443,33 +443,33 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // ===== 提问时段分布（按小时 0-23）=====
 
     // 教师维度
-    @Select("SELECT CAST(FORMATDATETIME(m.create_time, 'HH') AS INT) as `hour`, COUNT(*) as count " +
+    @Select("SELECT HOUR(m.create_time) as `hour`, COUNT(*) as count " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
             "WHERE m.role = 'user' AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
-            "GROUP BY CAST(FORMATDATETIME(m.create_time, 'HH') AS INT) " +
+            "GROUP BY HOUR(m.create_time) " +
             "ORDER BY `hour`")
     List<Map<String, Object>> findTeacherHourlyDistribution(@Param("teacherId") Long teacherId, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
     // 班级维度
-    @Select("SELECT CAST(FORMATDATETIME(m.create_time, 'HH') AS INT) as `hour`, COUNT(*) as count " +
+    @Select("SELECT HOUR(m.create_time) as `hour`, COUNT(*) as count " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "WHERE m.role = 'user' AND s.class_id = #{classId} AND m.create_time >= #{startDate} AND m.create_time <= #{endDate} " +
-            "GROUP BY CAST(FORMATDATETIME(m.create_time, 'HH') AS INT) " +
+            "GROUP BY HOUR(m.create_time) " +
             "ORDER BY `hour`")
     List<Map<String, Object>> findClassHourlyDistribution(@Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
 
     // 学生维度
     @Select("<script>" +
-            "SELECT CAST(FORMATDATETIME(m.create_time, 'HH') AS INT) as `hour`, COUNT(*) as count " +
+            "SELECT HOUR(m.create_time) as `hour`, COUNT(*) as count " +
             "FROM chat_message m " +
             "LEFT JOIN chat_session s ON m.session_id = s.id " +
             "WHERE m.role = 'user' AND s.user_id = #{userId} AND (m.source_type IS NULL OR m.source_type != 'no_class') " +
             "<if test='classId != null'>AND s.class_id = #{classId}</if>" +
             "AND m.create_time &gt;= #{startDate} AND m.create_time &lt;= #{endDate} " +
-            "GROUP BY CAST(FORMATDATETIME(m.create_time, 'HH') AS INT) " +
+            "GROUP BY HOUR(m.create_time) " +
             "ORDER BY `hour`" +
             "</script>")
     List<Map<String, Object>> findUserHourlyDistribution(@Param("userId") Long userId, @Param("classId") Long classId, @Param("startDate") String startDate, @Param("endDate") String endDate);
@@ -479,7 +479,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // 教师维度（该教师所有班级）
     @Select("SELECT s.user_id as userId, MAX(u.username) as username, MAX(u.real_name) as realName, " +
             "COUNT(DISTINCT CASE WHEN m.role = 'user' THEN m.id END) as questionCount, " +
-            "COUNT(DISTINCT CASE WHEN m.role = 'user' THEN FORMATDATETIME(m.create_time, 'yyyy-MM-dd') END) as activeDays, " +
+            "COUNT(DISTINCT CASE WHEN m.role = 'user' THEN DATE_FORMAT(m.create_time, '%Y-%m-%d') END) as activeDays, " +
             "COUNT(CASE WHEN m.role = 'assistant' AND m.citation IS NOT NULL AND m.citation <> '' THEN 1 END) as citedCount, " +
             "COUNT(CASE WHEN m.role = 'assistant' THEN 1 END) as answerCount, " +
             "MAX(m.create_time) as lastActive " +
@@ -495,7 +495,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // 班级维度
     @Select("SELECT s.user_id as userId, MAX(u.username) as username, MAX(u.real_name) as realName, " +
             "COUNT(DISTINCT CASE WHEN m.role = 'user' THEN m.id END) as questionCount, " +
-            "COUNT(DISTINCT CASE WHEN m.role = 'user' THEN FORMATDATETIME(m.create_time, 'yyyy-MM-dd') END) as activeDays, " +
+            "COUNT(DISTINCT CASE WHEN m.role = 'user' THEN DATE_FORMAT(m.create_time, '%Y-%m-%d') END) as activeDays, " +
             "COUNT(CASE WHEN m.role = 'assistant' AND m.citation IS NOT NULL AND m.citation <> '' THEN 1 END) as citedCount, " +
             "COUNT(CASE WHEN m.role = 'assistant' THEN 1 END) as answerCount, " +
             "MAX(m.create_time) as lastActive " +
@@ -529,7 +529,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // 平均响应时间（教师维度）：取每个 assistant 消息与其前一条消息（即学生提问）的时间差平均值
     @Select("<script>" +
             "SELECT COALESCE(AVG(diff), 0) as avgResponseTime FROM (" +
-            "SELECT DATEDIFF('SECOND', LAG(m.create_time) OVER (PARTITION BY m.session_id ORDER BY m.create_time), m.create_time) as diff " +
+            "SELECT TIMESTAMPDIFF(SECOND, LAG(m.create_time) OVER (PARTITION BY m.session_id ORDER BY m.create_time), m.create_time) as diff " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "JOIN clazz c ON c.id = s.class_id AND c.deleted = 0 AND c.teacher_id = #{teacherId} " +
@@ -541,7 +541,7 @@ public interface ChatMessageMapper extends BaseMapper<ChatMessage> {
     // 平均响应时间（班级维度）
     @Select("<script>" +
             "SELECT COALESCE(AVG(diff), 0) as avgResponseTime FROM (" +
-            "SELECT DATEDIFF('SECOND', LAG(m.create_time) OVER (PARTITION BY m.session_id ORDER BY m.create_time), m.create_time) as diff " +
+            "SELECT TIMESTAMPDIFF(SECOND, LAG(m.create_time) OVER (PARTITION BY m.session_id ORDER BY m.create_time), m.create_time) as diff " +
             "FROM chat_message m " +
             "JOIN chat_session s ON m.session_id = s.id AND s.deleted = 0 " +
             "WHERE m.role = 'assistant' AND s.class_id = #{classId} " +

@@ -1,11 +1,11 @@
 package com.xidian.osqa.service;
 
 import com.xidian.osqa.common.AnswerSanitizer;
+import com.xidian.osqa.config.AiModelProvider;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,13 +20,30 @@ public class RagService {
 
     private static final Logger log = LoggerFactory.getLogger(RagService.class);
 
-    private final ChatLanguageModel chatModel;
+    private final AiModelProvider aiModelProvider;
     private final KnowledgeEmbeddingService embeddingService;
     private final WebSearchService webSearchService;
     private final SystemSettingService settingService;
 
     // 缓存最近一次联网搜索的结果，供getCitation复用
     private static final ThreadLocal<List<WebSearchService.SearchResult>> cachedSearchResults = new ThreadLocal<>();
+
+    // 缓存最近一次教材检索结果，供getCitation复用，避免同一问题检索两次
+    private static final ThreadLocal<RetrievalCache> cachedRetrieval = new ThreadLocal<>();
+
+    private static class RetrievalCache {
+        final String question;
+        final Long kbId;
+        final List<String> chunks;
+        RetrievalCache(String question, Long kbId, List<String> chunks) {
+            this.question = question;
+            this.kbId = kbId;
+            this.chunks = chunks;
+        }
+        boolean matches(String q, Long k) {
+            return java.util.Objects.equals(this.question, q) && java.util.Objects.equals(this.kbId, k);
+        }
+    }
 
     private String courseName() {
         return settingService.getOrDefault("course_name", "本课程");
@@ -88,8 +105,8 @@ public class RagService {
                 """.formatted(owner, course, course, outputConstraint);
     }
 
-    public RagService(ChatLanguageModel chatModel, KnowledgeEmbeddingService embeddingService, WebSearchService webSearchService, SystemSettingService settingService) {
-        this.chatModel = chatModel;
+    public RagService(AiModelProvider aiModelProvider, KnowledgeEmbeddingService embeddingService, WebSearchService webSearchService, SystemSettingService settingService) {
+        this.aiModelProvider = aiModelProvider;
         this.embeddingService = embeddingService;
         this.webSearchService = webSearchService;
         this.settingService = settingService;
@@ -103,6 +120,7 @@ public class RagService {
         try {
             // 清除旧的缓存
             cachedSearchResults.remove();
+            cachedRetrieval.remove();
 
             String course = courseName();
 
@@ -138,8 +156,9 @@ public class RagService {
                 }
             }
 
-            // 教材知识库检索（按班级知识库作用域）
+            // 教材知识库检索（按班级知识库作用域），结果缓存供 getCitation 复用
             List<String> relevantChunks = embeddingService.retrieve(question, 8, kbId);
+            cachedRetrieval.set(new RetrievalCache(question, kbId, relevantChunks));
 
             List<ChatMessage> messages = new ArrayList<>();
 
@@ -172,7 +191,7 @@ public class RagService {
             String userPrompt = contextBuilder + "学生问题：" + question;
             messages.add(new UserMessage(userPrompt));
 
-            Response<AiMessage> response = chatModel.generate(messages);
+            Response<AiMessage> response = aiModelProvider.getModel().generate(messages);
             String answer = AnswerSanitizer.sanitize(response.content().text());
             // 兜底：AI 返回空内容（如拒答无关问题被清洗后为空）时给出明确提示
             if (answer == null || answer.isBlank()) {
@@ -205,7 +224,7 @@ public class RagService {
             sb.append("📖 参考来源：\n");
 
             // 教材来源（去重）
-            List<String> relevantChunks = embeddingService.retrieve(question, 8, kbId);
+            List<String> relevantChunks = retrieveCached(question, kbId);
             if (!relevantChunks.isEmpty()) {
                 Set<String> sources = new java.util.LinkedHashSet<>();
                 for (String chunk : relevantChunks) {
@@ -259,7 +278,7 @@ public class RagService {
             return sb.toString().trim();
         }
 
-        List<String> relevantChunks = embeddingService.retrieve(question, 8, kbId);
+        List<String> relevantChunks = retrieveCached(question, kbId);
         if (!relevantChunks.isEmpty()) {
             Set<String> sources = new java.util.LinkedHashSet<>();
             for (String chunk : relevantChunks) {
@@ -281,5 +300,14 @@ public class RagService {
             return "📚 参考资料：《" + course + "》课程资料";
         }
         return null;
+    }
+
+    /** 优先复用 answer 阶段缓存的教材检索结果，避免同一问题检索两次 */
+    private List<String> retrieveCached(String question, Long kbId) {
+        RetrievalCache cache = cachedRetrieval.get();
+        if (cache != null && cache.matches(question, kbId)) {
+            return cache.chunks;
+        }
+        return embeddingService.retrieve(question, 8, kbId);
     }
 }

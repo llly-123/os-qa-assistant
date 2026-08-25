@@ -3,11 +3,11 @@ package com.xidian.osqa.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xidian.osqa.common.AnswerSanitizer;
+import com.xidian.osqa.config.AiModelProvider;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,18 +35,17 @@ public class WebSearchService {
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
-    private final ChatLanguageModel chatModel;
-
+    private final AiModelProvider aiModelProvider;
     @Value("${web.search.enabled:true}")
     private boolean searchEnabled;
 
-    public WebSearchService(ChatLanguageModel chatModel) {
+    public WebSearchService(AiModelProvider aiModelProvider) {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
         this.objectMapper = new ObjectMapper();
-        this.chatModel = chatModel;
+        this.aiModelProvider = aiModelProvider;
     }
 
     // URL有效性检查专用客户端（模拟浏览器）
@@ -273,7 +272,7 @@ public class WebSearchService {
                     "正文仅保留：定义、数据结构、伪代码、表格、标准计算步骤、客观总结；不要展示草稿、中间步骤、自我纠错过程。"));
             messages.add(new UserMessage(context.toString()));
 
-            Response<AiMessage> response = chatModel.generate(messages);
+            Response<AiMessage> response = aiModelProvider.getModel().generate(messages);
             return AnswerSanitizer.sanitize(response.content().text());
         } catch (Exception e) {
             log.error("AI整理搜索结果失败", e);

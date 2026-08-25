@@ -2,11 +2,11 @@ package com.xidian.osqa.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xidian.osqa.config.AiModelProvider;
 import com.xidian.osqa.entity.ChatMessage;
 import com.xidian.osqa.mapper.ChatMessageMapper;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatLanguageModel;
 import dev.langchain4j.model.output.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,7 +32,7 @@ public class KeywordAiService {
     private static final Logger log = LoggerFactory.getLogger(KeywordAiService.class);
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final ChatLanguageModel chatModel;
+    private final AiModelProvider aiModelProvider;
     private final ChatMessageMapper messageMapper;
 
     /** 单线程串行执行，避免并发打爆 DeepSeek 限流 */
@@ -52,8 +52,8 @@ public class KeywordAiService {
             提问：%s
             """;
 
-    public KeywordAiService(ChatLanguageModel chatModel, ChatMessageMapper messageMapper) {
-        this.chatModel = chatModel;
+    public KeywordAiService(AiModelProvider aiModelProvider, ChatMessageMapper messageMapper) {
+        this.aiModelProvider = aiModelProvider;
         this.messageMapper = messageMapper;
     }
 
@@ -63,7 +63,7 @@ public class KeywordAiService {
         try {
             List<dev.langchain4j.data.message.ChatMessage> messages = new ArrayList<>();
             messages.add(new UserMessage(String.format(PROMPT_TEMPLATE, question)));
-            Response<AiMessage> resp = chatModel.generate(messages);
+            Response<AiMessage> resp = aiModelProvider.getModel().generate(messages);
             return parseKeywords(resp.content().text());
         } catch (Exception e) {
             log.warn("AI提取关键词失败: {}", e.getMessage());

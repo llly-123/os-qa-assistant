@@ -52,7 +52,7 @@
 
             <div class="nav-section">
               <div
-                :class="['nav-item', { active: currentRoute === '/my-stats' }]"
+                :class="['nav-item', 'stats-nav-btn', { active: currentRoute === '/my-stats' }]"
                 @click="router.push('/my-stats')"
                 :title="sidebarCollapsed ? '学习统计' : ''"
               >
@@ -144,6 +144,14 @@
             >
               <el-icon><School /></el-icon>
               <span v-if="!sidebarCollapsed">班级管理</span>
+            </div>
+            <div
+              :class="['nav-item', { active: currentRoute === '/admin/settings' }]"
+              @click="router.push('/admin/settings')"
+              :title="sidebarCollapsed ? '系统设置' : ''"
+            >
+              <el-icon><Setting /></el-icon>
+              <span v-if="!sidebarCollapsed">系统设置</span>
             </div>
           </div>
         </div>
@@ -624,12 +632,30 @@ function formatSessionTime(time) {
   &:hover {
     background: rgba(99, 102, 241, 0.1);
     color: var(--color-primary);
-    transform: translateX(3px);
   }
 
   &.active {
     background: var(--color-primary-bg);
     color: var(--color-primary);
+    font-weight: 600;
+  }
+}
+
+// 学习统计按钮：蓝底 + 文字居中
+.stats-nav-btn {
+  justify-content: center;
+  background: var(--color-primary);
+  color: #fff;
+
+  &:hover {
+    background: #4f52e0;
+    color: #fff;
+    transform: translateX(0);
+  }
+
+  &.active {
+    background: var(--color-primary);
+    color: #fff;
     font-weight: 600;
   }
 }
@@ -650,7 +676,6 @@ function formatSessionTime(time) {
 
     &:hover {
       background: rgba(99, 102, 241, 0.1);
-      transform: translateX(3px);
     }
 
     &.active {

@@ -67,7 +67,7 @@
         </div>
       </div>
       <div class="bar-chart">
-        <div class="bar-track">
+        <div class="bar-track" ref="trendBarRefs">
           <div
             v-for="(item, idx) in displayTrendData"
             :key="idx"
@@ -111,7 +111,7 @@
         </div>
       </div>
       <div class="bar-chart">
-        <div class="bar-track">
+        <div class="bar-track" ref="trendBarRefs">
           <div
             v-for="(item, idx) in displayTrendData"
             :key="idx"
@@ -255,7 +255,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import {
   getMyStats,
   getMyTrend,
@@ -282,6 +282,18 @@ const studyTime = ref({ value: 0, label: '学习时长(分钟)' })
 const trendGranularity = ref('daily')
 const trendData = ref([])
 const showAllWeeks = ref(false)
+// 提问趋势/学习时长趋势横向滚动容器
+const trendBarRefs = ref([])
+// 趋势数据更新或展开/收起周数后，自动滚动到最右侧（最新日期）
+watch([trendData, showAllWeeks], () => {
+  nextTick(() => {
+    trendBarRefs.value.forEach((el) => {
+      if (el && el.scrollWidth > el.clientWidth) {
+        el.scrollLeft = el.scrollWidth
+      }
+    })
+  })
+})
 const sessionData = ref({})
 const sessionRows = ref([])
 const sourceItems = ref([])

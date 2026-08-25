@@ -38,15 +38,6 @@ public class SystemSettingService {
         return map;
     }
 
-    /** 返回前端品牌化所需的公开设置（站点名/课程名/学校名） */
-    public Map<String, String> getPublic() {
-        Map<String, String> map = new LinkedHashMap<>();
-        map.put("site_name", getOrDefault("site_name", "智能答疑助手"));
-        map.put("course_name", getOrDefault("course_name", "本课程"));
-        map.put("school_name", getOrDefault("school_name", ""));
-        return map;
-    }
-
     public void set(String key, String value) {
         SystemSetting s = settingMapper.selectById(key);
         if (s == null) {

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { login as loginApi, logout as logoutApi, getUserInfo } from '@/api/auth'
-import { getPublicSettings } from '@/api/setting'
 
 function safeJsonParse(key, fallback = null) {
   try {
@@ -12,19 +11,45 @@ function safeJsonParse(key, fallback = null) {
   }
 }
 
+// 解码 JWT payload 并判断是否过期（参考后端 JwtUtil 的 exp 字段）
+function isTokenExpired(token) {
+  if (!token) return true
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return true
+    const decoded = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
+    // JWT 的 exp 是秒级时间戳
+    return !decoded.exp || decoded.exp * 1000 <= Date.now()
+  } catch {
+    return true
+  }
+}
+
+// 清理本地登录态（token 过期/失效时调用）
+function clearAuthStorage() {
+  localStorage.removeItem('token')
+  localStorage.removeItem('userInfo')
+  localStorage.removeItem('currentClassId')
+  localStorage.removeItem('currentSessionId')
+}
+
 export const useUserStore = defineStore('user', () => {
-  const token = ref(localStorage.getItem('token') || '')
+  // 初始化时校验 token 是否过期，过期则清除，避免刷新后被误判为已登录
+  const rawToken = localStorage.getItem('token') || ''
+  if (rawToken && isTokenExpired(rawToken)) {
+    clearAuthStorage()
+  }
+  const token = ref(isTokenExpired(rawToken) ? '' : rawToken)
   const userInfo = ref(safeJsonParse('userInfo'))
-  const settings = ref(safeJsonParse('appSettings', {}))
 
   const isLoggedIn = computed(() => !!token.value)
   const role = computed(() => userInfo.value?.role || '')
   const username = computed(() => userInfo.value?.username || '')
   const userId = computed(() => userInfo.value?.id || '')
 
-  const siteName = computed(() => settings.value?.site_name || '智能答疑助手')
-  const courseName = computed(() => settings.value?.course_name || '本课程')
-  const schoolName = computed(() => settings.value?.school_name || '')
+  // 站点名称固定，品牌化设置功能已移除
+  const siteName = computed(() => '智能答疑助手')
+  const courseName = computed(() => '本课程')
 
   async function login(username, password) {
     const res = await loginApi(username, password)
@@ -55,35 +80,17 @@ export const useUserStore = defineStore('user', () => {
     return res
   }
 
-  // 拉取公开品牌化设置（站点名/课程名/学校名），登录页等未登录场景也可调用
-  async function fetchPublicSettings() {
-    try {
-      const res = await getPublicSettings()
-      const data = res.data || res
-      if (data) {
-        settings.value = data
-        localStorage.setItem('appSettings', JSON.stringify(data))
-      }
-      return data
-    } catch (e) {
-      return null
-    }
-  }
-
   return {
     token,
     userInfo,
-    settings,
     isLoggedIn,
     role,
     username,
     userId,
     siteName,
     courseName,
-    schoolName,
     login,
     logout,
-    fetchUserInfo,
-    fetchPublicSettings
+    fetchUserInfo
   }
 })

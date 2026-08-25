@@ -75,6 +75,12 @@ const routes = [
             name: 'ClassManage',
             component: () => import('@/views/admin/ClassManage.vue'),
             meta: { requiresAuth: true, role: 'TEACHER' }
+          },
+          {
+            path: 'settings',
+            name: 'Settings',
+            component: () => import('@/views/admin/Settings.vue'),
+            meta: { requiresAuth: true, role: 'TEACHER' }
           }
         ]
       }

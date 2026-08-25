@@ -526,6 +526,10 @@ public class KnowledgeEmbeddingService {
             return Collections.emptyList();
         }
 
+        // query 向量只需计算一次（原实现放在循环内，每个 chunk 都重复计算）
+        Map<String, Double> queryTfIdf = computeTfIdf(queryTokens);
+        double[] queryVector = sparseToVector(queryTfIdf);
+
         List<Map.Entry<KnowledgeChunk, Double>> scored = new ArrayList<>();
         for (KnowledgeChunk chunk : scopeChunks) {
             double kwScore = keywordScore(queryTokens, chunk.getContent());
@@ -534,8 +538,6 @@ public class KnowledgeEmbeddingService {
             double tfidfScore = 0;
             double[] chunkVector = chunkVectors.get(chunk.getId());
             if (chunkVector != null) {
-                Map<String, Double> queryTfIdf = computeTfIdf(queryTokens);
-                double[] queryVector = sparseToVector(queryTfIdf);
                 tfidfScore = cosineSimilarity(queryVector, chunkVector);
             }
 

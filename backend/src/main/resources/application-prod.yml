@@ -1,0 +1,28 @@
+# 生产环境配置（启动时指定 --spring.profiles.active=prod 激活）
+# 所有敏感/环境相关配置均通过环境变量注入，避免写入镜像或代码库。
+
+spring:
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:os_qa}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+
+jwt:
+  # 生产环境必须通过 JWT_SECRET 环境变量注入强密钥，不提供默认值
+  secret: ${JWT_SECRET:}
+  expiration: 86400000
+
+knowledge:
+  # 上传文件放在持久化卷，容器重建不丢失
+  upload-dir: ${UPLOAD_DIR:/app/uploads}/knowledge
+  chunk-size: 1000
+  chunk-overlap: 200
+
+video:
+  upload-dir: ${UPLOAD_DIR:/app/uploads}/videos
+  max-size: 524288000
+
+logging:
+  level:
+    com.xidian.osqa: info
+    org.springframework.web.context.request.async: warn

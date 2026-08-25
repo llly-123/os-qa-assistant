@@ -1,6 +1,7 @@
 package com.xidian.osqa.controller;
 
 import com.xidian.osqa.common.Result;
+import com.xidian.osqa.config.AiModelProvider;
 import com.xidian.osqa.service.SystemSettingService;
 import org.springframework.web.bind.annotation.*;
 
@@ -11,15 +12,11 @@ import java.util.Map;
 public class SettingController {
 
     private final SystemSettingService settingService;
+    private final AiModelProvider aiModelProvider;
 
-    public SettingController(SystemSettingService settingService) {
+    public SettingController(SystemSettingService settingService, AiModelProvider aiModelProvider) {
         this.settingService = settingService;
-    }
-
-    /** 公开接口：登录页等未登录场景获取品牌化信息 */
-    @GetMapping("/settings/public")
-    public Result<?> getPublic() {
-        return Result.success(settingService.getPublic());
+        this.aiModelProvider = aiModelProvider;
     }
 
     @GetMapping("/admin/settings")
@@ -31,5 +28,14 @@ public class SettingController {
     public Result<?> update(@RequestBody Map<String, String> body) {
         settingService.setAll(body);
         return Result.success();
+    }
+
+    /** 测试 AI 接口配置是否有效（用传入值做一次真实调用，不落库） */
+    @PostMapping("/admin/settings/test-ai")
+    public Result<?> testAi(@RequestBody Map<String, String> body) {
+        return Result.success(aiModelProvider.test(
+                body.get("ai_api_key"),
+                body.get("ai_base_url"),
+                body.get("ai_model_name")));
     }
 }

@@ -1,10 +1,10 @@
 package com.xidian.osqa.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xidian.osqa.entity.StudyTime;
 import com.xidian.osqa.mapper.StudyTimeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,22 +36,22 @@ public class StudyTimeService {
         if (seconds > MAX_REPORT_SECONDS) seconds = MAX_REPORT_SECONDS;
 
         LocalDate today = LocalDate.now();
-        StudyTime existing = studyTimeMapper.selectOne(new LambdaQueryWrapper<StudyTime>()
-                .eq(StudyTime::getUserId, userId)
-                .eq(StudyTime::getClassId, classId)
-                .eq(StudyTime::getStudyDate, today));
 
-        if (existing != null) {
-            existing.setTotalSeconds(existing.getTotalSeconds() + seconds);
-            existing.setUpdateTime(LocalDateTime.now());
-            studyTimeMapper.updateById(existing);
-        } else {
+        // 先原子累加；影响 0 行说明当天记录尚不存在，再插入
+        int updated = studyTimeMapper.addSeconds(userId, classId, today, seconds);
+        if (updated == 0) {
             StudyTime st = new StudyTime();
             st.setUserId(userId);
             st.setClassId(classId);
             st.setStudyDate(today);
             st.setTotalSeconds(seconds);
-            studyTimeMapper.insert(st);
+            st.setUpdateTime(LocalDateTime.now());
+            try {
+                studyTimeMapper.insert(st);
+            } catch (DuplicateKeyException e) {
+                // 并发插入撞唯一约束（uk_user_class_date），退化为再次累加
+                studyTimeMapper.addSeconds(userId, classId, today, seconds);
+            }
         }
     }
 

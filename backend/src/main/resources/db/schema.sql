@@ -30,15 +30,13 @@ CREATE TABLE IF NOT EXISTS `chat_message` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `session_id` BIGINT NOT NULL,
     `role` VARCHAR(20) NOT NULL,
-    `content` CLOB NOT NULL,
+    `content` LONGTEXT NOT NULL,
     `citation` TEXT DEFAULT NULL,
     `source_type` VARCHAR(20) DEFAULT NULL,
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    `keywords` VARCHAR(1000) DEFAULT NULL,
     PRIMARY KEY (`id`)
 );
-
--- AI 提取的知识点关键词（JSON 数组字符串，如 ["晶体管","负反馈"]），用于热词统计
-ALTER TABLE `chat_message` ADD COLUMN IF NOT EXISTS `keywords` VARCHAR(1000) DEFAULT NULL;
 
 CREATE TABLE IF NOT EXISTS `knowledge` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -57,7 +55,7 @@ CREATE TABLE IF NOT EXISTS `knowledge_chunk` (
     `id` BIGINT NOT NULL AUTO_INCREMENT,
     `knowledge_id` BIGINT NOT NULL,
     `kb_id` BIGINT DEFAULT NULL,
-    `content` CLOB NOT NULL,
+    `content` LONGTEXT NOT NULL,
     `chunk_index` INT NOT NULL,
     `source_file` VARCHAR(200) DEFAULT NULL,
     `chapter_info` VARCHAR(200) DEFAULT NULL,
@@ -180,13 +178,7 @@ CREATE TABLE IF NOT EXISTS `system_setting` (
     PRIMARY KEY (`setting_key`)
 );
 
--- ========== 已有库的列迁移（H2 2.x 支持 ADD COLUMN IF NOT EXISTS，幂等）==========
-ALTER TABLE `chat_session` ADD COLUMN IF NOT EXISTS `class_id` BIGINT DEFAULT NULL;
-ALTER TABLE `knowledge` ADD COLUMN IF NOT EXISTS `kb_id` BIGINT DEFAULT NULL;
-ALTER TABLE `knowledge_chunk` ADD COLUMN IF NOT EXISTS `kb_id` BIGINT DEFAULT NULL;
-ALTER TABLE `chapter` ADD COLUMN IF NOT EXISTS `video_set_id` BIGINT DEFAULT NULL;
-ALTER TABLE `clazz` ADD COLUMN IF NOT EXISTS `video_set_id` BIGINT DEFAULT NULL;
-ALTER TABLE `clazz` ADD COLUMN IF NOT EXISTS `kb_id` BIGINT DEFAULT NULL;
+-- ========== 已有库的列迁移（列已包含在上方建表语句中，MySQL 全新建库无需迁移）==========
 
 -- 初始化默认用户（仅当表为空时插入，不覆盖已有数据）
 INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `phone`, `college`, `major`, `grade`, `role`, `status`) SELECT 1, 'teacher', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '教师', NULL, NULL, NULL, NULL, 'TEACHER', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `id` = 1);
@@ -209,9 +201,8 @@ INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT
 INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 15, 'grade', '2025', 4 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 15);
 
 -- 系统设置默认值（仅当对应键不存在时插入）
-MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('site_name', '智能答疑助手');
-MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('course_name', '本课程');
-MERGE INTO `system_setting` (`setting_key`, `setting_value`) KEY(`setting_key`) VALUES ('school_name', '');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('course_name', '本课程');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('school_name', '');
 
 -- ========== 数据清洗：将历史孤儿知识文档/知识块关联到第一个知识库 ==========
 -- knowledge 表中 kb_id 为 null 的记录关联到 id 最小的知识库（幂等，仅执行一次修复）
