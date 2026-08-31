@@ -54,6 +54,17 @@ public class AuthService {
             return Result.error(403, "账号已被冻结");
         }
 
+        // 教师账号需审核通过后才能登录
+        if ("TEACHER".equals(user.getRole())) {
+            Integer audit = user.getAuditStatus();
+            if (audit == null || audit == 0) {
+                return Result.error(403, "账号待审核，请等待管理员审核");
+            }
+            if (audit == 2) {
+                return Result.error(403, "账号审核未通过");
+            }
+        }
+
         if (!passwordEncoder.matches(password, user.getPassword())) {
             return Result.error(401, "密码错误");
         }
@@ -76,6 +87,34 @@ public class AuthService {
         result.put("user", userInfo);
 
         return Result.success(result);
+    }
+
+    /** 教师自助注册（工号 + 密码 + 姓名），注册后待超管审核 */
+    public Result<?> registerTeacher(String username, String password, String realName) {
+        if (username == null || username.isBlank()) {
+            return Result.error(400, "工号不能为空");
+        }
+        if (password == null || password.length() < 6) {
+            return Result.error(400, "密码长度不能少于6位");
+        }
+        String uname = username.trim();
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getUsername, uname);
+        if (userMapper.selectCount(wrapper) > 0) {
+            return Result.error(400, "该工号已注册");
+        }
+
+        User user = new User();
+        user.setUsername(uname);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setRealName(realName == null ? "" : realName.trim());
+        user.setRole("TEACHER");
+        user.setStatus(1);
+        user.setAuditStatus(0);
+        user.setCreateTime(LocalDateTime.now());
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.insert(user);
+        return Result.success("注册成功，请等待管理员审核");
     }
 
     public Result<?> getUserInfo(Long userId) {

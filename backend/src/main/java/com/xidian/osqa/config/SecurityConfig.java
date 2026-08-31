@@ -39,8 +39,10 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/send-code", "/api/auth/reset-password", "/api/auth/send-phone-code", "/api/auth/reset-password-by-phone").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/logout", "/api/auth/register", "/api/auth/send-code", "/api/auth/reset-password", "/api/auth/send-phone-code", "/api/auth/reset-password-by-phone").permitAll()
                 .requestMatchers("/api/courses/chapters").authenticated()
+                .requestMatchers("/api/admin/teachers/**").hasRole("SUPER_ADMIN")
+                .requestMatchers("/api/admin/settings/**").hasRole("SUPER_ADMIN")
                 .requestMatchers("/api/admin/**").hasRole("TEACHER")
                 .requestMatchers("/api/students/**").authenticated()
                 .requestMatchers("/api/**").authenticated()

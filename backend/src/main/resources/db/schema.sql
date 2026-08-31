@@ -9,10 +9,13 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
     `grade` VARCHAR(20) DEFAULT NULL,
     `role` VARCHAR(20) NOT NULL DEFAULT 'STUDENT',
     `status` INT NOT NULL DEFAULT 1,
+    `teacher_id` BIGINT DEFAULT NULL,
+    `audit_status` INT NOT NULL DEFAULT 1,
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `deleted` INT NOT NULL DEFAULT 0,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_username` (`username`)
 );
 
 CREATE TABLE IF NOT EXISTS `chat_session` (
@@ -181,8 +184,8 @@ CREATE TABLE IF NOT EXISTS `system_setting` (
 -- ========== 已有库的列迁移（列已包含在上方建表语句中，MySQL 全新建库无需迁移）==========
 
 -- 初始化默认用户（仅当表为空时插入，不覆盖已有数据）
-INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `phone`, `college`, `major`, `grade`, `role`, `status`) SELECT 1, 'teacher', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '教师', NULL, NULL, NULL, NULL, 'TEACHER', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `id` = 1);
-INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `phone`, `college`, `major`, `grade`, `role`, `status`) SELECT 2, 'student', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '学生', NULL, '计算机科学与技术学院', '计算机科学与技术', '2024', 'STUDENT', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `id` = 2);
+-- 超级管理员：系统天然内置的唯一超管账号（只负责管理教师）
+INSERT INTO `sys_user` (`id`, `username`, `password`, `real_name`, `role`, `status`, `audit_status`) SELECT 1, 'admin', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EHsM8lE9lBOsl7iKTVKIUi', '超级管理员', 'SUPER_ADMIN', 1, 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_user` WHERE `id` = 1);
 
 INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 1, 'college', '计算机科学与技术学院', 1 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 1);
 INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT 2, 'college', '网络与信息安全学院', 2 WHERE NOT EXISTS (SELECT 1 FROM `sys_option` WHERE `id` = 2);

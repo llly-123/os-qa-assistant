@@ -19,6 +19,8 @@ public class User {
     private String grade;
     private String role;
     private Integer status;
+    private Long teacherId;
+    private Integer auditStatus;
     @TableField("create_time")
     private LocalDateTime createTime;
     @TableField("update_time")
@@ -50,6 +52,10 @@ public class User {
     public void setRole(String role) { this.role = role; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public Long getTeacherId() { return teacherId; }
+    public void setTeacherId(Long teacherId) { this.teacherId = teacherId; }
+    public Integer getAuditStatus() { return auditStatus; }
+    public void setAuditStatus(Integer auditStatus) { this.auditStatus = auditStatus; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

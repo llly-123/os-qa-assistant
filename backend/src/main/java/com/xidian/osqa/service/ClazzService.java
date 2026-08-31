@@ -485,6 +485,9 @@ public class ClazzService {
             if (!"STUDENT".equals(existing.getRole())) {
                 return Result.error(400, "该学号不是学生账号，无法加入班级");
             }
+            if (!teacherId.equals(existing.getTeacherId())) {
+                return Result.error(403, "该学生不属于当前教师");
+            }
             // 检查是否已在本班级
             LambdaQueryWrapper<ClassStudent> csCheck = new LambdaQueryWrapper<>();
             csCheck.eq(ClassStudent::getClassId, classId);
@@ -506,6 +509,8 @@ public class ClazzService {
             user.setGrade(body.get("grade"));
             user.setRole("STUDENT");
             user.setStatus(1);
+            user.setTeacherId(teacherId);
+            user.setAuditStatus(1);
             user.setCreateTime(LocalDateTime.now());
             user.setUpdateTime(LocalDateTime.now());
             userMapper.insert(user);
@@ -570,6 +575,11 @@ public class ClazzService {
 
                     Long userId;
                     if (existing != null) {
+                        // 学生需归属当前教师
+                        if (!teacherId.equals(existing.getTeacherId())) {
+                            counts[2]++;
+                            return;
+                        }
                         // 用户已存在，检查是否已在班级中
                         LambdaQueryWrapper<ClassStudent> csWrapper = new LambdaQueryWrapper<>();
                         csWrapper.eq(ClassStudent::getClassId, classId);
@@ -591,6 +601,8 @@ public class ClazzService {
                         user.setGrade(grade);
                         user.setRole("STUDENT");
                         user.setStatus(1);
+                        user.setTeacherId(teacherId);
+                        user.setAuditStatus(1);
                         user.setCreateTime(LocalDateTime.now());
                         user.setUpdateTime(LocalDateTime.now());
                         userMapper.insert(user);

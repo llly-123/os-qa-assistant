@@ -85,6 +85,9 @@
           <el-button link class="forgot-link" @click="showResetDialog = true">
             忘记密码？
           </el-button>
+          <el-button link class="forgot-link" @click="showRegisterDialog = true">
+            教师注册
+          </el-button>
         </div>
       </div>
     </div>
@@ -128,6 +131,32 @@
         <el-button type="primary" @click="handleResetPassword">确认重置</el-button>
       </template>
     </el-dialog>
+    <!-- Register Dialog -->
+    <el-dialog
+      v-model="showRegisterDialog"
+      title="教师注册"
+      width="440px"
+      :close-on-click-modal="false"
+    >
+      <el-alert type="info" :closable="false" style="margin-bottom: 20px">
+        <template #title>注册后需等待管理员审核，审核通过后方可登录。</template>
+      </el-alert>
+      <el-form :model="registerForm" label-width="80px">
+        <el-form-item label="工号">
+          <el-input v-model="registerForm.username" placeholder="请输入工号" maxlength="50" />
+        </el-form-item>
+        <el-form-item label="姓名">
+          <el-input v-model="registerForm.realName" placeholder="请输入姓名" maxlength="50" />
+        </el-form-item>
+        <el-form-item label="密码">
+          <el-input v-model="registerForm.password" type="password" show-password placeholder="至少6位" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showRegisterDialog = false">取消</el-button>
+        <el-button type="primary" :loading="registering" @click="handleRegister">提交注册</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -138,7 +167,7 @@ import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
-import { sendPhoneCode, resetPasswordByPhone } from '@/api/auth'
+import { sendPhoneCode, resetPasswordByPhone, register } from '@/api/auth'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -148,6 +177,14 @@ const loading = ref(false)
 const showResetDialog = ref(false)
 const countdown = ref(0)
 const devCode = ref('')
+
+const showRegisterDialog = ref(false)
+const registering = ref(false)
+const registerForm = reactive({
+  username: '',
+  realName: '',
+  password: ''
+})
 
 const loginForm = reactive({
   username: '',
@@ -178,7 +215,9 @@ async function handleLogin() {
     await userStore.login(loginForm.username, loginForm.password)
     ElMessage.success('登录成功')
 
-    if (userStore.role === 'TEACHER') {
+    if (userStore.role === 'SUPER_ADMIN') {
+      router.push('/admin/teachers')
+    } else if (userStore.role === 'TEACHER') {
       router.push('/admin/students')
     } else {
       // 每次登录都重新选择班级，清除 store 和 localStorage 中的残留
@@ -196,6 +235,38 @@ async function handleLogin() {
     console.error('登录失败:', error)
   } finally {
     loading.value = false
+  }
+}
+
+async function handleRegister() {
+  if (!registerForm.username.trim()) {
+    ElMessage.warning('请输入工号')
+    return
+  }
+  if (!registerForm.realName.trim()) {
+    ElMessage.warning('请输入姓名')
+    return
+  }
+  if (!registerForm.password || registerForm.password.length < 6) {
+    ElMessage.warning('密码至少6位')
+    return
+  }
+  registering.value = true
+  try {
+    await register({
+      username: registerForm.username.trim(),
+      realName: registerForm.realName.trim(),
+      password: registerForm.password
+    })
+    ElMessage.success('注册成功，请等待管理员审核')
+    showRegisterDialog.value = false
+    registerForm.username = ''
+    registerForm.realName = ''
+    registerForm.password = ''
+  } catch (error) {
+    console.error('注册失败:', error)
+  } finally {
+    registering.value = false
   }
 }
 

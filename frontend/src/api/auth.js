@@ -8,6 +8,15 @@ export function login(username, password) {
   })
 }
 
+// 教师自助注册（工号 + 密码 + 姓名），注册后待超管审核
+export function register(data) {
+  return request({
+    url: '/auth/register',
+    method: 'post',
+    data
+  })
+}
+
 export function logout() {
   return request({
     url: '/auth/logout',

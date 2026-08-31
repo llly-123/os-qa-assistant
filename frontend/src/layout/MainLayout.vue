@@ -101,6 +101,29 @@
           </template>
         </div>
 
+        <!-- Super Admin Navigation -->
+        <div v-else-if="role === 'SUPER_ADMIN'" class="sidebar-content">
+          <div class="nav-section">
+            <div class="section-label" v-if="!sidebarCollapsed">管理功能</div>
+            <div
+              :class="['nav-item', { active: currentRoute === '/admin/teachers' }]"
+              @click="router.push('/admin/teachers')"
+              :title="sidebarCollapsed ? '教师管理' : ''"
+            >
+              <el-icon><UserFilled /></el-icon>
+              <span v-if="!sidebarCollapsed">教师管理</span>
+            </div>
+            <div
+              :class="['nav-item', { active: currentRoute === '/admin/settings' }]"
+              @click="router.push('/admin/settings')"
+              :title="sidebarCollapsed ? '系统设置' : ''"
+            >
+              <el-icon><Setting /></el-icon>
+              <span v-if="!sidebarCollapsed">系统设置</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Teacher Navigation -->
         <div v-else class="sidebar-content">
           <div class="nav-section">
@@ -145,14 +168,6 @@
               <el-icon><School /></el-icon>
               <span v-if="!sidebarCollapsed">班级管理</span>
             </div>
-            <div
-              :class="['nav-item', { active: currentRoute === '/admin/settings' }]"
-              @click="router.push('/admin/settings')"
-              :title="sidebarCollapsed ? '系统设置' : ''"
-            >
-              <el-icon><Setting /></el-icon>
-              <span v-if="!sidebarCollapsed">系统设置</span>
-            </div>
           </div>
         </div>
 
@@ -164,8 +179,8 @@
             </el-avatar>
             <div v-if="!sidebarCollapsed" class="user-detail">
               <span class="username-text">{{ username }}</span>
-              <el-tag :type="role === 'TEACHER' ? 'warning' : 'success'" size="small">
-                {{ role === 'TEACHER' ? '教师' : '学生' }}
+              <el-tag :type="roleTagType" size="small">
+                {{ roleText }}
               </el-tag>
             </div>
           </div>
@@ -353,6 +368,16 @@ const currentClassName = computed(() => {
 const role = computed(() => userStore.role)
 const username = computed(() => userStore.username)
 const currentRoute = computed(() => route.path)
+const roleText = computed(() => {
+  if (role.value === 'SUPER_ADMIN') return '超管'
+  if (role.value === 'TEACHER') return '教师'
+  return '学生'
+})
+const roleTagType = computed(() => {
+  if (role.value === 'SUPER_ADMIN') return 'danger'
+  if (role.value === 'TEACHER') return 'warning'
+  return 'success'
+})
 const userPhone = computed(() => userStore.userInfo?.phone || '')
 const maskedPhone = computed(() => {
   const p = userPhone.value

@@ -33,6 +33,14 @@ public class AuthController {
         return authService.login(username, password);
     }
 
+    @PostMapping("/register")
+    public Result<?> register(@RequestBody Map<String, String> body) {
+        String username = body.get("username");
+        String password = body.get("password");
+        String realName = body.get("realName");
+        return authService.registerTeacher(username, password, realName);
+    }
+
     @PostMapping("/logout")
     public Result<?> logout() {
         return Result.success();

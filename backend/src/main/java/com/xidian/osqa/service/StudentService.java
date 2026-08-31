@@ -44,10 +44,11 @@ public class StudentService {
         this.sysOptionMapper = sysOptionMapper;
     }
 
-    public Page<User> getStudentList(int page, int size, String keyword, String college, Integer status) {
+    public Page<User> getStudentList(int page, int size, String keyword, String college, Integer status, Long teacherId) {
         Page<User> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getRole, "STUDENT");
+        wrapper.eq(User::getTeacherId, teacherId);
         if (keyword != null && !keyword.isEmpty()) {
             wrapper.and(w -> w.like(User::getUsername, keyword).or().like(User::getRealName, keyword));
         }
@@ -97,15 +98,16 @@ public class StudentService {
     }
 
     // 获取所有学生（不分页，仅返回基础字段，用于班级管理勾选）
-    public List<User> getAllStudents() {
+    public List<User> getAllStudents(Long teacherId) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getRole, "STUDENT")
+               .eq(User::getTeacherId, teacherId)
                .eq(User::getStatus, 1)
                .orderByDesc(User::getCreateTime);
         return userMapper.selectList(wrapper);
     }
 
-    public Result<?> createStudent(String studentId, String name, String phone, String college, String major, String grade) {
+    public Result<?> createStudent(String studentId, String name, String phone, String college, String major, String grade, Long teacherId) {
         if (studentId == null || studentId.isBlank()) {
             return Result.error(400, "学号不能为空");
         }
@@ -126,14 +128,16 @@ public class StudentService {
         user.setGrade(grade);
         user.setRole("STUDENT");
         user.setStatus(1);
+        user.setTeacherId(teacherId);
+        user.setAuditStatus(1);
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.insert(user);
         return Result.success(user);
     }
 
-    public Map<String, Object> resetPassword(Long studentId) {
-        User user = userMapper.selectById(studentId);
+    public Map<String, Object> resetPassword(Long studentId, Long teacherId) {
+        User user = requireOwnedStudent(studentId, teacherId);
         if (user == null) {
             return null;
         }
@@ -148,8 +152,8 @@ public class StudentService {
         return result;
     }
 
-    public void toggleStatus(Long studentId, Integer status) {
-        User user = userMapper.selectById(studentId);
+    public void toggleStatus(Long studentId, Integer status, Long teacherId) {
+        User user = requireOwnedStudent(studentId, teacherId);
         if (user != null) {
             user.setStatus(status);
             user.setUpdateTime(LocalDateTime.now());
@@ -157,12 +161,15 @@ public class StudentService {
         }
     }
 
-    public void deleteStudent(Long studentId) {
-        userMapper.deleteById(studentId);
+    public void deleteStudent(Long studentId, Long teacherId) {
+        User user = requireOwnedStudent(studentId, teacherId);
+        if (user != null) {
+            userMapper.deleteById(studentId);
+        }
     }
 
-    public void updateStudent(Long id, Map<String, String> body) {
-        User user = userMapper.selectById(id);
+    public void updateStudent(Long id, Map<String, String> body, Long teacherId) {
+        User user = requireOwnedStudent(id, teacherId);
         if (user == null) {
             throw new RuntimeException("学生不存在");
         }
@@ -175,7 +182,7 @@ public class StudentService {
         userMapper.updateById(user);
     }
 
-    public Map<String, Object> batchImport(MultipartFile file) throws Exception {
+    public Map<String, Object> batchImport(MultipartFile file, Long teacherId) throws Exception {
         if (file.isEmpty()) {
             throw new RuntimeException("文件为空");
         }
@@ -223,7 +230,7 @@ public class StudentService {
                         return;
                     }
 
-                    createStudent(studentId, name, null, college, major, grade);
+                    createStudent(studentId, name, null, college, major, grade, teacherId);
                     counts[1]++;
 
                     // 收集新选项
@@ -299,5 +306,14 @@ public class StudentService {
                 .head(head)
                 .sheet("学生导入")
                 .doWrite(List.of());
+    }
+
+    /** 校验学生归属当前教师（越权防护），返回学生或 null */
+    private User requireOwnedStudent(Long studentId, Long teacherId) {
+        if (studentId == null) return null;
+        User user = userMapper.selectById(studentId);
+        if (user == null || !"STUDENT".equals(user.getRole())) return null;
+        if (teacherId != null && !teacherId.equals(user.getTeacherId())) return null;
+        return user;
     }
 }
