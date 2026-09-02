@@ -7,7 +7,6 @@ import com.xidian.osqa.entity.User;
 import com.xidian.osqa.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -25,9 +24,7 @@ public class AuthService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
-
-    @Value("${sms.dev-mode:true}")
-    private boolean smsDevMode;
+    private final SmsService smsService;
 
     // tokenVersion: userId -> 当前有效版本号（密码重置时递增，旧token即刻失效）
     private final Map<Long, Long> tokenVersions = new ConcurrentHashMap<>();
@@ -35,10 +32,11 @@ public class AuthService {
     private final Map<String, String> codeStore = new ConcurrentHashMap<>();
     private final Map<String, Long> codeExpiry = new ConcurrentHashMap<>();
 
-    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, SmsService smsService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.smsService = smsService;
     }
 
     public Result<?> login(String username, String password) {
@@ -255,19 +253,24 @@ public class AuthService {
         codeStore.put(phone, code);
         codeExpiry.put(phone, System.currentTimeMillis() + 5 * 60 * 1000);
 
-        logCode(phone, code);
-
-        // 开发模式：返回提示（不回显验证码）
-        if (smsDevMode) {
-            Map<String, Object> result = new HashMap<>();
-            result.put("message", "验证码已发送（开发模式，请查看后端日志）");
-            result.put("devMode", true);
-            return Result.success(result);
+        // 已配置真实短信服务：真正发送
+        if (smsService.isEnabled()) {
+            boolean sent = smsService.sendVerifyCode(phone, code);
+            if (!sent) {
+                // 发送失败，清除无效验证码
+                codeStore.remove(phone);
+                codeExpiry.remove(phone);
+                return Result.error(500, "短信发送失败，请稍后重试");
+            }
+            return Result.success("验证码已发送");
         }
 
-        // 生产模式：接入真实短信服务
-        // TODO: 实际部署时替换为阿里云/腾讯云短信API
-        return Result.success("验证码已发送");
+        // 未配置短信服务：开发模式，验证码打印到后端日志（不回显）
+        logCode(phone, code);
+        Map<String, Object> result = new HashMap<>();
+        result.put("message", "验证码已发送（开发模式，请查看后端日志）");
+        result.put("devMode", true);
+        return Result.success(result);
     }
 
     public Result<?> resetPasswordByPhone(String phone, String code) {
@@ -319,6 +322,7 @@ public class AuthService {
     }
 
     private void logCode(String phone, String code) {
-        log.debug("验证码已生成: phone={}, code={}", phone, code);
+        // 用 info 级别：开发模式（未接真实短信）时，生产日志级别 info 也能看到验证码
+        log.info("验证码已生成（开发模式）: phone={}, code={}", phone, code);
     }
 }

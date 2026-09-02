@@ -6,7 +6,7 @@ spring:
     active: local
 
   datasource:
-    url: jdbc:mysql://localhost:3306/os_qa?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/os_qa?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -50,10 +50,10 @@ jwt:
   expiration: 86400000
 
 langchain4j:
-  deepseek:
-    api-key: ${LANGCHAIN4J_DEEPSEEK_API_KEY:your_deepseek_api_key}
-    model-name: deepseek-v4-pro
-    base-url: https://api.deepseek.com
+  ai:
+    api-key: ${AI_API_KEY:}
+    model-name: ${AI_MODEL_NAME:deepseek-v4-pro}
+    base-url: ${AI_BASE_URL:https://api.deepseek.com}
   chroma:
     url: http://localhost:8000
     collection-name: os_textbook
@@ -69,12 +69,16 @@ web:
     subject: 操作系统
 
 sms:
-  dev-mode: true
+  # 阿里云短信（验证码找回密码）。四项留空则走开发模式（验证码打印到后端日志），
+  # 填齐 access-key-id / access-key-secret / sign-name / template-code 后自动切换为真实发送。
+  access-key-id: ${SMS_ACCESS_KEY_ID:}
+  access-key-secret: ${SMS_ACCESS_KEY_SECRET:}
+  sign-name: ${SMS_SIGN_NAME:}
+  template-code: ${SMS_TEMPLATE_CODE:}
 
 video:
   upload-dir: ${user.dir}/uploads/videos
   max-size: 524288000
-  # 开发模式：true=返回验证码到前端(方便测试)，false=需接入真实短信服务
 
 logging:
   level:

@@ -67,7 +67,7 @@
         </div>
       </div>
       <div class="bar-chart">
-        <div class="bar-track" ref="trendBarRefs">
+        <div class="bar-track" :ref="setTrendBarRef">
           <div
             v-for="(item, idx) in displayTrendData"
             :key="idx"
@@ -111,7 +111,7 @@
         </div>
       </div>
       <div class="bar-chart">
-        <div class="bar-track" ref="trendBarRefs">
+        <div class="bar-track" :ref="setTrendBarRef">
           <div
             v-for="(item, idx) in displayTrendData"
             :key="idx"
@@ -284,6 +284,12 @@ const trendData = ref([])
 const showAllWeeks = ref(false)
 // 提问趋势/学习时长趋势横向滚动容器
 const trendBarRefs = ref([])
+// 同一 ref 名复用在多个元素上会得到单个元素而非数组，这里用函数 ref 收集成数组
+function setTrendBarRef(el) {
+  if (el && !trendBarRefs.value.includes(el)) {
+    trendBarRefs.value.push(el)
+  }
+}
 // 趋势数据更新或展开/收起周数后，自动滚动到最右侧（最新日期）
 watch([trendData, showAllWeeks], () => {
   nextTick(() => {

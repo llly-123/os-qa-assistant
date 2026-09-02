@@ -32,9 +32,9 @@ public class AiModelProvider {
     private volatile String cachedSignature;
 
     public AiModelProvider(SystemSettingService settingService,
-                           @Value("${langchain4j.deepseek.api-key}") String defaultApiKey,
-                           @Value("${langchain4j.deepseek.base-url}") String defaultBaseUrl,
-                           @Value("${langchain4j.deepseek.model-name}") String defaultModelName) {
+                           @Value("${langchain4j.ai.api-key}") String defaultApiKey,
+                           @Value("${langchain4j.ai.base-url}") String defaultBaseUrl,
+                           @Value("${langchain4j.ai.model-name}") String defaultModelName) {
         this.settingService = settingService;
         this.defaultApiKey = defaultApiKey;
         this.defaultBaseUrl = defaultBaseUrl;

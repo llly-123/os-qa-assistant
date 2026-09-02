@@ -121,6 +121,13 @@
             <artifactId>jieba-analysis</artifactId>
             <version>1.0.2</version>
         </dependency>
+
+        <!-- 阿里云短信：验证码找回密码（配置密钥后才真正发送，否则回退开发模式） -->
+        <dependency>
+            <groupId>com.aliyun</groupId>
+            <artifactId>dysmsapi20170525</artifactId>
+            <version>2.0.24</version>
+        </dependency>
     </dependencies>
 
     <build>

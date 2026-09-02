@@ -32,13 +32,13 @@
         <el-form-item label="接口地址">
           <el-input
             v-model="aiForm.ai_base_url"
-            placeholder="如 https://api.deepseek.com（OpenAI 兼容接口）"
+            placeholder="OpenAI 兼容接口地址，如 https://api.deepseek.com"
           />
         </el-form-item>
         <el-form-item label="模型名">
           <el-input
             v-model="aiForm.ai_model_name"
-            placeholder="如 deepseek-v4-pro"
+            placeholder="如 deepseek-v4-pro / gpt-4o-mini"
           />
         </el-form-item>
       </el-form>
