@@ -101,31 +101,53 @@
     >
       <el-alert type="info" :closable="false" style="margin-bottom: 20px">
         <template #title>
-          绑定手机号后可通过验证码找回密码；未绑定手机号请联系教师重置。
+          绑定手机号或邮箱后可通过验证码找回密码；均未绑定请联系教师重置。
         </template>
       </el-alert>
 
-      <el-form :model="resetForm" label-width="80px">
-        <el-form-item label="手机号">
-          <el-input v-model="resetForm.phone" placeholder="请输入绑定的手机号" maxlength="11" />
-        </el-form-item>
-        <el-form-item label="验证码">
-          <div style="display: flex; gap: 10px; width: 100%">
-            <el-input v-model="resetForm.code" placeholder="请输入验证码" maxlength="6" style="flex:1" />
-            <el-button
-              :disabled="countdown > 0 || !resetForm.phone"
-              @click="sendCode"
-            >
-              {{ countdown > 0 ? `${countdown}s` : '获取验证码' }}
-            </el-button>
-          </div>
-          <div v-if="devCode" class="dev-code-tip" @click="copyDevCode">
-            <span class="dev-label">开发模式验证码：</span>
-            <span class="dev-value">{{ devCode }}</span>
-            <span class="dev-hint">(点击复制)</span>
-          </div>
-        </el-form-item>
-      </el-form>
+      <el-tabs v-model="resetTab">
+        <el-tab-pane label="手机号找回" name="phone">
+          <el-form :model="resetForm" label-width="80px">
+            <el-form-item label="手机号">
+              <el-input v-model="resetForm.phone" placeholder="请输入绑定的手机号" maxlength="11" />
+            </el-form-item>
+            <el-form-item label="验证码">
+              <div style="display: flex; gap: 10px; width: 100%">
+                <el-input v-model="resetForm.code" placeholder="请输入验证码" maxlength="6" style="flex:1" />
+                <el-button :disabled="phoneCountdown > 0 || !resetForm.phone" @click="sendPhoneCodeHandler">
+                  {{ phoneCountdown > 0 ? `${phoneCountdown}s` : '获取验证码' }}
+                </el-button>
+              </div>
+              <div v-if="phoneDevCode" class="dev-code-tip" @click="copyDevCode(phoneDevCode)">
+                <span class="dev-label">开发模式验证码：</span>
+                <span class="dev-value">{{ phoneDevCode }}</span>
+                <span class="dev-hint">(点击复制)</span>
+              </div>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="邮箱找回" name="email">
+          <el-form :model="resetForm" label-width="80px">
+            <el-form-item label="邮箱">
+              <el-input v-model="resetForm.email" placeholder="请输入绑定的邮箱" />
+            </el-form-item>
+            <el-form-item label="验证码">
+              <div style="display: flex; gap: 10px; width: 100%">
+                <el-input v-model="resetForm.emailCode" placeholder="请输入验证码" maxlength="6" style="flex:1" />
+                <el-button :disabled="emailCountdown > 0 || !resetForm.email" @click="sendEmailCodeHandler">
+                  {{ emailCountdown > 0 ? `${emailCountdown}s` : '获取验证码' }}
+                </el-button>
+              </div>
+              <div v-if="emailDevCode" class="dev-code-tip" @click="copyDevCode(emailDevCode)">
+                <span class="dev-label">开发模式验证码：</span>
+                <span class="dev-value">{{ emailDevCode }}</span>
+                <span class="dev-hint">(点击复制)</span>
+              </div>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+
       <template #footer>
         <el-button @click="showResetDialog = false">取消</el-button>
         <el-button type="primary" @click="handleResetPassword">确认重置</el-button>
@@ -167,7 +189,7 @@ import { ElMessage } from 'element-plus'
 import { User, Lock } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { useChatStore } from '@/stores/chat'
-import { sendPhoneCode, resetPasswordByPhone, register } from '@/api/auth'
+import { sendPhoneCode, resetPasswordByPhone, sendEmailCode, resetPasswordByEmail, register } from '@/api/auth'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -175,8 +197,11 @@ const userStore = useUserStore()
 const loginFormRef = ref(null)
 const loading = ref(false)
 const showResetDialog = ref(false)
-const countdown = ref(0)
-const devCode = ref('')
+const resetTab = ref('phone')
+const phoneCountdown = ref(0)
+const emailCountdown = ref(0)
+const phoneDevCode = ref('')
+const emailDevCode = ref('')
 
 const showRegisterDialog = ref(false)
 const registering = ref(false)
@@ -203,7 +228,9 @@ const loginRules = {
 
 const resetForm = reactive({
   phone: '',
-  code: ''
+  code: '',
+  email: '',
+  emailCode: ''
 })
 
 async function handleLogin() {
@@ -270,7 +297,7 @@ async function handleRegister() {
   }
 }
 
-async function sendCode() {
+async function sendPhoneCodeHandler() {
   if (!resetForm.phone || !/^1[3-9]\d{9}$/.test(resetForm.phone)) {
     ElMessage.warning('请输入正确的手机号')
     return
@@ -281,17 +308,45 @@ async function sendCode() {
     const data = res.data || res
 
     if (data.devMode && data.devCode) {
-      devCode.value = data.devCode
+      phoneDevCode.value = data.devCode
       ElMessage.success('验证码已生成（开发模式）')
     } else {
-      devCode.value = ''
+      phoneDevCode.value = ''
       ElMessage.success('验证码已发送')
     }
 
-    countdown.value = 60
+    phoneCountdown.value = 60
     const timer = setInterval(() => {
-      countdown.value--
-      if (countdown.value <= 0) clearInterval(timer)
+      phoneCountdown.value--
+      if (phoneCountdown.value <= 0) clearInterval(timer)
+    }, 1000)
+  } catch (error) {
+    console.error('发送验证码失败:', error)
+  }
+}
+
+async function sendEmailCodeHandler() {
+  if (!resetForm.email || !/^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$/.test(resetForm.email)) {
+    ElMessage.warning('请输入正确的邮箱')
+    return
+  }
+
+  try {
+    const res = await sendEmailCode(resetForm.email)
+    const data = res.data || res
+
+    if (data.devMode && data.devCode) {
+      emailDevCode.value = data.devCode
+      ElMessage.success('验证码已生成（开发模式）')
+    } else {
+      emailDevCode.value = ''
+      ElMessage.success('验证码已发送')
+    }
+
+    emailCountdown.value = 60
+    const timer = setInterval(() => {
+      emailCountdown.value--
+      if (emailCountdown.value <= 0) clearInterval(timer)
     }, 1000)
   } catch (error) {
     console.error('发送验证码失败:', error)
@@ -299,29 +354,44 @@ async function sendCode() {
 }
 
 async function handleResetPassword() {
+  if (resetTab.value === 'email') {
+    if (!resetForm.email || !resetForm.emailCode) {
+      ElMessage.warning('请填写邮箱和验证码')
+      return
+    }
+    try {
+      await resetPasswordByEmail(resetForm.email, resetForm.emailCode)
+      ElMessage.success('密码已重置为学号后6位，请登录后修改')
+      showResetDialog.value = false
+      emailDevCode.value = ''
+    } catch (error) {
+      console.error('重置密码失败:', error)
+    }
+    return
+  }
+
   if (!resetForm.phone || !resetForm.code) {
     ElMessage.warning('请填写手机号和验证码')
     return
   }
 
   try {
-    const res = await resetPasswordByPhone(resetForm.phone, resetForm.code)
-    const data = res.data || res
-    ElMessage.success(`密码已重置为学号后6位，请登录后修改`)
+    await resetPasswordByPhone(resetForm.phone, resetForm.code)
+    ElMessage.success('密码已重置为学号后6位，请登录后修改')
     showResetDialog.value = false
-    devCode.value = ''
+    phoneDevCode.value = ''
   } catch (error) {
     console.error('重置密码失败:', error)
   }
 }
 
-function copyDevCode() {
-  if (devCode.value) {
-    navigator.clipboard.writeText(devCode.value).then(() => {
+function copyDevCode(code) {
+  if (code) {
+    navigator.clipboard.writeText(code).then(() => {
       ElMessage.success('验证码已复制')
     }).catch(() => {
       const input = document.createElement('input')
-      input.value = devCode.value
+      input.value = code
       document.body.appendChild(input)
       input.select()
       document.execCommand('copy')

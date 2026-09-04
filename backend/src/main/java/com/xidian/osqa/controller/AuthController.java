@@ -93,4 +93,30 @@ public class AuthController {
         String code = body.get("code");
         return authService.resetPasswordByPhone(phone, code);
     }
+
+    @PostMapping("/bind-email")
+    public Result<?> bindEmail(HttpServletRequest request, @RequestBody Map<String, String> body) {
+        Long userId = (Long) request.getAttribute("userId");
+        String email = body.get("email");
+        return authService.bindEmail(userId, email);
+    }
+
+    @PostMapping("/unbind-email")
+    public Result<?> unbindEmail(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute("userId");
+        return authService.unbindEmail(userId);
+    }
+
+    @PostMapping("/send-email-code")
+    public Result<?> sendEmailCode(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        return authService.sendEmailCode(email);
+    }
+
+    @PostMapping("/reset-password-by-email")
+    public Result<?> resetPasswordByEmail(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        String code = body.get("code");
+        return authService.resetPasswordByEmail(email, code);
+    }
 }

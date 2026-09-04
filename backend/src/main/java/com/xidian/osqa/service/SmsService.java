@@ -6,37 +6,38 @@ import com.aliyun.dysmsapi20170525.models.SendSmsResponse;
 import com.aliyun.teaopenapi.models.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 /**
  * 短信发送服务（动态可配置）。
  *
- * 通过环境变量配置阿里云短信：accessKeyId / accessKeySecret / signName / templateCode
+ * 阿里云短信配置（accessKeyId / accessKeySecret / signName / templateCode）
+ * 由管理员在系统设置页面维护，存储于 system_setting 表。
  * 四项齐全后 isEnabled() 才返回 true 并真正发送短信；否则调用方回退到开发模式（日志打印验证码）。
- * 这样个人部署（未完成企业认证）时无需任何短信配置即可跑通流程，拿到密钥后填环境变量即自动切换为真短信。
+ * 这样个人部署（未完成企业认证）时无需任何短信配置即可跑通流程，管理员填齐后自动切换为真短信。
  */
 @Service
 public class SmsService {
 
     private static final Logger log = LoggerFactory.getLogger(SmsService.class);
 
-    @Value("${sms.access-key-id:}")
-    private String accessKeyId;
+    private static final String KEY_ACCESS_KEY_ID = "sms_access_key_id";
+    private static final String KEY_ACCESS_KEY_SECRET = "sms_access_key_secret";
+    private static final String KEY_SIGN_NAME = "sms_sign_name";
+    private static final String KEY_TEMPLATE_CODE = "sms_template_code";
 
-    @Value("${sms.access-key-secret:}")
-    private String accessKeySecret;
+    private final SystemSettingService settingService;
 
-    @Value("${sms.sign-name:}")
-    private String signName;
-
-    @Value("${sms.template-code:}")
-    private String templateCode;
+    public SmsService(SystemSettingService settingService) {
+        this.settingService = settingService;
+    }
 
     /** 是否已配置真实短信服务（四项齐全才启用） */
     public boolean isEnabled() {
-        return isNotBlank(accessKeyId) && isNotBlank(accessKeySecret)
-                && isNotBlank(signName) && isNotBlank(templateCode);
+        return isNotBlank(settingService.get(KEY_ACCESS_KEY_ID))
+                && isNotBlank(settingService.get(KEY_ACCESS_KEY_SECRET))
+                && isNotBlank(settingService.get(KEY_SIGN_NAME))
+                && isNotBlank(settingService.get(KEY_TEMPLATE_CODE));
     }
 
     /**
@@ -50,6 +51,11 @@ public class SmsService {
             return false;
         }
         try {
+            String accessKeyId = settingService.get(KEY_ACCESS_KEY_ID);
+            String accessKeySecret = settingService.get(KEY_ACCESS_KEY_SECRET);
+            String signName = settingService.get(KEY_SIGN_NAME);
+            String templateCode = settingService.get(KEY_TEMPLATE_CODE);
+
             Config config = new Config()
                     .setAccessKeyId(accessKeyId)
                     .setAccessKeySecret(accessKeySecret);

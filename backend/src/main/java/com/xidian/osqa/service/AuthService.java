@@ -25,6 +25,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final SmsService smsService;
+    private final MailService mailService;
 
     // tokenVersion: userId -> 当前有效版本号（密码重置时递增，旧token即刻失效）
     private final Map<Long, Long> tokenVersions = new ConcurrentHashMap<>();
@@ -32,11 +33,12 @@ public class AuthService {
     private final Map<String, String> codeStore = new ConcurrentHashMap<>();
     private final Map<String, Long> codeExpiry = new ConcurrentHashMap<>();
 
-    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, SmsService smsService) {
+    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, SmsService smsService, MailService mailService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.smsService = smsService;
+        this.mailService = mailService;
     }
 
     public Result<?> login(String username, String password) {
@@ -79,6 +81,7 @@ public class AuthService {
         userInfo.put("realName", user.getRealName());
         userInfo.put("role", user.getRole());
         userInfo.put("phone", user.getPhone());
+        userInfo.put("email", user.getEmail());
         userInfo.put("college", user.getCollege());
         userInfo.put("major", user.getMajor());
         userInfo.put("grade", user.getGrade());
@@ -127,6 +130,7 @@ public class AuthService {
         userInfo.put("realName", user.getRealName());
         userInfo.put("role", user.getRole());
         userInfo.put("phone", user.getPhone());
+        userInfo.put("email", user.getEmail());
         userInfo.put("college", user.getCollege());
         userInfo.put("major", user.getMajor());
         userInfo.put("grade", user.getGrade());
@@ -184,6 +188,42 @@ public class AuthService {
         }
 
         user.setPhone(null);
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        return Result.success();
+    }
+
+    public Result<?> bindEmail(Long userId, String email) {
+        if (email == null || !email.matches("^[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}$")) {
+            return Result.error(400, "邮箱格式不正确");
+        }
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getEmail, email);
+        if (userMapper.selectCount(wrapper) > 0) {
+            return Result.error(400, "该邮箱已被其他账号绑定");
+        }
+
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.error(404, "用户不存在");
+        }
+
+        user.setEmail(email);
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        return Result.success();
+    }
+
+    public Result<?> unbindEmail(Long userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null) {
+            return Result.error(404, "用户不存在");
+        }
+
+        user.setEmail(null);
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
 
@@ -310,6 +350,76 @@ public class AuthService {
         codeExpiry.remove(phone);
 
         // 不再回显新密码，提示用户使用默认密码（学号后6位）登录
+        return Result.success("密码已重置为默认密码，请使用学号后6位登录");
+    }
+
+    public Result<?> sendEmailCode(String email) {
+        if (email == null || !email.matches("^[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}$")) {
+            return Result.error(400, "邮箱格式不正确");
+        }
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getEmail, email);
+        if (userMapper.selectCount(wrapper) == 0) {
+            return Result.error(404, "该邮箱未绑定任何账号");
+        }
+
+        String code = String.valueOf(100000 + ThreadLocalRandom.current().nextInt(900000));
+        codeStore.put(email, code);
+        codeExpiry.put(email, System.currentTimeMillis() + 5 * 60 * 1000);
+
+        if (mailService.isEnabled()) {
+            boolean sent = mailService.sendVerifyCode(email, code);
+            if (!sent) {
+                codeStore.remove(email);
+                codeExpiry.remove(email);
+                return Result.error(500, "邮件发送失败，请稍后重试");
+            }
+            return Result.success("验证码已发送");
+        }
+
+        logCode(email, code);
+        Map<String, Object> result = new HashMap<>();
+        result.put("message", "验证码已发送（开发模式，请查看后端日志）");
+        result.put("devMode", true);
+        return Result.success(result);
+    }
+
+    public Result<?> resetPasswordByEmail(String email, String code) {
+        String storedCode = codeStore.get(email);
+        Long expiry = codeExpiry.get(email);
+
+        if (storedCode == null || !storedCode.equals(code)) {
+            return Result.error(400, "验证码错误");
+        }
+
+        if (expiry == null || System.currentTimeMillis() > expiry) {
+            codeStore.remove(email);
+            codeExpiry.remove(email);
+            return Result.error(400, "验证码已过期");
+        }
+
+        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(User::getEmail, email);
+        User user = userMapper.selectOne(wrapper);
+
+        if (user == null) {
+            return Result.error(404, "该邮箱未绑定任何账号");
+        }
+
+        String username = user.getUsername();
+        String newPassword = username.length() >= 6
+                ? username.substring(username.length() - 6)
+                : String.format("%6s", username).replace(' ', '0');
+        user.setPassword(passwordEncoder.encode(newPassword));
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
+
+        tokenVersions.merge(user.getId(), 1L, Long::sum);
+
+        codeStore.remove(email);
+        codeExpiry.remove(email);
+
         return Result.success("密码已重置为默认密码，请使用学号后6位登录");
     }
 

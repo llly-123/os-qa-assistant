@@ -43,18 +43,26 @@
           </el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="API体验" width="160">
+        <template #default="{ row }">
+          <el-tag v-if="isInTrial(row)" type="success" size="small">体验中</el-tag>
+          <el-tag v-else-if="row.trialStartTime" type="info" size="small">未到/已过</el-tag>
+          <el-tag v-else type="info" size="small">未开放</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="注册时间" width="180">
         <template #default="{ row }">
           {{ formatDate(row.createTime) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" min-width="300" fixed="right">
+      <el-table-column label="操作" min-width="360" fixed="right">
         <template #default="{ row }">
           <el-button v-if="row.auditStatus === 0" size="small" type="success" @click="handleAudit(row, 1)">通过</el-button>
           <el-button v-if="row.auditStatus === 0" size="small" type="danger" @click="handleAudit(row, 2)">拒绝</el-button>
           <el-button size="small" :type="row.status === 1 ? 'warning' : 'success'" @click="handleToggleStatus(row)">
             {{ row.status === 1 ? '禁用' : '启用' }}
           </el-button>
+          <el-button size="small" @click="handleTrial(row)">体验设置</el-button>
           <el-button size="small" @click="handleResetPassword(row)">重置密码</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
@@ -72,14 +80,57 @@
         @current-change="fetchTeachers"
       />
     </div>
+
+    <!-- 体验时间段设置弹窗 -->
+    <el-dialog v-model="trialDialogVisible" title="API 体验时间段设置" width="480px">
+      <div style="margin-bottom: 16px">
+        <span style="color: var(--color-text-secondary); font-size: 14px">
+          教师：<strong>{{ trialForm.teacherName }}</strong>
+        </span>
+      </div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 20px"
+        title="在体验时间段内，教师未配置自己的 API 时可使用管理员的默认 API。清除时间段则取消体验权限。"
+      />
+      <el-form label-width="100px">
+        <el-form-item label="开始时间">
+          <el-date-picker
+            v-model="trialForm.startTime"
+            type="datetime"
+            placeholder="选择开始时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="结束时间">
+          <el-date-picker
+            v-model="trialForm.endTime"
+            type="datetime"
+            placeholder="选择结束时间"
+            format="YYYY-MM-DD HH:mm:ss"
+            value-format="YYYY-MM-DDTHH:mm:ss"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="trialDialogVisible = false">取消</el-button>
+        <el-button type="warning" plain @click="handleClearTrial">清除体验权限</el-button>
+        <el-button type="primary" :loading="trialSaving" @click="handleSaveTrial">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
-import { getTeacherList, auditTeacher, toggleTeacherStatus, resetTeacherPassword, deleteTeacher } from '@/api/teacher'
+import { getTeacherList, auditTeacher, toggleTeacherStatus, resetTeacherPassword, deleteTeacher, setTeacherTrial } from '@/api/teacher'
 
 const loading = ref(false)
 const teachers = ref([])
@@ -88,6 +139,15 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const searchKeyword = ref('')
 const filterAuditStatus = ref(null)
+
+const trialDialogVisible = ref(false)
+const trialSaving = ref(false)
+const trialForm = reactive({
+  teacherId: null,
+  teacherName: '',
+  startTime: '',
+  endTime: ''
+})
 
 function auditTagType(status) {
   if (status === 0) return 'warning'
@@ -106,6 +166,15 @@ function auditText(status) {
 function formatDate(time) {
   if (!time) return '-'
   return String(time).replace('T', ' ').substring(0, 19)
+}
+
+/** 判断教师当前是否在体验时间段内 */
+function isInTrial(row) {
+  if (!row.trialStartTime || !row.trialEndTime) return false
+  const now = new Date()
+  const start = new Date(row.trialStartTime)
+  const end = new Date(row.trialEndTime)
+  return now >= start && now <= end
 }
 
 async function fetchTeachers() {
@@ -189,6 +258,44 @@ async function handleDelete(row) {
     )
     await deleteTeacher(row.id)
     ElMessage.success('已删除')
+    fetchTeachers()
+  } catch (e) {
+    // 取消或失败
+  }
+}
+
+function handleTrial(row) {
+  trialForm.teacherId = row.id
+  trialForm.teacherName = row.realName || row.username
+  trialForm.startTime = row.trialStartTime ? row.trialStartTime.replace(' ', 'T') : ''
+  trialForm.endTime = row.trialEndTime ? row.trialEndTime.replace(' ', 'T') : ''
+  trialDialogVisible.value = true
+}
+
+async function handleSaveTrial() {
+  if (!trialForm.startTime || !trialForm.endTime) {
+    ElMessage.warning('请选择开始和结束时间')
+    return
+  }
+  trialSaving.value = true
+  try {
+    await setTeacherTrial(trialForm.teacherId, trialForm.startTime, trialForm.endTime)
+    ElMessage.success('体验时间段已设置')
+    trialDialogVisible.value = false
+    fetchTeachers()
+  } catch (e) {
+    // 错误已由拦截器提示
+  } finally {
+    trialSaving.value = false
+  }
+}
+
+async function handleClearTrial() {
+  try {
+    await ElMessageBox.confirm('确定清除该教师的体验权限吗？', '提示', { type: 'warning' })
+    await setTeacherTrial(trialForm.teacherId, '', '')
+    ElMessage.success('体验权限已清除')
+    trialDialogVisible.value = false
     fetchTeachers()
   } catch (e) {
     // 取消或失败

@@ -35,6 +35,15 @@ export function resetTeacherPassword(id) {
   })
 }
 
+// 设置教师 API 体验时间段
+export function setTeacherTrial(id, startTime, endTime) {
+  return request({
+    url: `/admin/teachers/${id}/trial`,
+    method: 'put',
+    data: { startTime, endTime }
+  })
+}
+
 // 删除教师
 export function deleteTeacher(id) {
   return request({

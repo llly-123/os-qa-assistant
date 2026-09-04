@@ -117,6 +117,15 @@ public class RagService {
     }
 
     public String answer(String question, boolean webSearch, Long kbId) {
+        return answer(question, webSearch, kbId, null, false);
+    }
+
+    /**
+     * 回答学生问题。
+     * @param teacherId     会话所属班级的教师ID（用于解析教师级API配置）
+     * @param inTrialPeriod 教师是否在体验时间段内
+     */
+    public String answer(String question, boolean webSearch, Long kbId, Long teacherId, boolean inTrialPeriod) {
         try {
             // 清除旧的缓存
             cachedSearchResults.remove();
@@ -191,7 +200,23 @@ public class RagService {
             String userPrompt = contextBuilder + "学生问题：" + question;
             messages.add(new UserMessage(userPrompt));
 
-            Response<AiMessage> response = aiModelProvider.getModel().generate(messages);
+            // 解析模型：
+            // - 有教师上下文时，严格使用教师级配置（未配置且不在体验期则直接拒绝，不回退管理员）
+            // - 无教师上下文时（如管理员自测），才使用管理员模型
+            dev.langchain4j.model.chat.ChatLanguageModel model;
+            if (teacherId != null) {
+                model = aiModelProvider.getModel(teacherId, inTrialPeriod);
+                if (model == null) {
+                    return "抱歉，当前课程暂未开放AI答疑。请联系教师设置API接口，或等待管理员开放体验权限。";
+                }
+            } else {
+                model = aiModelProvider.getModel();
+                if (model == null) {
+                    return "抱歉，AI服务暂未配置。请联系教师设置API接口，或等待管理员开放体验权限。";
+                }
+            }
+
+            Response<AiMessage> response = model.generate(messages);
             String answer = AnswerSanitizer.sanitize(response.content().text());
             // 兜底：AI 返回空内容（如拒答无关问题被清洗后为空）时给出明确提示
             if (answer == null || answer.isBlank()) {

@@ -21,12 +21,22 @@ public class SettingController {
 
     @GetMapping("/admin/settings")
     public Result<?> getAll() {
-        return Result.success(settingService.getAll());
+        return Result.success(settingService.getAllMasked());
     }
 
     @PutMapping("/admin/settings")
     public Result<?> update(@RequestBody Map<String, String> body) {
         settingService.setAll(body);
+        return Result.success();
+    }
+
+    /** 清空敏感密钥（如 AI Key、短信 Secret） */
+    @DeleteMapping("/admin/settings/{key}")
+    public Result<?> clear(@PathVariable String key) {
+        if (!settingService.isSensitiveKey(key)) {
+            return Result.error(400, "该配置项不允许清空");
+        }
+        settingService.remove(key);
         return Result.success();
     }
 

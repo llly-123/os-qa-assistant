@@ -168,6 +168,14 @@
               <el-icon><School /></el-icon>
               <span v-if="!sidebarCollapsed">班级管理</span>
             </div>
+            <div
+              :class="['nav-item', { active: currentRoute === '/admin/teacher-settings' }]"
+              @click="router.push('/admin/teacher-settings')"
+              :title="sidebarCollapsed ? 'AI接口配置' : ''"
+            >
+              <el-icon><Connection /></el-icon>
+              <span v-if="!sidebarCollapsed">AI接口配置</span>
+            </div>
           </div>
         </div>
 
@@ -275,6 +283,32 @@
       </template>
     </el-dialog>
 
+    <!-- Email Dialog -->
+    <el-dialog v-model="showEmailDialog" :title="userEmail ? '邮箱管理' : '绑定邮箱'" width="440px" @close="emailForm.email = ''">
+      <el-alert v-if="!userEmail" type="info" :closable="false" style="margin-bottom: 18px">
+        <template #title>绑定邮箱后可通过邮箱验证码找回密码</template>
+      </el-alert>
+
+      <template v-if="userEmail">
+        <div style="margin-bottom: 18px">
+          <div style="color: var(--color-text-tertiary); font-size:13px; margin-bottom:6px">当前邮箱</div>
+          <el-tag type="success" size="large">{{ maskedEmail }}</el-tag>
+        </div>
+        <el-button type="danger" plain @click="handleUnbindEmail" style="width:100%">解绑邮箱</el-button>
+      </template>
+      <template v-else>
+        <el-form label-width="80px">
+          <el-form-item label="邮箱">
+            <el-input v-model="emailForm.email" placeholder="请输入邮箱" />
+          </el-form-item>
+        </el-form>
+      </template>
+      <template #footer>
+        <el-button @click="showEmailDialog = false">取消</el-button>
+        <el-button v-if="!userEmail" type="primary" :loading="bindingEmail" @click="handleBindEmail">绑定</el-button>
+      </template>
+    </el-dialog>
+
     <!-- Password Dialog -->
     <el-dialog v-model="showPasswordDialog" title="修改密码" width="400px">
       <el-form :model="passwordForm" label-width="80px">
@@ -317,6 +351,16 @@
           </div>
           <el-icon class="account-card-arrow" color="#c0c4cc"><ArrowRight /></el-icon>
         </div>
+        <div class="account-card" @click="showEmailDialog = true; showAccountDialog = false">
+          <div class="account-card-icon" style="background: #e0f2fe; color: #0ea5e9">
+            <el-icon :size="24"><Message /></el-icon>
+          </div>
+          <div class="account-card-info">
+            <span class="account-card-title">{{ userEmail ? '邮箱管理' : '绑定邮箱' }}</span>
+            <span class="account-card-desc">{{ userEmail ? maskedEmail : '绑定后可通过邮箱找回密码' }}</span>
+          </div>
+          <el-icon class="account-card-arrow" color="#c0c4cc"><ArrowRight /></el-icon>
+        </div>
       </div>
     </el-dialog>
   </div>
@@ -327,7 +371,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useUserStore } from '@/stores/user'
-import { bindPhone, changePhone, changePassword, sendPhoneCode } from '@/api/auth'
+import { bindPhone, changePhone, changePassword, sendPhoneCode, bindEmail, unbindEmail } from '@/api/auth'
 import { useChatStore } from '@/stores/chat'
 import { useStudyTime } from '@/composables/useStudyTime'
 
@@ -353,6 +397,10 @@ const sendingCode = ref(false)
 const codeCountdown = ref(0)
 let codeTimer = null
 const changingPhone = ref(false)
+
+const showEmailDialog = ref(false)
+const emailForm = reactive({ email: '' })
+const bindingEmail = ref(false)
 
 const showPasswordDialog = ref(false)
 const changingPassword = ref(false)
@@ -382,6 +430,13 @@ const userPhone = computed(() => userStore.userInfo?.phone || '')
 const maskedPhone = computed(() => {
   const p = userPhone.value
   return p ? p.substring(0, 3) + '****' + p.substring(7) : ''
+})
+const userEmail = computed(() => userStore.userInfo?.email || '')
+const maskedEmail = computed(() => {
+  const e = userEmail.value
+  if (!e) return ''
+  const at = e.indexOf('@')
+  return at > 2 ? e.substring(0, 2) + '****' + e.substring(at) : e
 })
 
 onMounted(async () => {
@@ -455,6 +510,30 @@ async function handleBindPhone() {
     phoneForm.phone = ''
     await userStore.fetchUserInfo()
   } catch (error) { console.error('绑定失败:', error) }
+}
+
+async function handleBindEmail() {
+  if (!emailForm.email || !/^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$/.test(emailForm.email)) {
+    ElMessage.warning('请输入正确的邮箱'); return
+  }
+  bindingEmail.value = true
+  try {
+    await bindEmail(emailForm.email)
+    ElMessage.success('绑定成功')
+    showEmailDialog.value = false
+    emailForm.email = ''
+    await userStore.fetchUserInfo()
+  } catch (error) { console.error('绑定失败:', error) } finally { bindingEmail.value = false }
+}
+
+async function handleUnbindEmail() {
+  try {
+    await ElMessageBox.confirm('确定要解绑邮箱吗？解绑后将无法通过邮箱找回密码。', '提示', { type: 'warning' })
+    await unbindEmail()
+    ElMessage.success('已解绑')
+    showEmailDialog.value = false
+    await userStore.fetchUserInfo()
+  } catch (error) { /* 用户取消或失败 */ }
 }
 
 async function handleSendChangeCode() {

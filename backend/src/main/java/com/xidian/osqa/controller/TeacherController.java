@@ -43,6 +43,12 @@ public class TeacherController {
         return teacherService.resetPassword(id);
     }
 
+    /** 设置教师的 API 体验时间段 */
+    @PutMapping("/{id}/trial")
+    public Result<?> setTrialPeriod(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        return teacherService.setTrialPeriod(id, body.get("startTime"), body.get("endTime"));
+    }
+
     @DeleteMapping("/{id}")
     public Result<?> deleteTeacher(@PathVariable Long id) {
         return teacherService.deleteTeacher(id);

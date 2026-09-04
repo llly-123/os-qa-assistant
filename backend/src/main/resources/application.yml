@@ -6,7 +6,7 @@ spring:
     active: local
 
   datasource:
-    url: jdbc:mysql://localhost:3306/os_qa?useUnicode=true&characterEncoding=utf8&connectionTimeZone=Asia/Shanghai&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/os_qa?useUnicode=true&characterEncoding=utf8&connectionTimeZone=GMT%2B8&forceConnectionTimeZoneToSession=true&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: ${DB_PASSWORD:123456}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -16,18 +16,6 @@ spring:
       mode: always
       schema-locations: classpath:db/schema.sql
       encoding: UTF-8
-
-  mail:
-    host: smtp.qq.com
-    port: 587
-    username: your_email@qq.com
-    password: your_smtp_password
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
 
   servlet:
     multipart:
@@ -49,11 +37,12 @@ jwt:
   secret: ${JWT_SECRET:os-qa-assistant-xidian-university-2024-secret-key-for-jwt-token-generation}
   expiration: 86400000
 
+app:
+  # 敏感字段（API Key、短信密钥等）数据库加密密钥。生产必须通过 APP_ENCRYPT_KEY 环境变量注入，
+  # 留空则使用内置开发密钥（仅用于本地开发，勿用于生产）。
+  encrypt-key: ${APP_ENCRYPT_KEY:}
+
 langchain4j:
-  ai:
-    api-key: ${AI_API_KEY:}
-    model-name: ${AI_MODEL_NAME:deepseek-v4-pro}
-    base-url: ${AI_BASE_URL:https://api.deepseek.com}
   chroma:
     url: http://localhost:8000
     collection-name: os_textbook
@@ -67,14 +56,6 @@ web:
   search:
     enabled: true
     subject: 操作系统
-
-sms:
-  # 阿里云短信（验证码找回密码）。四项留空则走开发模式（验证码打印到后端日志），
-  # 填齐 access-key-id / access-key-secret / sign-name / template-code 后自动切换为真实发送。
-  access-key-id: ${SMS_ACCESS_KEY_ID:}
-  access-key-secret: ${SMS_ACCESS_KEY_SECRET:}
-  sign-name: ${SMS_SIGN_NAME:}
-  template-code: ${SMS_TEMPLATE_CODE:}
 
 video:
   upload-dir: ${user.dir}/uploads/videos

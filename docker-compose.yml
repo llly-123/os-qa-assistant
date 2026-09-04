@@ -40,13 +40,7 @@ services:
       - DB_USERNAME=root
       - DB_PASSWORD=${DB_PASSWORD}
       - JWT_SECRET=${JWT_SECRET}
-      - AI_API_KEY=${AI_API_KEY}
-      - AI_BASE_URL=${AI_BASE_URL}
-      - AI_MODEL_NAME=${AI_MODEL_NAME}
-      - SMS_ACCESS_KEY_ID=${SMS_ACCESS_KEY_ID}
-      - SMS_ACCESS_KEY_SECRET=${SMS_ACCESS_KEY_SECRET}
-      - SMS_SIGN_NAME=${SMS_SIGN_NAME}
-      - SMS_TEMPLATE_CODE=${SMS_TEMPLATE_CODE}
+      - APP_ENCRYPT_KEY=${APP_ENCRYPT_KEY}
       - UPLOAD_DIR=/app/uploads
     volumes:
       - app-data:/app/data

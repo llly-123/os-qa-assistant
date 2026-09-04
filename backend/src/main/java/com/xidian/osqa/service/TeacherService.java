@@ -98,6 +98,33 @@ public class TeacherService {
         return Result.success("密码已重置为工号后6位");
     }
 
+    /** 设置教师的 API 体验时间段（null 表示取消体验权限） */
+    public Result<?> setTrialPeriod(Long id, String startTime, String endTime) {
+        User teacher = requireTeacher(id);
+        if (teacher == null) return Result.error(404, "教师不存在");
+
+        if (startTime == null || startTime.isBlank() || endTime == null || endTime.isBlank()) {
+            // 清除体验权限
+            teacher.setTrialStartTime(null);
+            teacher.setTrialEndTime(null);
+        } else {
+            try {
+                LocalDateTime start = LocalDateTime.parse(startTime.replace(" ", "T"));
+                LocalDateTime end = LocalDateTime.parse(endTime.replace(" ", "T"));
+                if (end.isBefore(start)) {
+                    return Result.error(400, "结束时间不能早于开始时间");
+                }
+                teacher.setTrialStartTime(start);
+                teacher.setTrialEndTime(end);
+            } catch (Exception e) {
+                return Result.error(400, "时间格式无效，请使用 yyyy-MM-ddTHH:mm:ss 格式");
+            }
+        }
+        teacher.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(teacher);
+        return Result.success();
+    }
+
     /** 删除教师，并级联清理其名下学生、班级、知识库、视频集 */
     @Transactional
     public Result<?> deleteTeacher(Long id) {

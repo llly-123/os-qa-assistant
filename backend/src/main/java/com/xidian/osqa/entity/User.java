@@ -14,6 +14,7 @@ public class User {
     @TableField("real_name")
     private String realName;
     private String phone;
+    private String email;
     private String college;
     private String major;
     private String grade;
@@ -21,6 +22,10 @@ public class User {
     private Integer status;
     private Long teacherId;
     private Integer auditStatus;
+    @TableField("trial_start_time")
+    private LocalDateTime trialStartTime;
+    @TableField("trial_end_time")
+    private LocalDateTime trialEndTime;
     @TableField("create_time")
     private LocalDateTime createTime;
     @TableField("update_time")
@@ -42,6 +47,8 @@ public class User {
     public void setRealName(String realName) { this.realName = realName; }
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
     public String getCollege() { return college; }
     public void setCollege(String college) { this.college = college; }
     public String getMajor() { return major; }
@@ -56,6 +63,10 @@ public class User {
     public void setTeacherId(Long teacherId) { this.teacherId = teacherId; }
     public Integer getAuditStatus() { return auditStatus; }
     public void setAuditStatus(Integer auditStatus) { this.auditStatus = auditStatus; }
+    public LocalDateTime getTrialStartTime() { return trialStartTime; }
+    public void setTrialStartTime(LocalDateTime trialStartTime) { this.trialStartTime = trialStartTime; }
+    public LocalDateTime getTrialEndTime() { return trialEndTime; }
+    public void setTrialEndTime(LocalDateTime trialEndTime) { this.trialEndTime = trialEndTime; }
     public LocalDateTime getCreateTime() { return createTime; }
     public void setCreateTime(LocalDateTime createTime) { this.createTime = createTime; }
     public LocalDateTime getUpdateTime() { return updateTime; }

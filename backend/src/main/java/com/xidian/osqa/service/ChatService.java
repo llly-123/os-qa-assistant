@@ -4,10 +4,12 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xidian.osqa.entity.ChatMessage;
 import com.xidian.osqa.entity.ChatSession;
 import com.xidian.osqa.entity.Clazz;
+import com.xidian.osqa.entity.User;
 import com.xidian.osqa.mapper.ChatMessageMapper;
 import com.xidian.osqa.mapper.ChatSessionMapper;
 import com.xidian.osqa.mapper.ClazzMapper;
 import com.xidian.osqa.mapper.StudyTimeMapper;
+import com.xidian.osqa.mapper.UserMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -29,14 +31,16 @@ public class ChatService {
     private final ClazzMapper clazzMapper;
     private final KeywordAiService keywordAiService;
     private final StudyTimeMapper studyTimeMapper;
+    private final UserMapper userMapper;
 
-    public ChatService(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper, RagService ragService, ClazzMapper clazzMapper, KeywordAiService keywordAiService, StudyTimeMapper studyTimeMapper) {
+    public ChatService(ChatSessionMapper sessionMapper, ChatMessageMapper messageMapper, RagService ragService, ClazzMapper clazzMapper, KeywordAiService keywordAiService, StudyTimeMapper studyTimeMapper, UserMapper userMapper) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
         this.ragService = ragService;
         this.clazzMapper = clazzMapper;
         this.keywordAiService = keywordAiService;
         this.studyTimeMapper = studyTimeMapper;
+        this.userMapper = userMapper;
     }
 
     public List<ChatSession> getUserSessions(Long userId) {
@@ -70,6 +74,26 @@ public class ChatService {
         if (session == null || session.getClassId() == null) return null;
         Clazz clazz = clazzMapper.selectById(session.getClassId());
         return clazz != null ? clazz.getKbId() : null;
+    }
+
+    /** 解析会话所属班级的教师ID，用于教师级API配置 */
+    private Long resolveTeacherId(Long sessionId) {
+        ChatSession session = sessionMapper.selectById(sessionId);
+        if (session == null || session.getClassId() == null) return null;
+        Clazz clazz = clazzMapper.selectById(session.getClassId());
+        return clazz != null ? clazz.getTeacherId() : null;
+    }
+
+    /** 判断教师当前是否在体验时间段内 */
+    private boolean isInTrialPeriod(Long teacherId) {
+        if (teacherId == null) return false;
+        User teacher = userMapper.selectById(teacherId);
+        if (teacher == null) return false;
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime start = teacher.getTrialStartTime();
+        java.time.LocalDateTime end = teacher.getTrialEndTime();
+        if (start == null || end == null) return false;
+        return !now.isBefore(start) && !now.isAfter(end);
     }
 
     public List<ChatMessage> getSessionMessages(Long sessionId) {
@@ -150,7 +174,10 @@ public class ChatService {
     }
 
     public String askQuestion(Long sessionId, String question, boolean webSearch) {
-        return ragService.answer(question, webSearch, resolveKbId(sessionId));
+        Long kbId = resolveKbId(sessionId);
+        Long teacherId = resolveTeacherId(sessionId);
+        boolean inTrial = isInTrialPeriod(teacherId);
+        return ragService.answer(question, webSearch, kbId, teacherId, inTrial);
     }
 
     public String getCitation(Long sessionId, String question, boolean webSearch) {

@@ -77,3 +77,34 @@ export function resetPasswordByPhone(phone, code) {
     data: { phone, code }
   })
 }
+
+export function bindEmail(email) {
+  return request({
+    url: '/auth/bind-email',
+    method: 'post',
+    data: { email }
+  })
+}
+
+export function unbindEmail() {
+  return request({
+    url: '/auth/unbind-email',
+    method: 'post'
+  })
+}
+
+export function sendEmailCode(email) {
+  return request({
+    url: '/auth/send-email-code',
+    method: 'post',
+    data: { email }
+  })
+}
+
+export function resetPasswordByEmail(email, code) {
+  return request({
+    url: '/auth/reset-password-by-email',
+    method: 'post',
+    data: { email, code }
+  })
+}

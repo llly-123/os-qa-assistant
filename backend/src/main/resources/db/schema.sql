@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
     `password` VARCHAR(200) NOT NULL,
     `real_name` VARCHAR(50) DEFAULT NULL,
     `phone` VARCHAR(20) DEFAULT NULL,
+    `email` VARCHAR(100) DEFAULT NULL,
     `college` VARCHAR(100) DEFAULT NULL,
     `major` VARCHAR(100) DEFAULT NULL,
     `grade` VARCHAR(20) DEFAULT NULL,
@@ -11,6 +12,8 @@ CREATE TABLE IF NOT EXISTS `sys_user` (
     `status` INT NOT NULL DEFAULT 1,
     `teacher_id` BIGINT DEFAULT NULL,
     `audit_status` INT NOT NULL DEFAULT 1,
+    `trial_start_time` TIMESTAMP NULL DEFAULT NULL,
+    `trial_end_time` TIMESTAMP NULL DEFAULT NULL,
     `create_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     `deleted` INT NOT NULL DEFAULT 0,
@@ -181,6 +184,16 @@ CREATE TABLE IF NOT EXISTS `system_setting` (
     PRIMARY KEY (`setting_key`)
 );
 
+-- ========== 教师级 API 配置（教师未设置时回退到管理员的系统默认配置）==========
+CREATE TABLE IF NOT EXISTS `teacher_api_config` (
+    `teacher_id` BIGINT NOT NULL,
+    `api_key` VARCHAR(500) DEFAULT NULL,
+    `base_url` VARCHAR(500) DEFAULT NULL,
+    `model_name` VARCHAR(200) DEFAULT NULL,
+    `update_time` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`teacher_id`)
+);
+
 -- ========== 已有库的列迁移（列已包含在上方建表语句中，MySQL 全新建库无需迁移）==========
 
 -- 初始化默认用户（仅当表为空时插入，不覆盖已有数据）
@@ -206,6 +219,16 @@ INSERT INTO `sys_option` (`id`, `category`, `option_value`, `sort_order`) SELECT
 -- 系统设置默认值（仅当对应键不存在时插入）
 INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('course_name', '本课程');
 INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('school_name', '');
+-- 短信配置（阿里云短信，管理员在系统设置页面填写；全空则走开发模式）
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('sms_access_key_id', '');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('sms_access_key_secret', '');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('sms_sign_name', '');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('sms_template_code', '');
+-- 邮箱配置（SMTP 发信，管理员在系统设置页面填写；全空则走开发模式）
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('mail_host', '');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('mail_port', '');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('mail_username', '');
+INSERT IGNORE INTO `system_setting` (`setting_key`, `setting_value`) VALUES ('mail_password', '');
 
 -- ========== 数据清洗：将历史孤儿知识文档/知识块关联到第一个知识库 ==========
 -- knowledge 表中 kb_id 为 null 的记录关联到 id 最小的知识库（幂等，仅执行一次修复）

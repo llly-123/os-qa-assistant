@@ -83,6 +83,12 @@ const routes = [
             meta: { requiresAuth: true, roles: ['TEACHER'] }
           },
           {
+            path: 'teacher-settings',
+            name: 'TeacherSettings',
+            component: () => import('@/views/admin/TeacherSettings.vue'),
+            meta: { requiresAuth: true, roles: ['TEACHER'] }
+          },
+          {
             path: 'settings',
             name: 'Settings',
             component: () => import('@/views/admin/Settings.vue'),
