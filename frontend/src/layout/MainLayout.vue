@@ -513,7 +513,7 @@ async function handleBindPhone() {
 }
 
 async function handleBindEmail() {
-  if (!emailForm.email || !/^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$/.test(emailForm.email)) {
+  if (!emailForm.email || !/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(emailForm.email)) {
     ElMessage.warning('请输入正确的邮箱'); return
   }
   bindingEmail.value = true

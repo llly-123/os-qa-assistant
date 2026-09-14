@@ -326,7 +326,7 @@ async function sendPhoneCodeHandler() {
 }
 
 async function sendEmailCodeHandler() {
-  if (!resetForm.email || !/^[\w.+-]+@[\w-]+\.[a-zA-Z]{2,}$/.test(resetForm.email)) {
+  if (!resetForm.email || !/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(resetForm.email)) {
     ElMessage.warning('请输入正确的邮箱')
     return
   }

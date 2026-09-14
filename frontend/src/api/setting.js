@@ -20,6 +20,18 @@ export function testAi(data) {
   return request({ url: '/admin/settings/test-ai', method: 'post', data })
 }
 
+// ===== 管理员通知邮箱 =====
+
+// 获取管理员通知邮箱列表
+export function getNotifyEmails() {
+  return request({ url: '/admin/notify-emails', method: 'get' })
+}
+
+// 设置管理员通知邮箱列表（最多 10 个）
+export function updateNotifyEmails(emails) {
+  return request({ url: '/admin/notify-emails', method: 'put', data: { emails } })
+}
+
 // ===== 教师级 API 配置 =====
 
 // 获取当前教师的 API 配置及体验状态

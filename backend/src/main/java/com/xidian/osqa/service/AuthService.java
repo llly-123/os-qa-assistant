@@ -26,6 +26,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final SmsService smsService;
     private final MailService mailService;
+    private final AdminNotifyService adminNotifyService;
 
     // tokenVersion: userId -> 当前有效版本号（密码重置时递增，旧token即刻失效）
     private final Map<Long, Long> tokenVersions = new ConcurrentHashMap<>();
@@ -33,12 +34,13 @@ public class AuthService {
     private final Map<String, String> codeStore = new ConcurrentHashMap<>();
     private final Map<String, Long> codeExpiry = new ConcurrentHashMap<>();
 
-    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, SmsService smsService, MailService mailService) {
+    public AuthService(UserMapper userMapper, PasswordEncoder passwordEncoder, JwtUtil jwtUtil, SmsService smsService, MailService mailService, AdminNotifyService adminNotifyService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.smsService = smsService;
         this.mailService = mailService;
+        this.adminNotifyService = adminNotifyService;
     }
 
     public Result<?> login(String username, String password) {
@@ -115,6 +117,8 @@ public class AuthService {
         user.setCreateTime(LocalDateTime.now());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.insert(user);
+        // 异步通知管理员邮箱：有新教师注册待审核
+        adminNotifyService.notifyTeacherRegisteredAsync(uname, user.getRealName());
         return Result.success("注册成功，请等待管理员审核");
     }
 
@@ -195,7 +199,7 @@ public class AuthService {
     }
 
     public Result<?> bindEmail(Long userId, String email) {
-        if (email == null || !email.matches("^[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}$")) {
+        if (email == null || !email.matches("^[\\w.+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$")) {
             return Result.error(400, "邮箱格式不正确");
         }
 
@@ -354,7 +358,7 @@ public class AuthService {
     }
 
     public Result<?> sendEmailCode(String email) {
-        if (email == null || !email.matches("^[\\w.+-]+@[\\w-]+\\.[a-zA-Z]{2,}$")) {
+        if (email == null || !email.matches("^[\\w.+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$")) {
             return Result.error(400, "邮箱格式不正确");
         }
 

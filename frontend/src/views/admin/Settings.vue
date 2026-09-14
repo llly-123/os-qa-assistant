@@ -47,6 +47,10 @@
         </el-form-item>
       </el-form>
       <div class="test-bar">
+        <el-button type="primary" :loading="savingAi" @click="handleSaveAi">
+          <el-icon><Check /></el-icon>
+          保存
+        </el-button>
         <el-button :loading="testing" @click="handleTest">
           <el-icon><Connection /></el-icon>
           测试连接
@@ -101,6 +105,12 @@
           <el-input v-model="smsForm.sms_template_code" placeholder="验证码模板 Code，模板需包含 code 变量" />
         </el-form-item>
       </el-form>
+      <div class="card-actions">
+        <el-button type="primary" :loading="savingSms" @click="handleSaveSms">
+          <el-icon><Check /></el-icon>
+          保存短信配置
+        </el-button>
+      </div>
     </el-card>
 
     <!-- 邮箱配置 -->
@@ -142,14 +152,57 @@
           </el-input>
         </el-form-item>
       </el-form>
+      <div class="card-actions">
+        <el-button type="primary" :loading="savingMail" @click="handleSaveMail">
+          <el-icon><Check /></el-icon>
+          保存邮箱配置
+        </el-button>
+      </div>
     </el-card>
 
-    <div class="save-bar">
-      <el-button type="primary" :loading="saving" @click="handleSave">
-        <el-icon><Check /></el-icon>
-        保存设置
-      </el-button>
-    </div>
+    <!-- 通知邮箱配置 -->
+    <el-card class="setting-card" shadow="never">
+      <template #header>
+        <div class="card-title">
+          <el-icon><Bell /></el-icon>
+          <span>教师注册通知邮箱</span>
+        </div>
+      </template>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        style="margin-bottom: 20px"
+        title="当有新教师注册时，系统会向以下邮箱发送邮件通知。最多绑定 10 个邮箱。"
+      />
+      <div class="notify-emails">
+        <el-tag
+          v-for="(email, index) in notifyEmails"
+          :key="email"
+          closable
+          @close="removeNotifyEmail(index)"
+          style="margin: 0 8px 8px 0"
+        >
+          {{ email }}
+        </el-tag>
+        <span v-if="notifyEmails.length === 0" class="empty-tip">暂无通知邮箱</span>
+      </div>
+      <div class="notify-add">
+        <el-input
+          v-model="notifyEmailInput"
+          placeholder="请输入邮箱地址"
+          style="flex: 1"
+          @keyup.enter="addNotifyEmail"
+        />
+        <el-button @click="addNotifyEmail">添加</el-button>
+      </div>
+      <div class="card-actions">
+        <el-button type="primary" :loading="savingNotify" @click="handleSaveNotify">
+          <el-icon><Check /></el-icon>
+          保存通知邮箱
+        </el-button>
+      </div>
+    </el-card>
   </div>
 </template>
 
@@ -157,7 +210,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Connection, Check, Message } from '@element-plus/icons-vue'
-import { getSettings, updateSettings, testAi, clearSetting } from '@/api/setting'
+import { getSettings, updateSettings, testAi, clearSetting, getNotifyEmails, updateNotifyEmails } from '@/api/setting'
 
 const aiForm = reactive({
   ai_api_key: '',
@@ -179,9 +232,15 @@ const mailForm = reactive({
   mail_password: ''
 })
 
-const saving = ref(false)
+const savingAi = ref(false)
+const savingSms = ref(false)
+const savingMail = ref(false)
 const testing = ref(false)
 const testResult = ref(null)
+
+const notifyEmails = ref([])
+const notifyEmailInput = ref('')
+const savingNotify = ref(false)
 
 async function fetchSettings() {
   try {
@@ -205,19 +264,39 @@ async function fetchSettings() {
   }
 }
 
-async function handleSave() {
-  saving.value = true
+async function handleSaveAi() {
+  savingAi.value = true
   try {
-    await updateSettings({
-      ...aiForm,
-      ...smsForm,
-      ...mailForm
-    })
-    ElMessage.success('设置已保存')
+    await updateSettings({ ...aiForm })
+    ElMessage.success('AI 配置已保存')
   } catch (e) {
     // 错误已由拦截器提示
   } finally {
-    saving.value = false
+    savingAi.value = false
+  }
+}
+
+async function handleSaveSms() {
+  savingSms.value = true
+  try {
+    await updateSettings({ ...smsForm })
+    ElMessage.success('短信配置已保存')
+  } catch (e) {
+    // 错误已由拦截器提示
+  } finally {
+    savingSms.value = false
+  }
+}
+
+async function handleSaveMail() {
+  savingMail.value = true
+  try {
+    await updateSettings({ ...mailForm })
+    ElMessage.success('邮箱配置已保存')
+  } catch (e) {
+    // 错误已由拦截器提示
+  } finally {
+    savingMail.value = false
   }
 }
 
@@ -270,7 +349,58 @@ async function handleClearMailPassword() {
   }
 }
 
-onMounted(fetchSettings)
+async function fetchNotifyEmails() {
+  try {
+    const res = await getNotifyEmails()
+    const data = res.data || res
+    notifyEmails.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    // 错误已由拦截器提示
+  }
+}
+
+function addNotifyEmail() {
+  const email = notifyEmailInput.value.trim()
+  if (!email) {
+    ElMessage.warning('请输入邮箱')
+    return
+  }
+  if (!/^[\w.+-]+@[\w.-]+\.[a-zA-Z]{2,}$/.test(email)) {
+    ElMessage.warning('邮箱格式不正确')
+    return
+  }
+  if (notifyEmails.value.includes(email)) {
+    ElMessage.warning('该邮箱已存在')
+    return
+  }
+  if (notifyEmails.value.length >= 10) {
+    ElMessage.warning('最多只能绑定 10 个邮箱')
+    return
+  }
+  notifyEmails.value.push(email)
+  notifyEmailInput.value = ''
+}
+
+function removeNotifyEmail(index) {
+  notifyEmails.value.splice(index, 1)
+}
+
+async function handleSaveNotify() {
+  savingNotify.value = true
+  try {
+    await updateNotifyEmails(notifyEmails.value)
+    ElMessage.success('通知邮箱已保存')
+  } catch (e) {
+    // 错误已由拦截器提示
+  } finally {
+    savingNotify.value = false
+  }
+}
+
+onMounted(() => {
+  fetchSettings()
+  fetchNotifyEmails()
+})
 </script>
 
 <style scoped lang="scss">
@@ -303,7 +433,7 @@ onMounted(fetchSettings)
   }
 }
 
-.save-bar {
+.card-actions {
   display: flex;
   justify-content: flex-end;
   padding-top: 4px;
@@ -312,5 +442,21 @@ onMounted(fetchSettings)
 .test-bar {
   display: flex;
   gap: 10px;
+}
+
+.notify-emails {
+  min-height: 32px;
+  margin-bottom: 12px;
+
+  .empty-tip {
+    color: var(--color-text-tertiary);
+    font-size: 13px;
+  }
+}
+
+.notify-add {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 </style>

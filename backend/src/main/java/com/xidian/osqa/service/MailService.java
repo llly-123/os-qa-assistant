@@ -46,42 +46,55 @@ public class MailService {
      * @return 是否发送成功
      */
     public boolean sendVerifyCode(String to, String code) {
+        return sendMail(to, "【AI答疑】邮箱验证码", "您的验证码是：" + code + "，5分钟内有效。如非本人操作请忽略。");
+    }
+
+    /**
+     * 发送普通邮件（主题 + 纯文本正文）。
+     *
+     * @return 是否发送成功
+     */
+    public boolean sendMail(String to, String subject, String text) {
         if (!isEnabled()) {
             return false;
         }
         try {
-            JavaMailSenderImpl sender = new JavaMailSenderImpl();
-            sender.setHost(settingService.get(KEY_HOST));
-            int port = Integer.parseInt(settingService.get(KEY_PORT).trim());
-            sender.setPort(port);
-            sender.setUsername(settingService.get(KEY_USERNAME));
-            sender.setPassword(settingService.get(KEY_PASSWORD));
-            sender.setDefaultEncoding("UTF-8");
-
-            Properties props = new Properties();
-            props.put("mail.smtp.auth", "true");
-            if (port == 465) {
-                // 465 端口走 SSL（SMTPS）
-                props.put("mail.smtp.ssl.enable", "true");
-            } else {
-                // 587 等端口走 STARTTLS
-                props.put("mail.smtp.starttls.enable", "true");
-            }
-            sender.setJavaMailProperties(props);
-
             SimpleMailMessage msg = new SimpleMailMessage();
             msg.setFrom(settingService.get(KEY_USERNAME));
             msg.setTo(to);
-            msg.setSubject("【AI答疑】邮箱验证码");
-            msg.setText("您的验证码是：" + code + "，5分钟内有效。如非本人操作请忽略。");
-            sender.send(msg);
+            msg.setSubject(subject);
+            msg.setText(text);
+            buildSender().send(msg);
 
-            log.info("验证码邮件已发送: to={}", to);
+            log.info("邮件已发送: to={}, subject={}", to, subject);
             return true;
         } catch (Exception e) {
             log.error("邮件发送失败: to={}, error={}", to, e.getMessage(), e);
             return false;
         }
+    }
+
+    /** 按当前 SMTP 配置构建发送器 */
+    private JavaMailSenderImpl buildSender() {
+        JavaMailSenderImpl sender = new JavaMailSenderImpl();
+        sender.setHost(settingService.get(KEY_HOST));
+        int port = Integer.parseInt(settingService.get(KEY_PORT).trim());
+        sender.setPort(port);
+        sender.setUsername(settingService.get(KEY_USERNAME));
+        sender.setPassword(settingService.get(KEY_PASSWORD));
+        sender.setDefaultEncoding("UTF-8");
+
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        if (port == 465) {
+            // 465 端口走 SSL（SMTPS）
+            props.put("mail.smtp.ssl.enable", "true");
+        } else {
+            // 587 等端口走 STARTTLS
+            props.put("mail.smtp.starttls.enable", "true");
+        }
+        sender.setJavaMailProperties(props);
+        return sender;
     }
 
     private boolean isNotBlank(String s) {

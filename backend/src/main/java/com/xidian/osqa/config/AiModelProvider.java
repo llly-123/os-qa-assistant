@@ -1,5 +1,6 @@
 package com.xidian.osqa.config;
 
+import com.xidian.osqa.common.CryptoUtil;
 import com.xidian.osqa.service.SystemSettingService;
 import com.xidian.osqa.service.TeacherApiConfigService;
 import dev.langchain4j.data.message.AiMessage;
@@ -142,6 +143,11 @@ public class AiModelProvider {
     /** 用指定配置发起一次真实调用，验证 API 是否有效（不修改已保存配置） */
     public Map<String, Object> test(String apiKey, String baseUrl, String modelName) {
         String key = apiKey == null ? "" : apiKey.trim();
+        // 脱敏值（保存后回显的占位值，如 "****1ede"）：回退到已保存的管理员真实 key
+        if (CryptoUtil.isMasked(key)) {
+            String saved = settingService.get("ai_api_key");
+            key = saved == null ? "" : saved;
+        }
         String url = baseUrl == null ? "" : baseUrl.trim();
         String model = modelName == null ? "" : modelName.trim();
 
