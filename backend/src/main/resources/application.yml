@@ -42,11 +42,6 @@ app:
   # 留空则使用内置开发密钥（仅用于本地开发，勿用于生产）。
   encrypt-key: ${APP_ENCRYPT_KEY:}
 
-langchain4j:
-  chroma:
-    url: http://localhost:8000
-    collection-name: os_textbook
-
 knowledge:
   upload-dir: ${user.dir}/uploads/knowledge
   chunk-size: 1000
@@ -55,7 +50,6 @@ knowledge:
 web:
   search:
     enabled: true
-    subject: 操作系统
 
 video:
   upload-dir: ${user.dir}/uploads/videos

@@ -215,6 +215,7 @@ public class StatisticsService {
                 // 注意 user 消息的 citation 恒为空（citation 属于 assistant 回答），不能用它判断。
                 Object sourceType = newRow.get("sourceType");
                 if (sourceType == null) sourceType = newRow.get("SOURCE_TYPE");
+                if (sourceType == null) sourceType = newRow.get("source_type");
                 boolean isRelated = sourceType != null && !"no_class".equals(sourceType.toString());
                 newRow.put("isRelated", isRelated);
 

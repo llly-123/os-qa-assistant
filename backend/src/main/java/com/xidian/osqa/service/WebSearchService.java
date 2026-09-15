@@ -141,7 +141,7 @@ public class WebSearchService {
     /**
      * 执行联网搜索
      * @param question 学生问题
-     * @param subject 学科名称（如：操作系统）
+     * @param subject 学科/课程名称
      * @return 搜索结果列表
      */
     public List<SearchResult> search(String question, String subject) {
